@@ -1,0 +1,16 @@
+[package]
+name = "token_launcher"
+version = "1.0.0"
+authors = []
+
+[addresses]
+token_launcher = "0xc156a41155e21f972e4158caf1cac90311543b062f49b45536d6fd17708a4198"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+subdir = "aptos-move/framework/aptos-framework"
+rev = "main"
+
+[dev-dependencies]

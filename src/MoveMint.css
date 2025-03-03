@@ -1,0 +1,544 @@
+/* Import Montserrat Font */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
+
+/* Apply 5% padding on both sides for all sections */
+.container {
+  padding-left: 5%;
+  padding-right: 5%;
+}
+
+
+body {
+    background-color: #dcfff1 /* Light grey background to highlight the white container */
+}
+a {
+    text-decoration: none;
+  }
+  
+
+.launch-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: 0px;
+  background-color: #ffffff;
+}
+
+/* ✅ Ensure the form container matches the width of the search bar */
+.launch-container {
+  width: 100%;
+  max-width: 40%; /* ✅ Match the search bar width */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  text-align: left;
+}
+.input-label {
+  display: block;
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: #434852; /* ✅ Matches site theme */
+  text-align: left; /* ✅ Forces left alignment */
+  width: 100%; /* Ensures full width */
+  margin-top:10px;
+}
+
+/* ✅ Ensure input fields and launch button are the same width */
+/* ✅ Ensure input fields are the same width as the search bar */
+.launch-form input[type="text"],
+.launch-form input[type="file"],
+.custom-upload-container {
+  width: 100%;
+  max-width: 100%; /* ✅ Prevent shrinking */
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box; /* ✅ Stops unwanted shrinking */
+  height: 40px;
+}
+
+.custom-upload-container {
+  width: 100%; /* Matches input fields */
+  height: 200px;
+  display: flex;
+  justify-content: center; /* Center button */
+  align-items: center;
+}
+/* ✅ Adjust the submit button to match input fields */
+/* ✅ Ensure the submit button is also full width */
+.launch-btn1 {
+  width: 100%;
+  max-width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 5px;
+  background-color: #434852;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+
+.launch-btn1:hover {
+  background-color: #00ff99;
+  color: #434852;
+}
+
+/* ✅ Image Upload Styling */
+.upload-label {
+  display: block;
+  background-color: #ffffff; /* ✅ Matches theme */
+  color: #434852;
+  text-align: left;
+  padding-left: 0px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  
+}
+/* ✅ Style the upload input to look like a button */
+.upload-input {
+ display: none;
+}
+
+
+.disabled-input {
+  background-color: #f3f3f3;
+  color: #666;
+  cursor: not-allowed;
+  width: 100%;
+  height: 40px;
+  border-radius: 5px;
+  padding: 20px;
+  border: 1px solid #ccc;
+}
+.upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #ffffff;
+  color: #00ff99;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  width: 100%;
+ 
+}
+
+
+/* ✅ Style for the SVG icon */
+.upload-icon {
+  width: 100px;
+  height: 100px;
+}
+
+/* ✅ Style for selected file name */
+.file-name {
+  margin-top: 5px;
+  font-size: 14px;
+  color: #666;
+}
+
+.container {
+    background-color: #ffffff; /* White background for container */
+    margin: 0 auto;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    overflow: hidden;
+   max-height: 90vh;
+}
+
+/* Reset styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Top Navigation Bar */
+.top-nav {
+  width: 100%;
+  background-color: white; /* Same as header */
+  display: flex;
+  justify-content: flex-end; /* Aligns items to the right */
+  padding: 10px 5%;
+  gap: 20px;
+  position: absolute; /* Positions it at the top */
+  top: 0; /* Ensures it's at the very top */
+  left: 0;
+  right: 0;
+  z-index: 1000; /* Ensures it appears above everything */
+}
+
+.top-nav a {
+    text-decoration: none;
+    color: #434852; /* Updated black */
+    font-size:xx-small;
+    transition: 0.3s;
+}
+
+.top-nav a:hover {
+    color: #00ff99; /* Updated hover color */
+}
+
+/* Main Header Section */
+.main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 5%;
+    background-color: #ffffff;
+    color: #434852; /* Updated black */
+}
+
+/* Logo */
+.logo {
+    height: 120px;
+    width: auto;
+    
+}
+
+/* Center Search Bar */
+.header-center {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.search-container {
+  position: absolute;  /* Allow absolute positioning within the header */
+  left: 50%;           /* Move it to the center */
+  transform: translateX(-50%); /* Shift back by 50% of its width */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width:40%;
+}
+
+
+.search-container .search-icon {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;  /* adjust as needed */
+    height: auto;
+    /* You can also set a fill color if your SVG supports it, or change its opacity */
+}
+
+.search-bar {
+    width: 100%;
+    padding: 10px 10px 10px 50px; /* Increase left padding to leave room for the icon */
+    border: 1px solid #434852;
+    border-radius: 5px;
+    font-size: 16px;
+}
+/* Connect Wallet Button */
+.connect-wallet {
+    background-color: #ffffff;
+    color: #434852;
+    border: 1px solid #434852;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 15px; /* space between icon and text */
+    position: relative;
+}
+
+
+
+.wallet-icon {
+    width: 15px; /* adjust as needed */
+    height: auto;
+}
+
+.connect-wallet:hover {
+    background-color: #ffffff; /* Slightly darker green for hover effect */
+}
+
+/* Wallet Dropdown */
+.wallet-dropdown {
+  position: relative;
+  display: inline-block;
+  border-radius: 5px;
+  background-color: #434852;
+}
+
+.wallet-dropdown .connect-wallet {
+  background-color: #434852; /* Deep Grey */
+  color: #00ff99; /* Green Text */
+  border: 1px solid #434852;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Adjusts Icon Size */
+.wallet-icon {
+  width: 15px;
+  height: auto;
+}
+.wallet-button {
+  background-color: #434852;  /* Deep grey */
+  color: #00ff99;  /* Green text */
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Space between icon and text */
+}
+.wallet-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  width: 150px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+}
+.wallet-menu a,
+.wallet-menu button {
+  padding: 10px;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  width: 100%;
+  text-decoration: none;
+  color: #434852;
+}
+
+.wallet-menu a:hover,
+.wallet-menu button:hover {
+  background-color: #f1f1f1;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #434852;
+  border-radius: 5px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 120px;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 8px 12px;
+  text-align: left;
+  color: #434852;
+  background: #ffffff;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-decoration: none;
+  border-radius: 5px;
+  font-size: small;
+}
+
+.dropdown-item:hover {
+  background: #434852;
+  color: white;
+}
+
+
+
+
+
+
+.launch-section {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;  /* Align items at the top */
+    height: 100vh;            /* Full viewport height */
+    padding-top: 30vh;        /* Adjust this value to move the button further down/up */
+  }
+  
+  
+  /* Launch Button Styling */
+  .launch-btn {
+    background-color: #434852;   /* Grey background */
+    color: #ffffff;              /* White text */
+    border: none;
+    border-radius: 5px;          /* Same corner rounding as Connect button */
+    padding: 12px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;               /* For icon and text alignment */
+    align-items: center;
+    justify-content: center;     /* Center content horizontally */
+    gap: 8px;                   /* Space between icon and text */
+    transition: background-color 0.3s;
+    width: 300px;
+}
+
+  .launch-btn:hover {
+    background-color: #3a3f47;   /* Slightly darker on hover */
+  }
+  
+  /* Launch Icon Styling */
+  .launch-icon {
+    width: 20px;   /* Adjust as needed */
+    height: auto;
+  }
+
+  /* Marketplace Section */
+.marketplace {
+    background-color: #dcfff1; /* Light background for contrast */
+    padding: 40px 50px;
+    text-align: left;
+  }
+  
+  .marketplace h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+    color: #434852;
+    text-align: center;
+  }
+  
+  .marketplace-items {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    cursor: pointer;
+  }
+  
+  .marketplace-item {
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    width: 200px;
+    padding: 15px;
+    transition: transform 0.3s;
+  }
+  
+  .marketplace-item:hover {
+    transform: scale(1.05);
+  }
+  
+  .marketplace-item-icon {
+    width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+  }
+  
+  .marketplace-item h3 {
+    font-size: 1.2em;
+    margin-bottom: 5px;
+    color: #434852;
+  }
+  
+  .marketplace-item p {
+    font-size: 1em;
+    color: #434852;
+  }
+  /* Footer Styling */
+.footer {
+    background-color: #ffffff; /* White background */
+    padding: 20px 0;           /* Vertical padding */
+    text-align: center;        /* Center the content */
+    margin-top: 40px;          /* Optional: space above the footer */
+  }
+  
+  .footer-logo {
+    height: 80px;              /* Adjust size as needed */
+    width: auto;
+   
+  }
+
+  /* Launch Form Section */
+.launch-form-section {
+    background-color: #ffffff; /* or any background color you prefer */
+    padding: 40px 50px;
+    text-align: center;
+    
+  }
+  
+  .launch-form {
+    width: 100%;
+    max-width: 100%; /* ✅ Make sure it takes the full width of its container */
+    padding: 30px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .launch-form h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+    color: #434852;
+  }
+  
+  .form-group {
+    margin-bottom: 40px;
+    text-align: left;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #434852;
+    font-weight: 600;
+  }
+  
+  .form-group input[type="text"],
+  .form-group input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+  }
+  
+  .submit-btn {
+    background-color: #434852;   /* Grey background */
+    color: #ffffff;              /* White text */
+    border: none;
+    border-radius: 5px;          /* Same corner rounding as Connect button */
+    padding: 12px 20px;
+    margin-top: 40px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;               /* For icon and text alignment */
+    align-items: center;
+    justify-content: center;     /* Center content horizontally */
+    gap: 8px;                   /* Space between icon and text */
+    transition: background-color 0.3s;
+    width: 100%;
+  }
+  
+  .submit-btn:hover {
+    background-color: #3a3f47;
+  }
+  
