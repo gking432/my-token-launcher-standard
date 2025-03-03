@@ -5,14 +5,12 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 const Header: React.FC = () => {
   const { connect, account, wallets, disconnect } = useWallet();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false); // ✅ Track connecting state
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  // ✅ Toggle dropdown menu visibility
   const toggleDropdown = () => {
     setDropdownOpen(!dropdownOpen);
   };
 
-  // ✅ Auto-reconnect in the background (without forcing UI popup)
   useEffect(() => {
     const savedWallet = localStorage.getItem("connectedWallet");
 
@@ -30,36 +28,33 @@ const Header: React.FC = () => {
     }
   }, [connect, account]);
 
-  // ✅ Handle wallet disconnection
   const handleDisconnect = async () => {
     try {
       await disconnect();
       localStorage.removeItem("connectedWallet");
-      window.location.reload(); // ✅ Force UI update
+      window.location.reload();
     } catch (error) {
       console.error("Error disconnecting wallet:", error);
     }
   };
 
-  // ✅ Handle wallet connection (prevents auto-popup issue)
   const handleConnect = async (walletName: string) => {
     try {
-      if (!account) { // ✅ Ensure it only runs if no account is connected
+      if (!account) {
         await connect(walletName);
         localStorage.setItem("connectedWallet", walletName);
       }
     } catch (error) {
       console.error("Error connecting wallet:", error);
-  
       if (String(error).includes("User has rejected the request")) {
         console.warn("User rejected the wallet connection.");
-        localStorage.removeItem("connectedWallet"); // ✅ Prevent further reconnect attempts
+        localStorage.removeItem("connectedWallet");
       }
     }
   };
 
   return (
-    <header className="main-header container">
+    <header className="main-header"> {/* Remove 'container' class */}
       <div className="top-nav">
         <a href="#">Docs</a>
         <a href="#">Support</a>
@@ -96,7 +91,7 @@ const Header: React.FC = () => {
             wallets.map((wallet) => (
               <button
                 key={wallet.name}
-                onClick={() => handleConnect(wallet.name)} // ✅ Calls the fixed function
+                onClick={() => handleConnect(wallet.name)}
                 className="connect-wallet"
               >
                 <img src="/assets/walleticon.svg" alt="Wallet Icon" className="wallet-icon" />

@@ -1,0 +1,23 @@
+.profile-token-container {
+    border: 2px solid #333;
+    padding: 16px;
+    margin-top: 12px;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.profile-token-container:hover {
+    transform: scale(1.02);
+    background-color: #e6e6e6;
+}
+
+.profile-token-container a {
+    text-decoration: none;
+    color: #1a73e8;
+}
+
+.profile-token-container a:hover {
+    color: #0d47a1;
+}
