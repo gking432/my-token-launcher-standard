@@ -3,19 +3,105 @@
 @tailwind utilities;
 
 :root {
+  /* Theme Colors */
   --background: #ffffff;
   --foreground: #171717;
+  --mint-accent: #00ff99;  /* Bright mint green that stays consistent */
+  
+  /* Text Colors */
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  
+  /* Background Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --card-bg: #ffffff;
+  --header-bg: rgba(10, 10, 10, 0.95);
+  
+  /* Border Colors */
+  --border-color: rgba(0, 0, 0, 0.1);
+  --subtle-border: rgba(0, 0, 0, 0.1);
+  
+  /* Button Colors */
+  --button-bg: #e5e7eb;
+  --button-hover: #d1d5db;
+  
+  /* Input Colors */
+  --input-bg: #ffffff;
+  --input-border: #ccc;
+  
+  /* Dropdown Colors */
+  --dropdown-bg: #ffffff;
+  --dropdown-text: #434852;
+  --dropdown-hover: #f1f1f1;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --mint-accent: #00ff99;  /* Same bright mint green */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: rgba(255, 255, 255, 0.03);
+    --card-bg: rgba(22, 22, 26, 0.9);
+    --text-primary: #ffffff;
+    --text-secondary: #a0aec0;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --subtle-border: rgba(255, 255, 255, 0.08);
+    --button-bg: rgba(255, 255, 255, 0.1);
+    --button-hover: rgba(255, 255, 255, 0.15);
+    --input-bg: rgba(255, 255, 255, 0.05);
+    --input-border: rgba(255, 255, 255, 0.1);
+    --dropdown-bg: rgba(22, 22, 26, 0.9);
+    --dropdown-text: #ffffff;
+    --dropdown-hover: rgba(255, 255, 255, 0.1);
   }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--button-bg);
+  border-radius: 5px;
+  border: 2px solid var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--button-hover);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--button-bg) var(--bg-primary);
 }

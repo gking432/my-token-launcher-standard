@@ -1,23 +1,290 @@
-.profile-token-container {
-    border: 2px solid #333;
-    padding: 16px;
+/* Profile Page Styles */
+.profile-page {
+    width: 100vh;
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    padding-top: 80px;
+    box-sizing: border-box;
+    display: block;
+    position: relative;
+    overflow: visible;
+}
+
+.profile-container {
+    padding: 20px 0;
+    width: 90%;
+    margin: 0 auto;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-align: left;
+    box-sizing: border-box;
+    max-width: none;
+    background-color: var(--bg-primary);
+}
+
+/* Rest of Profile.css remains the same */
+.profile-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    text-align: left;
+}
+
+.profile-subtitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
     margin-top: 12px;
+    margin-bottom: 8px;
+    letter-spacing: -0.2px;
+    text-align: left;
+}
+
+.profile-wallet {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.profile-wallet strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.copy-button {
+    background: var(--button-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.copy-button:hover {
+    background: var(--button-hover);
+}
+
+.profile-tokens {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 800px;
+}
+
+.token-icon {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    width: 100%;
+    display: flex;
+    gap: 16px;
+    position: relative;
+}
+
+.token-icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.token-image {
+    width: 35%;
+    height: 140px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
     border-radius: 8px;
-    background-color: #f9f9f9;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
+    overflow: hidden;
+    margin-bottom: 0;
 }
 
-.profile-token-container:hover {
-    transform: scale(1.02);
-    background-color: #e6e6e6;
+.token-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
-.profile-token-container a {
+.token-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    padding-right: 24px;
+}
+
+.token-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    padding: 0;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+.token-title {
+    display: flex;
+    flex-direction: column;
+}
+
+.token-symbol {
+    color: var(--text-secondary);
+    font-size: 12px !important;
+    margin-bottom: 2px !important;
+}
+
+.token-name {
+    font-size: 18px !important;
+    font-weight: 600;
+    color: var(--text-primary) !important;
+    margin: 0 !important;
+}
+
+.token-details {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.token-details p {
+    font-size: 11px !important;
+    color: var(--text-secondary) !important;
+}
+
+.token-creator {
+    font-size: 11px !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px !important;
+    color: var(--text-secondary) !important;
+}
+
+.token-creator a, .creator-link {
+    color: var(--text-secondary) !important;
     text-decoration: none;
-    color: #1a73e8;
+    transition: color 0.2s ease;
 }
 
-.profile-token-container a:hover {
-    color: #0d47a1;
+.token-creator a:hover, .creator-link:hover {
+    color: var(--accent-color) !important;
+    text-decoration: none;
+}
+
+.token-supply, .token-launch-date {
+    font-size: 11px !important;
+    color: var(--text-secondary) !important;
+}
+
+.token-contract {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px !important;
+    margin: 0 !important;
+    color: var(--text-secondary);
+}
+
+.contract-address {
+    color: var(--text-secondary);
+}
+
+.copy-button.small {
+    padding: 4px;
+    height: auto;
+    min-height: 0;
+    line-height: 1;
+    margin-left: 4px;
+    background: none;
+    color: var(--accent-color);
+    border: none;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.copy-button.small svg {
+    width: 12px;
+    height: 12px;
+}
+
+.copy-button.small:hover {
+    background: none;
+    color: #00cc80;
+}
+
+.token-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    cursor: pointer;
+}
+
+.token-link:hover {
+    text-decoration: none;
+}
+
+.profile-empty {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: left;
+    padding: 12px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.create-link {
+    font-size: 14px;
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.create-link:hover {
+    color: #00cc80;
+}
+
+.no-image {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.explorer-link {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 4px 8px;
+    transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.explorer-link:hover {
+    color: var(--accent-color);
 }

@@ -9,10 +9,10 @@ compiled_package_info:
     aptos_token: "0000000000000000000000000000000000000000000000000000000000000003"
     core_resources: 000000000000000000000000000000000000000000000000000000000a550c18
     std: "0000000000000000000000000000000000000000000000000000000000000001"
-    token_launcher: c156a41155e21f972e4158caf1cac90311543b062f49b45536d6fd17708a4198
+    token_launcher: 505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: 157331B0605B0E91AC5337E0089FDE440EDDCF7EBBCBAEE84A08BA2809908C78
+  source_digest: CA3455775E2C3E0423CA20A0359FFDF75649159D0C062FBFC1F740B73658D135
   build_flags:
     dev_mode: false
     test_mode: false
@@ -23,8 +23,7 @@ compiled_package_info:
     full_model_generation: false
     install_dir: ~
     force_recompilation: false
-    additional_named_addresses:
-      token_launcher: c156a41155e21f972e4158caf1cac90311543b062f49b45536d6fd17708a4198
+    additional_named_addresses: {}
     architecture: ~
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false

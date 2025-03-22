@@ -1,37 +1,64 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import "./MoveMint.css";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { PetraWallet } from "petra-plugin-wallet-adapter";
+import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
+import { Network } from "@aptos-labs/ts-sdk";
+import { AvailableWallets } from "@aptos-labs/wallet-adapter-core";
+import Layout from "./components/Layout";
 import LandingPage from "./components/LandingPage";
 import Profile from "./components/Profile";
 import Launch from "./components/Launch";
 import TokenPage from "./components/TokenPage";
-import ErrorBoundary from "./components/ErrorBoundary"; // Import ErrorBoundary
+import ErrorBoundary from "./components/ErrorBoundary";
+import "./styles/Landing.css";
 
-function App() {
+const App: React.FC = () => {
   return (
-    <Router>
-      <Header />
-      <main>
+    <AptosWalletAdapterProvider 
+      autoConnect={true}
+      dappConfig={{ network: Network.DEVNET }}
+      optInWallets={["Petra", "Fewcha", "Rise"] as AvailableWallets[]}
+      onError={(error: Error) => {
+        console.log('Wallet Connection Error:', error);
+      }}>
+      <Router>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/launch" element={<Launch />} />
-          <Route
-            path="/token/:coinHash"
-            element={
+          <Route path="/" element={
+            <Layout>
+              <LandingPage />
+            </Layout>
+          } />
+          <Route path="/profile" element={
+            <Layout>
+              <Profile />
+            </Layout>
+          } />
+          <Route path="/profile/:address" element={
+            <Layout>
+              <Profile />
+            </Layout>
+          } />
+          <Route path="/launch" element={
+            <Layout>
+              <Launch />
+            </Layout>
+          } />
+          <Route path="/token/:coinHash" element={
+            <Layout>
               <ErrorBoundary>
                 <TokenPage />
               </ErrorBoundary>
-            }
-          />
-          <Route path="*" element={<div>404 - Page Not Found</div>} />
+            </Layout>
+          } />
+          <Route path="*" element={
+            <Layout>
+              <div>404 - Page Not Found</div>
+            </Layout>
+          } />
         </Routes>
-      </main>
-      <Footer />
-    </Router>
+      </Router>
+    </AptosWalletAdapterProvider>
   );
-}
+};
 
 export default App;

@@ -1,13 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import '../MoveMint.css';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { Link } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import GoogleLogin from './GoogleLogin';
+import WalletConnectModal from './WalletConnectModal';
 
 const Header: React.FC = () => {
   const { connect, account, wallets, disconnect } = useWallet();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const toggleDropdown = () => {
+  useEffect(() => {
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.wallet-dropdown')) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = isDarkMode ? 'light' : 'dark';
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
+  const toggleDropdown = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setDropdownOpen(!dropdownOpen);
   };
 
@@ -28,10 +65,12 @@ const Header: React.FC = () => {
     }
   }, [connect, account]);
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     try {
       await disconnect();
       localStorage.removeItem("connectedWallet");
+      setDropdownOpen(false);
       window.location.reload();
     } catch (error) {
       console.error("Error disconnecting wallet:", error);
@@ -54,56 +93,73 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="main-header"> {/* Remove 'container' class */}
-      <div className="top-nav">
-        <a href="#">Docs</a>
-        <a href="#">Support</a>
-      </div>
+    <>
+      <nav className="top-nav">
+        <Link to="/docs" className="nav-link">Docs</Link>
+        <Link to="/support" className="nav-link">Support</Link>
+        <div className="theme-switch-wrapper">
+          <span className="theme-icon">☉</span>
+          <label className="theme-switch">
+            <input 
+              type="checkbox" 
+              checked={isDarkMode}
+              onChange={toggleTheme}
+            />
+            <span className="slider round"></span>
+          </label>
+          <span className="theme-icon">☾</span>
+        </div>
+      </nav>
+      
+      <header className="main-header">
+        <Link to="/" className="logo">
+          Mint<span className="dot">.</span>
+        </Link>
 
-      <div className="header-left">
-        <a href="/">
-          <img src="assets/logo.svg" alt="MoveMint Logo" className="logo" />
-        </a>
-      </div>
+        <div className="search-container">
+          <input type="text" placeholder="Search for a token..." className="search-bar" />
+        </div>
 
-      <div className="search-container">
-        <img src="assets/magnifyingglass.svg" alt="Search Icon" className="search-icon" />
-        <input type="text" placeholder="Search for a token..." className="search-bar" />
-      </div>
-
-      <div className="header-right">
-        {account ? (
-          <div className="wallet-dropdown">
-            <button className="wallet-button" onClick={toggleDropdown}>
-              <img src="/assets/greenwallet.svg" alt="Wallet Icon" className="wallet-icon" />
-              {String(account.address).slice(0, 6)}...
-            </button>
-
-            {dropdownOpen && (
-              <div className="wallet-menu">
-                <a href="/profile">Profile</a>
-                <button onClick={handleDisconnect}>Disconnect</button>
-              </div>
-            )}
-          </div>
-        ) : (
-          wallets.length > 0 ? (
-            wallets.map((wallet) => (
-              <button
-                key={wallet.name}
-                onClick={() => handleConnect(wallet.name)}
-                className="connect-wallet"
-              >
-                <img src="/assets/walleticon.svg" alt="Wallet Icon" className="wallet-icon" />
-                Connect
+        <div className="nav-links">
+          {account ? (
+            <div className="wallet-dropdown">
+              <button className="wallet-btn" onClick={toggleDropdown}>
+                {String(account.address).slice(0, 6)}...
               </button>
-            ))
+              {dropdownOpen && (
+                <div className="dropdown-menu">
+                  <Link 
+                    to="/profile" 
+                    className="dropdown-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    Profile
+                  </Link>
+                  <button onClick={handleDisconnect} className="dropdown-item">
+                    Disconnect
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
-            <p>No wallets available</p>
-          )
-        )}
-      </div>
-    </header>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="wallet-btn"
+            >
+              Connect Wallet
+            </button>
+          )}
+        </div>
+      </header>
+
+      <WalletConnectModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
+    </>
   );
 };
 

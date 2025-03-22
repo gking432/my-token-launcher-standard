@@ -1,0 +1,247 @@
+/* Marketplace specific styles */
+.marketplace {
+    width: 100%;
+    max-width: 1600px;
+    margin: 180px auto 40px;
+    padding: 0;
+    text-align: center;
+    background: var(--background);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+}
+
+.marketplace-title {
+    font-size: 206px;
+    margin-top: 100px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    background: var(--text-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.marketplace-subtitle {
+    font-size: 58px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    align-self: flex-start;
+    margin-left: 6%;
+}
+
+.marketplace-tokens {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 30px;
+    width: 100%;
+    max-width: 1600px;
+    margin: 0;
+    background: rgba(255, 255, 255, 0);
+    padding: 40px;
+    border-radius: 16px;
+}
+
+.marketplace-token-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.marketplace-token-card {
+    background: rgba(255, 255, 255, 0.171);
+    border: 1px solid #00000025;
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.marketplace-token-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--mint-accent);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.marketplace-token-image {
+    width: 100%;
+    min-height: 200px;
+    border-radius: 12px;
+    border: 1px solid #00000025;
+    overflow: hidden;
+    margin-bottom: 16px;
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.marketplace-token-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    
+}
+
+.marketplace-no-image {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.marketplace-token-content {
+    text-align: left;
+}
+
+.marketplace-token-header {
+    margin-bottom: 12px;
+    
+}
+
+.marketplace-token-title {
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.marketplace-token-symbol {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.marketplace-token-name {
+    font-size: 14px;
+    color:var(--   text-secondary);
+}
+
+.marketplace-token-details {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.marketplace-token-supply, 
+.marketplace-token-launch-date, 
+.marketplace-token-creator {
+    margin-bottom: 4px;
+}
+
+.marketplace-creator-link {
+    color: var(--mint-accent);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.marketplace-creator-link:hover {
+    color: #00ff99;
+}
+
+.marketplace-explorer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--mint-accent);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.marketplace-explorer-link:hover {
+    color: #00ff99;
+    transform: translateX(4px);
+}
+
+.marketplace-empty {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 16px;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    border: 1px dashed var(--subtle-border);
+}
+
+.marketplace-sort {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-self: self-start;
+    margin-left: 6%;
+    text-align: left;
+}
+
+.sort-dropdown {
+    position: relative;
+    width: 120px;
+}
+
+.sort-dropdown-header {
+    background: var(--card-bg);
+    border: 1px solid #00000025;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.dropdown-arrow {
+    font-size: 12px;
+    transition: transform 0.3s ease;
+}
+
+.sort-dropdown-content {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid #00000025;
+    margin-top: 4px;
+    overflow: hidden;
+    display: none;
+    z-index: 1000;
+    color: var(--text-primary);
+}
+
+.sort-dropdown.active .sort-dropdown-content {
+    display: block;
+}
+
+.sort-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.sort-option {
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.sort-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--mint-accent);
+}
+
+.sort-option.active {
+    color: var(--mint-accent);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sort-header {
+    font-size: 16px;
+    color: rgb(255, 255, 255);
+    margin-bottom: 16px;
+    text-align: left;
+    align-self: self-start;
+    margin-left: 6%;
+}
