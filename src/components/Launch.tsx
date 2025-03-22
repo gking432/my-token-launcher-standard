@@ -223,7 +223,7 @@ const Launch: React.FC = () => {
       
           if (initialPurchaseAmount && parseFloat(initialPurchaseAmount) > 0) {
             const tokenAmount = Math.floor(parseFloat(initialPurchaseAmount) * 10 ** 6);
-            const tokenPrice = 10000;
+            const tokenPrice = 1000;
             const aptAmount = Math.floor((tokenAmount / 10 ** 6) * tokenPrice);
       
             const buyTransaction: InputTransactionData = {

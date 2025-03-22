@@ -47,15 +47,20 @@ const TokenPage: React.FC = () => {
     metadataAddress?: string; // Optional, added for compatibility
   }
 
+  interface CustomTokenResource {
+    balance?: string | number; // Could be either, depending on your Move code
+    amount?: string | number;  // Fallback if named differently
+    metadata?: string;         // To match metadataAddress
+  }
+
   interface CoinStoreData {
     coin?: { value: string }; // For CoinStore resource
     balance?: string; // For FungibleStore or direct balance
   }
 
   interface FungibleStoreData {
-    balance: string;
-    metadata: string;
-    // Add other fields if needed, but these are the core ones
+    amount: string; // Balance as a string (e.g., "1000000")
+    metadata: string; // Metadata address (e.g., "0xbaf2876c1e...")
   }
 
   interface TokenDetails {
@@ -286,29 +291,40 @@ useEffect(() => {
     }
 
     try {
-      // Fetch all resources for the account
-      console.log("Querying account resources for fungible assets:", account.address);
-      const resources = await client.getAccountResources({
-        accountAddress: account.address,
-      });
-      console.log("Account resources:", resources);
+      const accountAddressString = account.address.toString();
+      console.log("Querying account resources for:", accountAddressString);
+      const resources = await client.getAccountResources({ accountAddress: accountAddressString });
+      console.log("Account resources (full):", JSON.stringify(resources, null, 2));
 
-      // Look for the token balance in any fungible asset resource
-      const balanceData = resources.find((resource: any) =>
-        resource.type === "0x1::coin::CoinStore<0x1::fungible_asset::FungibleAsset>" ||
-        resource.type === "0x1::fungible_asset::FungibleStore"
-      ) as { data: CoinStoreData } | undefined;
+      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
 
-      if (!balanceData) {
-        console.warn("No fungible asset data found in account resources.");
+      if (!buyerStore) {
+        console.warn("No BuyerStore found for account:", accountAddressString);
         setTokenBalance("0");
         return;
       }
 
-      // Get balance from either coin.value or balance field
-      const rawBalance = balanceData.data.coin?.value || balanceData.data.balance || "0";
-      const balance = Number(rawBalance) / 10 ** 6; // 6 decimals
-      console.log(`Token balance for ${account.address}:`, balance);
+      const storeEntry = buyerStore.data.stores.find((s: any) => s.metadata_addr === metadataAddress);
+      if (!storeEntry) {
+        console.warn("No store entry found for metadata address:", metadataAddress);
+        setTokenBalance("0");
+        return;
+      }
+
+      const storeAddress = storeEntry.store.inner;
+      console.log("Fetching resources for store address:", storeAddress);
+      const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
+      console.log("Store resources (full):", JSON.stringify(storeResources, null, 2));
+
+      const fungibleStore = storeResources.find((r: any) => r.type.includes("fungible_asset::FungibleStore")) as { data: { balance: string } } | undefined;
+      if (!fungibleStore) {
+        console.warn("No FungibleStore found at:", storeAddress);
+        setTokenBalance("0");
+        return;
+      }
+
+      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6; // 6 decimals
+      console.log(`Token balance for ${accountAddressString} from store ${storeAddress}:`, balance);
       setTokenBalance(balance.toString());
     } catch (error) {
       console.error("Error fetching token balance:", error);
@@ -317,7 +333,7 @@ useEffect(() => {
   };
 
   fetchTokenBalance();
-}, [account?.address, tokenDetails, location.state, client, refreshChart]);
+}, [account?.address, tokenDetails, location.state, client, refreshChart, tokenLauncherAddress]);
 
   useEffect(() => {
     console.log("Chart useEffect running...");
