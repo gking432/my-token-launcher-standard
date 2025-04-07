@@ -9,7 +9,7 @@ import "../styles/TokenPage.css";
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
-  devnet: "0x505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b",
+  devnet: "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f",
   testnet: "",
   mainnet: "",
 };
@@ -85,6 +85,26 @@ const TokenPage: React.FC = () => {
     volume?: number; // Added for volume data
   }
 
+  interface AptosCoinStore {
+    type: string;
+    data: {
+      coin: {
+        value: string;
+      };
+    };
+  }
+
+  interface BuyerStoreData {
+    stores: { metadata_addr: string; store: { inner: string } }[];
+  }
+  
+  interface BuyerStoreResource {
+    type: string;
+    data: BuyerStoreData;
+  }
+
+ 
+
   function isUserTransactionResponse(transaction: any): transaction is UserTransactionResponse {
     return transaction.type === "user_transaction";
   }
@@ -159,195 +179,214 @@ const TokenPage: React.FC = () => {
     }
 };
 
-useEffect(() => {
-  if (!coinHash) return;
+  useEffect(() => {
+    if (!coinHash) return;
 
-  const fetchTokenDetails = async () => {
-    try {
-      let initialData = location.state as TokenDetails;
-      console.log("Location state:", location.state);
-
-      // Use localStorage like Profile.tsx
-      if (!initialData) {
-        const users = JSON.parse(localStorage.getItem("users") || "{}");
-        const targetAddress = account?.address ? String(account.address) : null;
-        if (targetAddress && users[targetAddress]?.launchedTokens) {
-          const storedToken = users[targetAddress].launchedTokens.find(
-            (token: Token) => token.txHash === coinHash
-          );
-          if (storedToken) {
-            initialData = {
-              name: storedToken.name,
-              symbol: storedToken.symbol,
-              supply: storedToken.supply,
-              txHash: storedToken.txHash,
-              twitterLink: null,
-              websiteLink: null,
-              metadataAddress: storedToken.metadataAddress || "0x0",
-              creatorAddress: storedToken.creator,
-              creationDate: new Date(storedToken.launchDate).getTime() / 1000,
-            };
-            console.log("Loaded from localStorage:", initialData);
+    const fetchTokenDetails = async () => {
+      try {
+        let initialData: TokenDetails | undefined = location.state as TokenDetails;
+        console.log("Location state:", location.state);
+    
+        // Use localStorage as a cache (optional)
+        if (!initialData) {
+          const users = JSON.parse(localStorage.getItem("users") || "{}");
+          const targetAddress = account?.address ? String(account.address) : null;
+          console.log("Target address:", targetAddress);
+          console.log("Users from localStorage:", users);
+          if (targetAddress && users[targetAddress]?.launchedTokens) {
+            const storedToken = users[targetAddress].launchedTokens.find(
+              (token: Token) => token.txHash === coinHash
+            );
+            console.log("Stored token:", storedToken);
+            if (storedToken) {
+              const candidateData: TokenDetails = {
+                name: storedToken.name,
+                symbol: storedToken.symbol,
+                supply: storedToken.supply,
+                txHash: storedToken.txHash,
+                twitterLink: null,
+                websiteLink: null,
+                metadataAddress: storedToken.metadataAddress,
+                creatorAddress: storedToken.creator,
+                creationDate: new Date(storedToken.launchDate).getTime() / 1000,
+              };
+              console.log("Loaded from localStorage:", candidateData);
+    
+              // Validate metadataAddress
+              if (candidateData.metadataAddress && candidateData.metadataAddress !== "0x0") {
+                initialData = candidateData;
+              } else {
+                console.log("Invalid metadataAddress in localStorage, refetching...");
+              }
+            }
           }
         }
-      }
-
-      // Fallback to blockchain if not found
-      if (!initialData && coinHash) {
-        console.log("Fetching transaction with coinHash:", coinHash);
-        const transaction = await client.getTransactionByHash({ transactionHash: coinHash });
-        console.log("Fetched transaction:", transaction);
-
-        if (transaction.type !== "user_transaction") {
-          console.error("Not a user transaction:", transaction);
-          throw new Error("Invalid transaction type");
+    
+        // Fetch from blockchain if not found or invalid
+        if (!initialData && coinHash) {
+          console.log("Fetching transaction with coinHash:", coinHash);
+          let transaction;
+          try {
+            transaction = await client.getTransactionByHash({ transactionHash: coinHash });
+          } catch (error) {
+            console.error("Failed to fetch transaction:", error);
+            throw new Error("Unable to fetch transaction data");
+          }
+          console.log("Fetched transaction:", transaction);
+    
+          if (transaction.type !== "user_transaction") {
+            console.error("Not a user transaction:", transaction);
+            throw new Error("Invalid transaction type");
+          }
+    
+          // Log all events to debug
+          console.log("Transaction events:", transaction.events);
+    
+          // Look for the correct event type
+          const tokenCreationEvent = transaction.events.find((event: any) =>
+            event.type.includes("token_launcher::TokenCreationEvent") || event.type.includes("TokenCreated")
+          );
+          if (!tokenCreationEvent) {
+            console.error("Token creation event not found:", transaction.events);
+            throw new Error("Token creation event missing");
+          }
+    
+          console.log("Token creation event data:", tokenCreationEvent.data);
+          const creator = tokenCreationEvent.data.creator;
+    
+          // Helper function to convert hex string to readable string
+          const hexToString = (hex: string) => {
+            if (!hex || !hex.startsWith("0x")) return "";
+            try {
+              const hexWithoutPrefix = hex.replace("0x", "");
+              const bytes = [];
+              for (let i = 0; i < hexWithoutPrefix.length; i += 2) {
+                bytes.push(parseInt(hexWithoutPrefix.substr(i, 2), 16));
+              }
+              return String.fromCharCode(...bytes);
+            } catch (error) {
+              console.error("Error converting hex to string:", error, "Hex:", hex);
+              return "";
+            }
+          };
+    
+          // Handle ticker (symbol)
+          let symbol = "N/A";
+          const ticker = tokenCreationEvent.data.ticker;
+          console.log("Raw ticker:", ticker);
+          if (typeof ticker === "string" && ticker.startsWith("0x")) {
+            symbol = hexToString(ticker);
+          } else if (Array.isArray(ticker)) {
+            symbol = String.fromCharCode(...ticker);
+          }
+          console.log("Parsed symbol:", symbol);
+    
+          // Handle name
+          let name = symbol; // Default to symbol if name not provided
+          const originalName = tokenCreationEvent.data.original_name;
+          console.log("Raw original_name:", originalName);
+          if (typeof originalName === "string" && originalName.startsWith("0x")) {
+            name = hexToString(originalName);
+          } else if (Array.isArray(originalName)) {
+            name = String.fromCharCode(...originalName);
+          }
+          console.log("Parsed name:", name);
+    
+          const supply = Number(tokenCreationEvent.data.total_supply || 0);
+          const metadataAddress = tokenCreationEvent.data.metadata_addr;
+    
+          initialData = {
+            name: name || "Unnamed Token",
+            symbol: symbol || "N/A",
+            supply,
+            txHash: coinHash,
+            twitterLink: null,
+            websiteLink: null,
+            metadataAddress,
+            creatorAddress: creator,
+            creationDate: Number(transaction.timestamp) / 1000 || new Date().getTime() / 1000,
+          };
+          console.log("Constructed initialData from transaction:", initialData);
+    
+          // Save to localStorage to cache for this user
+          if (account?.address) {
+            const users = JSON.parse(localStorage.getItem("users") || "{}");
+            const targetAddress = String(account.address);
+            if (!users[targetAddress]) users[targetAddress] = { launchedTokens: [] };
+            if (!users[targetAddress].launchedTokens.find((t: Token) => t.txHash === coinHash)) {
+              users[targetAddress].launchedTokens.push({
+                name: initialData.name,
+                symbol: initialData.symbol,
+                supply: initialData.supply,
+                txHash: initialData.txHash,
+                image: null,
+                launchDate: new Date(initialData.creationDate * 1000).toISOString(),
+                creator: initialData.creatorAddress,
+                metadataAddress: initialData.metadataAddress,
+              });
+              localStorage.setItem("users", JSON.stringify(users));
+            }
+          }
         }
-
-        const tokenCreationEvent = transaction.events.find((event: any) =>
-          event.type.includes("TokenCreated")
-        );
-        if (!tokenCreationEvent) {
-          console.error("Token creation event not found:", transaction.events);
-          throw new Error("Token creation event missing");
+    
+        if (!initialData) {
+          console.error("No token data available");
+          initialData = {
+            name: "Error",
+            symbol: "N/A",
+            supply: 0,
+            txHash: coinHash,
+            twitterLink: null,
+            websiteLink: null,
+            metadataAddress: undefined,
+            creatorAddress: undefined,
+            creationDate: new Date().getTime() / 1000,
+          } as TokenDetails;
         }
-
-        console.log("Token creation event data:", tokenCreationEvent.data);
-        const creator = tokenCreationEvent.data.creator;
-        const tickerBytes = tokenCreationEvent.data.ticker || [];
-        const symbol = String.fromCharCode(...tickerBytes);
-        const name = tokenCreationEvent.data.original_name
-          ? String.fromCharCode(...tokenCreationEvent.data.original_name)
-          : symbol;
-        const supply = Number(tokenCreationEvent.data.total_supply || 0);
-        const metadataAddress = tokenCreationEvent.data.metadata_addr || "0x0";
-
-        initialData = {
-          name: name || "Unnamed Token",
-          symbol: symbol || "N/A",
-          supply,
+    
+        console.log("Setting token details:", initialData);
+        setTokenDetails(initialData);
+      } catch (error) {
+        console.error("Error fetching token details:", error);
+        const errorData: TokenDetails = {
+          name: "Error",
+          symbol: "N/A",
+          supply: 0,
           txHash: coinHash,
           twitterLink: null,
           websiteLink: null,
-          metadataAddress,
-          creatorAddress: creator,
-          creationDate: Number(transaction.timestamp) / 1000 || new Date().getTime(),
+          metadataAddress: undefined,
+          creatorAddress: undefined,
+          creationDate: new Date().getTime() / 1000,
         };
-        console.log("Constructed initialData from transaction:", initialData);
-
-        // Save to localStorage to keep in sync
-        if (account?.address) {
-          const users = JSON.parse(localStorage.getItem("users") || "{}");
-          const targetAddress = String(account.address);
-          if (!users[targetAddress]) users[targetAddress] = { launchedTokens: [] };
-          if (!users[targetAddress].launchedTokens.find((t: Token) => t.txHash === coinHash)) {
-            users[targetAddress].launchedTokens.push({
-              name: initialData.name,
-              symbol: initialData.symbol,
-              supply: initialData.supply,
-              txHash: initialData.txHash,
-              image: null,
-              launchDate: new Date(initialData.creationDate * 1000).toISOString(),
-              creator: initialData.creatorAddress,
-            });
-            localStorage.setItem("users", JSON.stringify(users));
-          }
-        }
+        console.log("Setting error token details:", errorData);
+        setTokenDetails(errorData);
       }
-
-      if (!initialData) {
-        console.error("No token data available");
-        initialData = { name: "Error", symbol: "N/A", supply: 0, txHash: coinHash, metadataAddress: "0x0" } as TokenDetails;
-      }
-
-      console.log("Setting token details:", initialData);
-      setTokenDetails(initialData);
-    } catch (error) {
-      console.error("Error fetching token details:", error);
-      const errorData = { name: "Error", symbol: "N/A", supply: 0, txHash: coinHash, metadataAddress: "0x0" } as TokenDetails;
-      console.log("Setting error token details:", errorData);
-      setTokenDetails(errorData);
-    }
-  };
-
-  fetchTokenDetails();
+    };
+    
+    fetchTokenDetails();
 }, [coinHash, location.state, client, account]);
 
- 
-useEffect(() => {
-  const fetchTokenBalance = async () => {
-    const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
-    console.log("Fetching balance - Account:", account?.address, "Metadata Address:", metadataAddress);
 
-    if (!metadataAddress || metadataAddress === "0x0") {
-      console.log("Metadata address not found, cannot fetch token balance.");
-      setTokenBalance("0");
-      return;
-    }
+  useEffect(() => {
+    
 
-    if (!account?.address) {
-      console.log("No wallet connected, setting default balance.");
-      setTokenBalance("0");
-      return;
-    }
-
-    try {
-      const accountAddressString = account.address.toString();
-      console.log("Querying account resources for:", accountAddressString);
-      const resources = await client.getAccountResources({ accountAddress: accountAddressString });
-      console.log("Account resources (full):", JSON.stringify(resources, null, 2));
-
-      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
-
-      if (!buyerStore) {
-        console.warn("No BuyerStore found for account:", accountAddressString);
-        setTokenBalance("0");
-        return;
-      }
-
-      const storeEntry = buyerStore.data.stores.find((s: any) => s.metadata_addr === metadataAddress);
-      if (!storeEntry) {
-        console.warn("No store entry found for metadata address:", metadataAddress);
-        setTokenBalance("0");
-        return;
-      }
-
-      const storeAddress = storeEntry.store.inner;
-      console.log("Fetching resources for store address:", storeAddress);
-      const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
-      console.log("Store resources (full):", JSON.stringify(storeResources, null, 2));
-
-      const fungibleStore = storeResources.find((r: any) => r.type.includes("fungible_asset::FungibleStore")) as { data: { balance: string } } | undefined;
-      if (!fungibleStore) {
-        console.warn("No FungibleStore found at:", storeAddress);
-        setTokenBalance("0");
-        return;
-      }
-
-      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6; // 6 decimals
-      console.log(`Token balance for ${accountAddressString} from store ${storeAddress}:`, balance);
-      setTokenBalance(balance.toString());
-    } catch (error) {
-      console.error("Error fetching token balance:", error);
-      setTokenBalance("0");
-    }
-  };
-
-  fetchTokenBalance();
+    fetchTokenBalance();
 }, [account?.address, tokenDetails, location.state, client, refreshChart, tokenLauncherAddress]);
 
   useEffect(() => {
     console.log("Chart useEffect running...");
     if (!chartContainerRef.current) {
       console.log("Chart container ref not ready, waiting...");
-      return;
-    }
+        return;
+      }
   
     // Set isMounted to true immediately
     setIsMounted(true);
-  
-    console.log("Chart container ready, initializing chart...");
-    chartRef.current = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
+
+      console.log("Chart container ready, initializing chart...");
+      chartRef.current = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
       height: 695,
       layout: {
         background: { color: "#212121" },
@@ -385,7 +424,7 @@ useEffect(() => {
       handleScale: true,
     });
   
-    seriesRef.current = chartRef.current.addCandlestickSeries({
+        seriesRef.current = chartRef.current.addCandlestickSeries({
       upColor: "#4CAF50",
       downColor: "#F44336",
       borderVisible: true,
@@ -418,7 +457,7 @@ useEffect(() => {
       }
     };
     window.addEventListener("resize", handleResize);
-  
+
     return () => {
       window.removeEventListener("resize", handleResize);
       if (chartRef.current) {
@@ -526,70 +565,70 @@ useEffect(() => {
 
   async function fetchDepositEvents(timeframe: string) {
     try {
-        if (!account?.address || !tokenDetails?.metadataAddress) {
-            console.warn("No wallet connected or metadata address missing, cannot fetch events.");
-            return [];
-        }
-        const walletAddresses = [account.address, tokenLauncherAddress];
-        let allEvents: any[] = [];
-
-        const maxRetries = 3;
-        for (let retry = 0; retry < maxRetries; retry++) {
-            allEvents = [];
-            for (const walletAddress of walletAddresses) {
-                console.log(`Fetching events for wallet (attempt ${retry + 1}):`, walletAddress);
-                const eventTypes = [
-                    `0x1::fungible_asset::DepositEvent`,
-                    `0x1::fungible_asset::WithdrawEvent`,
-                    `${tokenLauncherAddress}::token_launcher::TokenPurchaseEvent`,
-                ];
-
-                for (const eventType of eventTypes) {
-                    console.log(`Trying event type: ${eventType}`);
-                    const events = await client.getAccountEventsByEventType({
-                        accountAddress: walletAddress,
-                        eventType: eventType as `${string}::${string}::${string}`,
-                        options: { limit: 100, orderBy: [{ transaction_version: "desc" }] },
-                    });
-                    console.log(`Raw events for ${walletAddress} (${eventType}):`, events);
-                    allEvents = allEvents.concat(events);
-                }
-            }
-            if (allEvents.length > 0) break;
-            console.log(`No events found on attempt ${retry + 1}, retrying after delay...`);
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-
-        const eventsWithTimestamps = await Promise.all(
-            allEvents.map(async (event: any) => {
-                if (event.transaction_version && !isNaN(Number(event.transaction_version))) {
-                    console.log(`Fetching transaction for version: ${event.transaction_version}`);
-                    const transaction = await client.getTransactionByVersion({
-                        ledgerVersion: BigInt(event.transaction_version),
-                    });
-                    if (isUserTransactionResponse(transaction)) {
-                        return { ...event, transaction_timestamp: transaction.timestamp };
-                    }
-                    console.warn(`Transaction ${event.transaction_version} has no timestamp:`, transaction);
-                    return { ...event, transaction_timestamp: "0" };
-                }
-                return { ...event, transaction_timestamp: "0" };
-            })
-        );
-
-        console.log("Events with timestamps:", eventsWithTimestamps);
-        return processEventsToOHLC(eventsWithTimestamps, timeframe);
-    } catch (error) {
-        console.error("Error fetching events:", error);
-        return [];
-    }
-}
-
-async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
-  try {
       if (!account?.address || !tokenDetails?.metadataAddress) {
-          console.warn("No wallet connected or metadata address missing, cannot fetch balance changes.");
-          return [];
+        console.warn("No wallet connected or metadata address missing, cannot fetch events.");
+        return [];
+      }
+      const walletAddresses = [account.address, tokenLauncherAddress];
+      let allEvents: any[] = [];
+
+      const maxRetries = 3;
+      for (let retry = 0; retry < maxRetries; retry++) {
+        allEvents = [];
+        for (const walletAddress of walletAddresses) {
+          console.log(`Fetching events for wallet (attempt ${retry + 1}):`, walletAddress);
+          const eventTypes = [
+            `0x1::fungible_asset::DepositEvent`,
+            `0x1::fungible_asset::WithdrawEvent`,
+                    `${tokenLauncherAddress}::token_launcher::TokenPurchaseEvent`,
+          ];
+
+          for (const eventType of eventTypes) {
+            console.log(`Trying event type: ${eventType}`);
+            const events = await client.getAccountEventsByEventType({
+              accountAddress: walletAddress,
+              eventType: eventType as `${string}::${string}::${string}`,
+              options: { limit: 100, orderBy: [{ transaction_version: "desc" }] },
+            });
+            console.log(`Raw events for ${walletAddress} (${eventType}):`, events);
+            allEvents = allEvents.concat(events);
+          }
+        }
+        if (allEvents.length > 0) break;
+        console.log(`No events found on attempt ${retry + 1}, retrying after delay...`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      const eventsWithTimestamps = await Promise.all(
+        allEvents.map(async (event: any) => {
+          if (event.transaction_version && !isNaN(Number(event.transaction_version))) {
+            console.log(`Fetching transaction for version: ${event.transaction_version}`);
+            const transaction = await client.getTransactionByVersion({
+              ledgerVersion: BigInt(event.transaction_version),
+            });
+            if (isUserTransactionResponse(transaction)) {
+              return { ...event, transaction_timestamp: transaction.timestamp };
+            }
+            console.warn(`Transaction ${event.transaction_version} has no timestamp:`, transaction);
+            return { ...event, transaction_timestamp: "0" };
+          }
+          return { ...event, transaction_timestamp: "0" };
+        })
+      );
+
+      console.log("Events with timestamps:", eventsWithTimestamps);
+      return processEventsToOHLC(eventsWithTimestamps, timeframe);
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      return [];
+    }
+  }
+
+  async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
+    try {
+      if (!account?.address || !tokenDetails?.metadataAddress) {
+        console.warn("No wallet connected or metadata address missing, cannot fetch balance changes.");
+        return [];
       }
 
       const ohlcData: OHLC[] = [];
@@ -607,8 +646,8 @@ async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
       const interval = timeframeSeconds / 5;
 
       for (let t = startTime; t <= now; t += interval) {
-          let balance = 0;
-          try {
+        let balance = 0;
+        try {
               const resources = await client.getAccountResources({
                   accountAddress: account.address,
               });
@@ -630,36 +669,36 @@ async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
                   } else {
                       const stores = storeData.stores;
                       const store = stores.find((s) => s.metadata === tokenDetails.metadataAddress);
-                      if (!store) {
-                          console.warn("FungibleAssetStore not found for metadata address:", tokenDetails.metadataAddress);
-                          balance = 0;
-                      } else {
-                          balance = Number(store.balance) / 10 ** 6;
+          if (!store) {
+            console.warn("FungibleAssetStore not found for metadata address:", tokenDetails.metadataAddress);
+            balance = 0;
+          } else {
+            balance = Number(store.balance) / 10 ** 6;
                       }
                   }
-              }
-          } catch (error: any) {
-              console.error(`Error fetching balance at time ${t}:`, error);
-              balance = 0;
           }
+        } catch (error: any) {
+          console.error(`Error fetching balance at time ${t}:`, error);
+          balance = 0;
+        }
 
-          const price = fixedPrice * (1 + balance / 1000000);
-          ohlcData.push({
-              time: t as Time,
-              open: price,
-              high: price,
-              low: price,
-              close: price,
+        const price = fixedPrice * (1 + balance / 1000000);
+        ohlcData.push({
+          time: t as Time,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
               volume: balance * 100, // Mock volume
-          });
+        });
       }
 
       return ohlcData;
-  } catch (error) {
+    } catch (error) {
       console.error("Error fetching balance changes:", error);
       return [];
+    }
   }
-}
 
   function processEventsToOHLC(events: any[], timeframe: string): OHLC[] {
     const ohlcData: OHLC[] = [];
@@ -703,140 +742,239 @@ async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
     return ohlcData.sort((a, b) => Number(a.time) - Number(b.time));
   }
 
-  const handleBuy = async () => {
-    if (!account || amount <= 0 || !tokenDetails?.metadataAddress) {
-      alert("Connect wallet, enter a valid amount, or ensure token metadata is available.");
+  const fetchTokenBalance = async () => {
+    const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
+    console.log("Fetching balance - Account:", account?.address, "Metadata Address:", metadataAddress);
+
+    if (!metadataAddress || metadataAddress === "0x0") {
+      console.log("Metadata address not found, cannot fetch token balance.");
+      setTokenBalance("0");
+      return;
+    }
+
+    if (!account?.address) {
+      console.log("No wallet connected, setting default balance.");
+      setTokenBalance("0");
       return;
     }
 
     try {
-      try {
-        const registry = await client.getAccountResource({
-          accountAddress: tokenLauncherAddress,
-          resourceType: `${tokenLauncherAddress}::token_launcher::TokenRegistry`,
-        });
-        console.log("TokenRegistry before buy:", registry);
-        
-        const tokens = registry.data.tokens;
-        const tokenExists = tokens.some((t: any) => t.metadata === tokenDetails.metadataAddress);
-        
-        if (!tokenExists) {
-          alert("Token not found in registry. Please verify the token exists.");
-          return;
-        }
-      } catch (error: any) {
-        console.error("Error checking TokenRegistry:", error);
-        if (error.message?.includes("Resource not found")) {
-          alert(`The token launcher contract was not found at ${tokenLauncherAddress} on ${Network.DEVNET}. \n\nThis usually means either:\n1. The contract hasn't been deployed yet\n2. The contract is deployed to a different address\n3. You're on the wrong network (currently on ${Network.DEVNET})\n\nTry switching networks using the selector in the top-right corner.`);
-        } else {
-          alert("Error checking token registry. Please try again later.");
-        }
+      const accountAddressString = account.address.toString();
+      console.log("Querying account resources for:", accountAddressString);
+      const resources = await client.getAccountResources({ accountAddress: accountAddressString });
+      console.log("Account resources (full):", JSON.stringify(resources, null, 2));
+
+      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
+
+      if (!buyerStore) {
+        console.warn("No BuyerStore found for account:", accountAddressString);
+        setTokenBalance("0");
         return;
       }
 
-      const aptAmount = Math.floor(amount * fixedPrice * 10 ** 8);
-      
-      try {
-        const balance = await client.getAccountCoinAmount({
-          accountAddress: account.address,
-          coinType: "0x1::aptos_coin::AptosCoin",
-        });
-        if (BigInt(balance) < BigInt(aptAmount)) {
-          alert("Insufficient APT balance for this purchase.");
+      const storeEntry = buyerStore.data.stores.find((s: any) => s.metadata_addr === metadataAddress);
+      if (!storeEntry) {
+        console.warn("No store entry found for metadata address:", metadataAddress);
+          setTokenBalance("0");
           return;
         }
-      } catch (error) {
-        console.error("Error checking APT balance:", error);
-        alert("Could not verify APT balance. Please try again.");
+
+      const storeAddress = storeEntry.store.inner;
+      console.log("Fetching resources for store address:", storeAddress);
+      const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
+      console.log("Store resources (full):", JSON.stringify(storeResources, null, 2));
+
+      const fungibleStore = storeResources.find((r: any) => r.type.includes("fungible_asset::FungibleStore")) as { data: { balance: string } } | undefined;
+      if (!fungibleStore) {
+        console.warn("No FungibleStore found at:", storeAddress);
+        setTokenBalance("0");
         return;
       }
 
-      const payTransaction: InputTransactionData = {
-        data: {
-          function: "0x1::aptos_account::transfer",
-          typeArguments: [],
-          functionArguments: [tokenLauncherAddress, aptAmount],
-        },
-      };
-      const payResponse = await signAndSubmitTransaction(payTransaction);
-      console.log("APT transfer response:", payResponse);
-      await client.waitForTransaction({ transactionHash: payResponse.hash });
-      console.log(`Transferred ${aptAmount} APT to token launcher. Tx: ${payResponse.hash}`);
-
-      console.log("Buying tokens with params:", {
-        metadataAddress: tokenDetails.metadataAddress,
-        tokenAmount: amount * 10 ** 6,
-        aptAmount: aptAmount
-      });
-
-      const buyTransaction: InputTransactionData = {
-        data: {
-          function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
-          typeArguments: [],
-          functionArguments: [
-            tokenDetails.metadataAddress,
-            amount * 10 ** 6,
-            aptAmount
-          ],
-        },
-      };
-      const response = await signAndSubmitTransaction(buyTransaction);
-      console.log("Buy transaction response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
-      alert(`Bought ${amount} ${tokenDetails?.symbol}! Tx: ${response.hash}`);
-
-      const txDetails = await client.getTransactionByHash({ transactionHash: response.hash });
-      console.log("Transaction details:", txDetails);
-      if (isUserTransactionResponse(txDetails)) {
-        console.log("Events emitted by BUY transaction:", txDetails.events);
-      } else {
-        console.log("BUY transaction is not a UserTransactionResponse or has no events:", txDetails);
-      }
-
-      // Refresh chart data immediately
-      setRefreshChart((prev) => prev + 1);
-      // Also refresh after a delay to catch any delayed events
-      setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
+      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6; // 6 decimals
+      console.log(`Token balance for ${accountAddressString} from store ${storeAddress}:`, balance);
+      setTokenBalance(balance.toString());
     } catch (error) {
-      console.error("Buy failed:", error);
-      alert("Failed to buy tokens. Please check the console for details.");
-    }
-  };
+      console.error("Error fetching token balance:", error);
+        setTokenBalance("0");
+      }
+    };
 
+    async function fetchCurrentPrice(creatorAddress: string, ticker: string): Promise<number> {
+      const metadataAddr = await getMetadataAddress(creatorAddress, ticker);
+      const vaultResources = await client.getAccountResources({ accountAddress: metadataAddr });
+      const vault = vaultResources.find(r => r.type === `${tokenLauncherAddress}::token_launcher::TokenVault`);
+      if (!vault) throw new Error(`TokenVault not found at ${metadataAddr}`);
+      // Define the expected structure of TokenVault data
+      const vaultData = vault.data as { price_per_token: string };
+      return Number(vaultData.price_per_token);
+    }
+    
+    async function getMetadataAddress(creatorAddress: string, ticker: string): Promise<string> {
+      // Fetch the ModuleState to get the table handle
+      const moduleState = await client.getAccountResource({
+        accountAddress: tokenLauncherAddress,
+        resourceType: `${tokenLauncherAddress}::token_launcher::ModuleState`
+      });
+    
+      if (!moduleState || !moduleState.token_metadata || !moduleState.token_metadata.handle) {
+        throw new Error("ModuleState is not properly initialized or token_metadata handle is missing");
+      }
+    
+      // Query the table for the creator's metadata
+      const tokenMetadata = await client.getTableItem({
+        handle: moduleState.token_metadata.handle,
+        data: {
+          key: creatorAddress,
+          key_type: "address",
+          value_type: `${tokenLauncherAddress}::token_launcher::TokenMetadata`
+        }
+      }) as { entries: Array<{ ticker: string; metadata_addr: string }> };
+    
+      const tickerHex = `0x${Buffer.from(ticker, "utf8").toString("hex")}`;
+      const entry = tokenMetadata.entries.find(e => e.ticker === tickerHex);
+      if (!entry) throw new Error(`No token found with ticker ${ticker} for creator ${creatorAddress}`);
+    
+      return entry.metadata_addr;
+    }
+
+    const handleBuy = async () => {
+      console.log("Full tokenDetails:", tokenDetails);
+      console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol);
+      if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
+        alert("Connect wallet, enter a valid amount, or ensure token details are available.");
+        return;
+      }
+    
+      try {
+        // Price per token is 0.0001 APT (10,000 octas)
+        // If user enters N tokens, we need N * 10,000 octas
+        const aptAmount = Math.floor(amount * 10000); // Convert token amount to APT octas
+    
+        const resources = await client.getAccountResources({
+          accountAddress: account.address,
+        });
+        const aptosCoinStore = resources.find((r) =>
+          r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+        ) as AptosCoinStore | undefined;
+        if (!aptosCoinStore) {
+          alert("Could not find APT balance.");
+          return;
+        }
+        const balance = BigInt(aptosCoinStore.data.coin.value);
+        if (balance < BigInt(aptAmount)) {
+          alert("Insufficient APT balance.");
+          return;
+        }
+    
+        const tickerBytes = Buffer.from(tokenDetails.symbol, "utf8");
+        console.log("Ticker sent (hex):", tickerBytes.toString("hex"));
+        console.log("Buying tokens with params:", {
+          creatorAddress: tokenDetails.creatorAddress,
+          ticker: tickerBytes.toString("hex"),
+          aptAmount: aptAmount
+        });
+    
+        const buyTransaction: InputTransactionData = {
+          data: {
+            function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
+            typeArguments: [],
+            functionArguments: [
+              tokenDetails.creatorAddress,
+              tickerBytes,
+              aptAmount
+            ],
+          },
+        };
+    
+        try {
+          const response = await signAndSubmitTransaction(buyTransaction);
+          console.log("Buy response:", response);
+        } catch (error) {
+          console.error("Raw wallet error:", JSON.stringify(error, null, 2));
+          throw error;
+        }
+    
+        await fetchTokenBalance();
+        setRefreshChart((prev) => prev + 1);
+        setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error("Buy error details:", {
+          message: err.message,
+          stack: err.stack,
+          fullError: err
+        });
+        alert("Failed to buy tokens. Check console for details.");
+      }
+    };
   const handleSell = async () => {
-    if (!account || amount <= 0 || !tokenDetails?.metadataAddress) {
-      alert("Connect wallet, enter a valid amount, or ensure token metadata is available.");
+    if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
+      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
       return;
     }
-
+  
     try {
+      const tokenAmount = Math.floor(amount * 10 ** 6); // 1 token = 1M units
+      const aptAmount = Math.floor(tokenAmount * 10000 / 10 ** 6); // For display
+  
+      // Debug tokenDetails
+      console.log("tokenDetails:", JSON.stringify(tokenDetails, null, 2));
+  
+      // Fetch FA store address for debugging
+      const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0xc3095335a9984a5234c032e77e8f6777b6d3265300facb1325f57478f8a51d16";
+      console.log("Metadata address being searched:", metadataAddress);
+  
+      const resources = await client.getAccountResources({ accountAddress: account.address });
+      console.log("All account resources:", JSON.stringify(resources, null, 2));
+  
+      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as BuyerStoreResource | undefined;
+      if (!buyerStore || !buyerStore.data) {
+        alert("No BuyerStore found—can't sell.");
+        return;
+      }
+      console.log("BuyerStore data:", JSON.stringify(buyerStore.data, null, 2));
+  
+      const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
+      if (!storeEntry) {
+        alert("No store for $gl2—can't sell.");
+        return;
+      }
+      const storeAddress = storeEntry.store.inner;
+      console.log(`Found $gl2 store at: ${storeAddress}`);
+  
+      // Log balance
+      await fetchTokenBalance();
+      console.log(`Pre-sell balance check: ${tokenBalance} $gl2 (need ${tokenAmount / 10 ** 6})`);
+  
+      console.log("Selling tokens with params:", {
+        creatorAddress: tokenDetails.creatorAddress,
+        ticker: tokenDetails.symbol,
+        tokenAmount: tokenAmount
+      });
+  
       const sellTransaction: InputTransactionData = {
         data: {
           function: `${tokenLauncherAddress}::token_launcher::sell_tokens`,
           typeArguments: [],
-          functionArguments: [tokenDetails.metadataAddress, amount * 10 ** 6],
+          functionArguments: [
+            tokenDetails.creatorAddress,
+            tokenDetails.symbol,
+            tokenAmount
+          ],
         },
       };
       const response = await signAndSubmitTransaction(sellTransaction);
       console.log("Sell transaction response:", response);
       await client.waitForTransaction({ transactionHash: response.hash });
-      alert(`Sold ${amount} ${tokenDetails?.symbol}! Tx: ${response.hash}`);
-
-      const txDetails = await client.getTransactionByHash({ transactionHash: response.hash });
-      console.log("Transaction details:", txDetails);
-      if (isUserTransactionResponse(txDetails)) {
-        console.log("Events emitted by SELL transaction:", txDetails.events);
-      } else {
-        console.log("SELL transaction is not a UserTransactionResponse or has no events:", txDetails);
-      }
-
-      // Refresh chart data immediately
+      alert(`Sold ${amount} ${tokenDetails.symbol} for ${aptAmount / 10 ** 8} APT! Tx: ${response.hash}`);
+  
+      await fetchTokenBalance();
       setRefreshChart((prev) => prev + 1);
-      // Also refresh after a delay to catch any delayed events
       setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
     } catch (error) {
       console.error("Sell failed:", error);
-      alert("Failed to sell tokens. Please check the console for details.");
+      alert("Failed to sell tokens. Check console.");
     }
   };
 
@@ -920,12 +1058,12 @@ async function fetchBalanceChanges(timeframe: string): Promise<OHLC[]> {
 
             <div className="token-trading-input-group">
               <label className="token-trading-input-label">Amount</label>
-              <input
-                type="number"
+          <input
+            type="number"
                 className="token-trading-input"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                placeholder="Enter amount"
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            placeholder="Enter amount"
               />
             </div>
 

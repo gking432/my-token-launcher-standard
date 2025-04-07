@@ -4,15 +4,14 @@ compiled_package_info:
   address_alias_instantiation:
     Extensions: "0000000000000000000000000000000000000000000000000000000000000001"
     aptos_framework: "0000000000000000000000000000000000000000000000000000000000000001"
-    aptos_fungible_asset: 000000000000000000000000000000000000000000000000000000000000000a
     aptos_std: "0000000000000000000000000000000000000000000000000000000000000001"
     aptos_token: "0000000000000000000000000000000000000000000000000000000000000003"
     core_resources: 000000000000000000000000000000000000000000000000000000000a550c18
     std: "0000000000000000000000000000000000000000000000000000000000000001"
-    token_launcher: 505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b
+    token_launcher: 01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: CA3455775E2C3E0423CA20A0359FFDF75649159D0C062FBFC1F740B73658D135
+  source_digest: A3F393EDF4C333037427979B4BE395A3B1947BFE1A44799A0BFFF4EE38744707
   build_flags:
     dev_mode: false
     test_mode: false
@@ -23,8 +22,8 @@ compiled_package_info:
     full_model_generation: false
     install_dir: ~
     force_recompilation: false
-    additional_named_addresses: {}
-    architecture: ~
+    additional_named_addresses:
+      token_launcher: 01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false
     compiler_config:
@@ -38,8 +37,10 @@ compiled_package_info:
         - legacy_entry_fun
         - "lint::allow_unsafe_randomness"
         - "lint::skip"
+        - module_lock
         - "mutation::skip"
         - native_interface
+        - persistent
         - randomness
         - resource_group
         - resource_group_member

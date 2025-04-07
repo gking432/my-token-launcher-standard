@@ -21,7 +21,7 @@ interface TokenMetadata {
 }
 
 const CONTRACT_ADDRESSES: Record<string, string> = {
-    devnet: "0x505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b",
+    devnet: "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f",
     testnet: "",
     mainnet: "",
 };
@@ -222,21 +222,19 @@ const Launch: React.FC = () => {
           }
       
           if (initialPurchaseAmount && parseFloat(initialPurchaseAmount) > 0) {
-            const tokenAmount = Math.floor(parseFloat(initialPurchaseAmount) * 10 ** 6);
-            const tokenPrice = 1000;
-            const aptAmount = Math.floor((tokenAmount / 10 ** 6) * tokenPrice);
-      
+            console.log("Initial purchase amount (APT):", initialPurchaseAmount);
+            const aptAmountInOctas = Math.floor(parseFloat(initialPurchaseAmount) * 10 ** 8); // Convert APT to Octas
+            console.log("APT in Octas:", aptAmountInOctas);
             const buyTransaction: InputTransactionData = {
               data: {
                 function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
-                typeArguments: [],
-                functionArguments: [creatorAddress, symbolBytes, aptAmount],
+                functionArguments: [creatorAddress, symbolBytes, aptAmountInOctas],
               },
             };
-      
             const buyResponse = await signAndSubmitTransaction(buyTransaction);
+            console.log("Buy response:", buyResponse);
             await client.waitForTransaction({ transactionHash: buyResponse.hash });
-            console.log(`Bought ${tokenAmount / 10 ** 6} tokens with ${aptAmount / 10 ** 8} APT. Tx: ${buyResponse.hash}`);
+            console.log(`Bought with ${initialPurchaseAmount} APT. Tx: ${buyResponse.hash}`);
           }
       
           navigate(`/token/${createHash}`, {
@@ -249,7 +247,7 @@ const Launch: React.FC = () => {
               websiteLink: pendingLaunchData.websiteLink,
               metadataAddress,
               initialPurchase: initialPurchaseAmount ? parseFloat(initialPurchaseAmount) : 0,
-              creator: creatorAddress,
+              creatorAddress: creatorAddress, // Change this
               creationDate: new Date().getTime(),
             },
           });

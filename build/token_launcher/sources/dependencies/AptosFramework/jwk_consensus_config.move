@@ -65,15 +65,10 @@ module aptos_framework::jwk_consensus_config {
     }
 
     /// Only used in reconfigurations to apply the pending `JWKConsensusConfig`, if there is any.
-    public(friend) fun on_new_epoch(framework: &signer) acquires JWKConsensusConfig {
-        system_addresses::assert_aptos_framework(framework);
+    public(friend) fun on_new_epoch() acquires JWKConsensusConfig {
         if (config_buffer::does_exist<JWKConsensusConfig>()) {
             let new_config = config_buffer::extract<JWKConsensusConfig>();
-            if (exists<JWKConsensusConfig>(@aptos_framework)) {
-                *borrow_global_mut<JWKConsensusConfig>(@aptos_framework) = new_config;
-            } else {
-                move_to(framework, new_config);
-            };
+            borrow_global_mut<JWKConsensusConfig>(@aptos_framework).variant = new_config.variant;
         }
     }
 
@@ -127,11 +122,11 @@ module aptos_framework::jwk_consensus_config {
             new_oidc_provider(utf8(b"Alice"), utf8(b"https://alice.io")),
         ]);
         set_for_next_epoch(&framework, config);
-        on_new_epoch(&framework);
+        on_new_epoch();
         assert!(enabled(), 1);
 
         set_for_next_epoch(&framework, new_off());
-        on_new_epoch(&framework);
+        on_new_epoch();
         assert!(!enabled(), 2)
     }
 

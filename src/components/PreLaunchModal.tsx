@@ -23,6 +23,10 @@ const PreLaunchModal: React.FC<PreLaunchModalProps> = ({
 }) => {
     const [initialPurchaseAmount, setInitialPurchaseAmount] = useState<string>("");
 
+    // Calculate APT display
+    const tokenPrice = 100;
+    const aptDisplay = (parseFloat(initialPurchaseAmount || "0") * tokenPrice) / 10 ** 8;
+
     if (!isOpen) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -74,7 +78,7 @@ const PreLaunchModal: React.FC<PreLaunchModalProps> = ({
                                     disabled={loading}
                                 />
                                 <div className="apt-estimate">
-                                    ≈ {initialPurchaseAmount ? (parseFloat(initialPurchaseAmount) * 0.001).toFixed(3) : '0.000'} APT
+                                    ≈ {initialPurchaseAmount ? aptDisplay.toFixed(3) : '0.000'} APT
                                 </div>
                             </div>
                         </div>

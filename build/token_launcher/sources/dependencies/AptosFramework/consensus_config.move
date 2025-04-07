@@ -56,15 +56,9 @@ module aptos_framework::consensus_config {
     }
 
     /// Only used in reconfigurations to apply the pending `ConsensusConfig`, if there is any.
-    public(friend) fun on_new_epoch(framework: &signer) acquires ConsensusConfig {
-        system_addresses::assert_aptos_framework(framework);
+    public(friend) fun on_new_epoch() acquires ConsensusConfig {
         if (config_buffer::does_exist<ConsensusConfig>()) {
-            let new_config = config_buffer::extract<ConsensusConfig>();
-            if (exists<ConsensusConfig>(@aptos_framework)) {
-                *borrow_global_mut<ConsensusConfig>(@aptos_framework) = new_config;
-            } else {
-                move_to(framework, new_config);
-            };
+            *borrow_global_mut<ConsensusConfig>(@aptos_framework) = config_buffer::extract();
         }
     }
 

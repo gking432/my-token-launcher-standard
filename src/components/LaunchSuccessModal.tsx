@@ -16,10 +16,8 @@ interface LaunchSuccessModalProps {
     };
 }
 
-const CONTRACT_ADDRESSES: Record<string, string> = {
-    devnet: "0x505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b",
-    testnet: "",
-    mainnet: "",
+const tokenLauncherAddresses = {
+    devnet: "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f",
 };
 
 const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose, tokenDetails }) => {
@@ -29,7 +27,7 @@ const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose
     const navigate = useNavigate();
     const config = new AptosConfig({ network: Network.DEVNET });
     const client = new Aptos(config);
-    const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
+    const tokenLauncherAddress = tokenLauncherAddresses['devnet'];
 
     const handlePurchase = async () => {
         if (!account || !amount || parseFloat(amount) <= 0) {

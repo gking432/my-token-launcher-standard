@@ -4,11 +4,14 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-token_launcher = "0x505b8a2f4688f18db6d30659afd93384c35e769b163ef5d4d52dd0a1db43da7b"
-
-[dev-addresses]
+token_launcher = "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
 subdir = "aptos-move/framework/aptos-framework"
-rev = "main"
+rev = "6f83bc6d02207298b2dee91133d75538789bf582"
+
+[dependencies.AptosStdlib]
+git = "https://github.com/aptos-labs/aptos-core.git"
+subdir = "aptos-move/framework/aptos-stdlib"
+rev = "6f83bc6d02207298b2dee91133d75538789bf582"
