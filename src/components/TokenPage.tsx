@@ -9,7 +9,7 @@ import "../styles/TokenPage.css";
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
-  devnet: "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f",
+  devnet: "0x7d9fd6db83fa5eed97bfa2b970d0305b9697856a50eabc4bf6f5b81cfc3469af",
   testnet: "",
   mainnet: "",
 };
@@ -745,60 +745,59 @@ const TokenPage: React.FC = () => {
   const fetchTokenBalance = async () => {
     const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
     console.log("Fetching balance - Account:", account?.address, "Metadata Address:", metadataAddress);
-
+  
     if (!metadataAddress || metadataAddress === "0x0") {
-      console.log("Metadata address not found, cannot fetch token balance.");
+      console.log("No metadata address, can't fetch balance.");
       setTokenBalance("0");
       return;
     }
-
+  
     if (!account?.address) {
-      console.log("No wallet connected, setting default balance.");
+      console.log("No wallet connected, setting balance to 0.");
       setTokenBalance("0");
       return;
     }
-
+  
     try {
-      const accountAddressString = account.address.toString();
-      console.log("Querying account resources for:", accountAddressString);
-      const resources = await client.getAccountResources({ accountAddress: accountAddressString });
-      console.log("Account resources (full):", JSON.stringify(resources, null, 2));
-
-      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
-
+      const accountAddress = account.address.toString();
+      console.log("Checking wallet:", accountAddress);
+      const resources = await client.getAccountResources({ accountAddress });
+      console.log("Wallet stuff:", JSON.stringify(resources, null, 2));
+  
+      const buyerStore = resources.find((r: any) => r.type === "0x7d9fd6db83fa5eed97bfa2b970d0305b9697856a50eabc4bf6f5b81cfc3469af::token_launcher::BuyerStore") as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
       if (!buyerStore) {
-        console.warn("No BuyerStore found for account:", accountAddressString);
+        console.warn("No BuyerStore for this contract found in wallet:", accountAddress);
         setTokenBalance("0");
         return;
       }
-
-      const storeEntry = buyerStore.data.stores.find((s: any) => s.metadata_addr === metadataAddress);
+  
+      const storeEntry = buyerStore.data.stores.find((s) => s.metadata_addr === metadataAddress);
       if (!storeEntry) {
-        console.warn("No store entry found for metadata address:", metadataAddress);
-          setTokenBalance("0");
-          return;
-        }
-
+        console.warn("Token not in BuyerStore:", metadataAddress);
+        setTokenBalance("0");
+        return;
+      }
+  
       const storeAddress = storeEntry.store.inner;
-      console.log("Fetching resources for store address:", storeAddress);
+      console.log("Checking token store:", storeAddress);
       const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
-      console.log("Store resources (full):", JSON.stringify(storeResources, null, 2));
-
+      console.log("Store stuff:", JSON.stringify(storeResources, null, 2));
+  
       const fungibleStore = storeResources.find((r: any) => r.type.includes("fungible_asset::FungibleStore")) as { data: { balance: string } } | undefined;
       if (!fungibleStore) {
-        console.warn("No FungibleStore found at:", storeAddress);
+        console.warn("No token store found at:", storeAddress);
         setTokenBalance("0");
         return;
       }
-
-      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6; // 6 decimals
-      console.log(`Token balance for ${accountAddressString} from store ${storeAddress}:`, balance);
+  
+      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6;
+      console.log(`Found balance for ${accountAddress} at ${storeAddress}:`, balance);
       setTokenBalance(balance.toString());
     } catch (error) {
-      console.error("Error fetching token balance:", error);
-        setTokenBalance("0");
-      }
-    };
+      console.error("Error getting balance:", error);
+      setTokenBalance("0");
+    }
+  };
 
     async function fetchCurrentPrice(creatorAddress: string, ticker: string): Promise<number> {
       const metadataAddr = await getMetadataAddress(creatorAddress, ticker);
@@ -839,7 +838,6 @@ const TokenPage: React.FC = () => {
     }
 
     const handleBuy = async () => {
-      console.log("Full tokenDetails:", tokenDetails);
       console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol);
       if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
         alert("Connect wallet, enter a valid amount, or ensure token details are available.");
@@ -847,31 +845,13 @@ const TokenPage: React.FC = () => {
       }
     
       try {
-        // Price per token is 0.0001 APT (10,000 octas)
-        // If user enters N tokens, we need N * 10,000 octas
-        const aptAmount = Math.floor(amount * 10000); // Convert token amount to APT octas
+        const tokenAmount = Math.floor(amount * 10 ** 6); // Amount is tokens, 6 decimals
+        const aptAmount = Math.floor(tokenAmount * 0.01 * 10 ** 8 / 10 ** 6); // 0.01 APT per token, in Octas
+        const tickerBytes = stringToBytes(tokenDetails.symbol); // [36, 102, 102, 102, 103, 103, 103] for $fffggg
     
-        const resources = await client.getAccountResources({
-          accountAddress: account.address,
-        });
-        const aptosCoinStore = resources.find((r) =>
-          r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-        ) as AptosCoinStore | undefined;
-        if (!aptosCoinStore) {
-          alert("Could not find APT balance.");
-          return;
-        }
-        const balance = BigInt(aptosCoinStore.data.coin.value);
-        if (balance < BigInt(aptAmount)) {
-          alert("Insufficient APT balance.");
-          return;
-        }
-    
-        const tickerBytes = Buffer.from(tokenDetails.symbol, "utf8");
-        console.log("Ticker sent (hex):", tickerBytes.toString("hex"));
         console.log("Buying tokens with params:", {
           creatorAddress: tokenDetails.creatorAddress,
-          ticker: tickerBytes.toString("hex"),
+          ticker: tickerBytes,
           aptAmount: aptAmount
         });
     
@@ -887,97 +867,53 @@ const TokenPage: React.FC = () => {
           },
         };
     
-        try {
-          const response = await signAndSubmitTransaction(buyTransaction);
-          console.log("Buy response:", response);
-        } catch (error) {
-          console.error("Raw wallet error:", JSON.stringify(error, null, 2));
-          throw error;
-        }
+        const response = await signAndSubmitTransaction(buyTransaction);
+        console.log("Buy response:", response);
+        await client.waitForTransaction({ transactionHash: response.hash });
+        alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
     
         await fetchTokenBalance();
         setRefreshChart((prev) => prev + 1);
         setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
       } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        console.error("Buy error details:", {
-          message: err.message,
-          stack: err.stack,
-          fullError: err
-        });
-        alert("Failed to buy tokens. Check console for details.");
+        console.error("Buy error:", error);
+        alert("Failed to buy tokens. Check console.");
       }
     };
-  const handleSell = async () => {
-    if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
-      return;
-    }
-  
-    try {
-      const tokenAmount = Math.floor(amount * 10 ** 6); // 1 token = 1M units
-      const aptAmount = Math.floor(tokenAmount * 10000 / 10 ** 6); // For display
-  
-      // Debug tokenDetails
-      console.log("tokenDetails:", JSON.stringify(tokenDetails, null, 2));
-  
-      // Fetch FA store address for debugging
-      const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0xc3095335a9984a5234c032e77e8f6777b6d3265300facb1325f57478f8a51d16";
-      console.log("Metadata address being searched:", metadataAddress);
-  
-      const resources = await client.getAccountResources({ accountAddress: account.address });
-      console.log("All account resources:", JSON.stringify(resources, null, 2));
-  
-      const buyerStore = resources.find((r: any) => r.type.includes("token_launcher::BuyerStore")) as BuyerStoreResource | undefined;
-      if (!buyerStore || !buyerStore.data) {
-        alert("No BuyerStore found—can't sell.");
+    const handleSell = async () => {
+      if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
+        alert("Connect wallet, enter a valid amount, or ensure token details are available.");
         return;
       }
-      console.log("BuyerStore data:", JSON.stringify(buyerStore.data, null, 2));
-  
-      const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
-      if (!storeEntry) {
-        alert("No store for $gl2—can't sell.");
-        return;
+    
+      try {
+        const tokenAmount = Math.floor(amount * 10 ** 6); // Amount is tokens, 6 decimals
+        const tickerBytes = stringToBytes(tokenDetails.symbol); // Number array
+    
+        const sellTransaction: InputTransactionData = {
+          data: {
+            function: `${tokenLauncherAddress}::token_launcher::sell_tokens`,
+            typeArguments: [],
+            functionArguments: [
+              tokenDetails.creatorAddress,
+              tickerBytes,
+              tokenAmount
+            ],
+          },
+        };
+        const response = await signAndSubmitTransaction(sellTransaction);
+        console.log("Sell response:", response);
+        await client.waitForTransaction({ transactionHash: response.hash });
+        alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
+    
+        await fetchTokenBalance();
+        setRefreshChart((prev) => prev + 1);
+        setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
+      } catch (error) {
+        console.error("Sell failed:", error);
+        alert("Failed to sell tokens. Check console.");
       }
-      const storeAddress = storeEntry.store.inner;
-      console.log(`Found $gl2 store at: ${storeAddress}`);
-  
-      // Log balance
-      await fetchTokenBalance();
-      console.log(`Pre-sell balance check: ${tokenBalance} $gl2 (need ${tokenAmount / 10 ** 6})`);
-  
-      console.log("Selling tokens with params:", {
-        creatorAddress: tokenDetails.creatorAddress,
-        ticker: tokenDetails.symbol,
-        tokenAmount: tokenAmount
-      });
-  
-      const sellTransaction: InputTransactionData = {
-        data: {
-          function: `${tokenLauncherAddress}::token_launcher::sell_tokens`,
-          typeArguments: [],
-          functionArguments: [
-            tokenDetails.creatorAddress,
-            tokenDetails.symbol,
-            tokenAmount
-          ],
-        },
-      };
-      const response = await signAndSubmitTransaction(sellTransaction);
-      console.log("Sell transaction response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
-      alert(`Sold ${amount} ${tokenDetails.symbol} for ${aptAmount / 10 ** 8} APT! Tx: ${response.hash}`);
-  
-      await fetchTokenBalance();
-      setRefreshChart((prev) => prev + 1);
-      setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
-    } catch (error) {
-      console.error("Sell failed:", error);
-      alert("Failed to sell tokens. Check console.");
-    }
-  };
-
+    };
   const handleTrade = (type: 'buy' | 'sell') => {
     if (!account) {
       alert("Please connect your wallet to trade");

@@ -21,7 +21,7 @@ interface TokenMetadata {
 }
 
 const CONTRACT_ADDRESSES: Record<string, string> = {
-    devnet: "0x01a528fbcae190eee5b60e58c9971af4a2143fe2c706b681d4de5d005fc0ec7f",
+    devnet: "0x7d9fd6db83fa5eed97bfa2b970d0305b9697856a50eabc4bf6f5b81cfc3469af",
     testnet: "",
     mainnet: "",
 };
