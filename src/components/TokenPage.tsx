@@ -846,7 +846,7 @@ const TokenPage: React.FC = () => {
     
       try {
         const tokenAmount = Math.floor(amount * 10 ** 6); // Amount is tokens, 6 decimals
-        const aptAmount = Math.floor(tokenAmount * 0.01 * 10 ** 8 / 10 ** 6); // 0.01 APT per token, in Octas
+        const aptAmount = Math.floor(tokenAmount * 0.0001 * 10 ** 8 / 10 ** 6); // 0.01 APT per token, in Octas
         const tickerBytes = stringToBytes(tokenDetails.symbol); // [36, 102, 102, 102, 103, 103, 103] for $fffggg
     
         console.log("Buying tokens with params:", {
