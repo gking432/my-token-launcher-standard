@@ -742,60 +742,88 @@ const TokenPage: React.FC = () => {
     return ohlcData.sort((a, b) => Number(a.time) - Number(b.time));
   }
 
-  const fetchTokenBalance = async () => {
+  const fetchTokenBalance = async (retryCount = 3, delayMs = 5000): Promise<boolean> => {
     const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
-    console.log("Fetching balance - Account:", account?.address, "Metadata Address:", metadataAddress);
+    console.log("Fetching balance - Attempt:", 4 - retryCount, "Account:", account?.address, "Metadata Address:", metadataAddress);
   
     if (!metadataAddress || metadataAddress === "0x0") {
       console.log("No metadata address, can't fetch balance.");
-      setTokenBalance("0");
-      return;
+      return false;
     }
   
     if (!account?.address) {
       console.log("No wallet connected, setting balance to 0.");
       setTokenBalance("0");
-      return;
+      return false;
     }
   
     try {
       const accountAddress = account.address.toString();
       console.log("Checking wallet:", accountAddress);
       const resources = await client.getAccountResources({ accountAddress });
-      console.log("Wallet stuff:", JSON.stringify(resources, null, 2));
+      console.log("Wallet resources:", JSON.stringify(resources, null, 2));
   
-      const buyerStore = resources.find((r: any) => r.type === "0x305a60232bcdec28ce4777ea394c40bf7e17b016048a2468d14059c54baccaf2::token_launcher::BuyerStore") as { data: { stores: { metadata_addr: string; store: { inner: string } }[] } } | undefined;
+      type BuyerStoreData = {
+        stores: { metadata_addr: string; store: { inner: string } }[];
+      };
+  
+      const buyerStore = resources.find(
+        (r: any) => r.type === "0x305a60232bcdec28ce4777ea394c40bf7e17b016048a2468d14059c54baccaf2::token_launcher::BuyerStore"
+      ) as { data: BuyerStoreData } | undefined;
+  
       if (!buyerStore) {
-        console.warn("No BuyerStore for this contract found in wallet:", accountAddress);
-        setTokenBalance("0");
-        return;
+        console.warn("No BuyerStore found for this contract in wallet:", accountAddress);
+        if (retryCount > 0) {
+          console.log(`Retrying balance fetch in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          return await fetchTokenBalance(retryCount - 1, delayMs);
+        }
+        return false;
       }
+      console.log("BuyerStore found:", JSON.stringify(buyerStore, null, 2));
   
       const storeEntry = buyerStore.data.stores.find((s) => s.metadata_addr === metadataAddress);
       if (!storeEntry) {
-        console.warn("Token not in BuyerStore:", metadataAddress);
-        setTokenBalance("0");
-        return;
+        console.warn("Token not in BuyerStore - Expected metadata:", metadataAddress, "Stores:", JSON.stringify(buyerStore.data.stores, null, 2));
+        if (retryCount > 0) {
+          console.log(`Retrying balance fetch in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          return await fetchTokenBalance(retryCount - 1, delayMs);
+        }
+        return false;
       }
+      console.log("Store entry found:", JSON.stringify(storeEntry, null, 2));
   
       const storeAddress = storeEntry.store.inner;
       console.log("Checking token store:", storeAddress);
       const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
-      console.log("Store stuff:", JSON.stringify(storeResources, null, 2));
+      console.log("Store resources:", JSON.stringify(storeResources, null, 2));
   
-      const fungibleStore = storeResources.find((r: any) => r.type.includes("fungible_asset::FungibleStore")) as { data: { balance: string } } | undefined;
+      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
       if (!fungibleStore) {
-        console.warn("No token store found at:", storeAddress);
-        setTokenBalance("0");
-        return;
+        console.warn("No FungibleStore found at:", storeAddress);
+        if (retryCount > 0) {
+          console.log(`Retrying balance fetch in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          return await fetchTokenBalance(retryCount - 1, delayMs);
+        }
+        return false;
       }
+      console.log("FungibleStore found:", JSON.stringify(fungibleStore, null, 2));
   
       const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6;
       console.log(`Found balance for ${accountAddress} at ${storeAddress}:`, balance);
       setTokenBalance(balance.toString());
-    } catch (error) {
+      return true;
+    } catch (error: any) {
       console.error("Error getting balance:", error);
-      setTokenBalance("0");
+      if (error.message?.includes("429") && retryCount > 0) {
+        console.log(`Rate limit hit, retrying in ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return await fetchTokenBalance(retryCount - 1, delayMs);
+      }
+      console.warn("Failed to fetch balance, keeping last known balance.");
+      return false;
     }
   };
 
@@ -845,9 +873,9 @@ const TokenPage: React.FC = () => {
       }
     
       try {
-        const tokenAmount = Math.floor(amount * 10 ** 6); // Amount is tokens, 6 decimals
-        const aptAmount = Math.floor(tokenAmount * 0.0001 * 10 ** 8 / 10 ** 6); // 0.01 APT per token, in Octas
-        const tickerBytes = stringToBytes(tokenDetails.symbol); // [36, 102, 102, 102, 103, 103, 103] for $fffggg
+        const tokenAmount = Math.floor(amount * 10 ** 6);
+        const aptAmount = Math.floor(tokenAmount * 0.0001 * 10 ** 8 / 10 ** 6);
+        const tickerBytes = stringToBytes(tokenDetails.symbol);
     
         console.log("Buying tokens with params:", {
           creatorAddress: tokenDetails.creatorAddress,
@@ -872,14 +900,22 @@ const TokenPage: React.FC = () => {
         await client.waitForTransaction({ transactionHash: response.hash });
         alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
     
-        await fetchTokenBalance();
+        let balanceUpdated = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          balanceUpdated = await fetchTokenBalance();
+          if (balanceUpdated) break;
+          console.log(`Balance fetch attempt ${attempt + 1} failed, retrying...`);
+        }
+        if (!balanceUpdated) {
+          console.warn("Failed to update balance after 3 attempts.");
+        }
         setRefreshChart((prev) => prev + 1);
-        setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
       } catch (error) {
         console.error("Buy error:", error);
         alert("Failed to buy tokens. Check console.");
       }
     };
+    
     const handleSell = async () => {
       if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
         alert("Connect wallet, enter a valid amount, or ensure token details are available.");
@@ -887,8 +923,8 @@ const TokenPage: React.FC = () => {
       }
     
       try {
-        const tokenAmount = Math.floor(amount * 10 ** 6); // Amount is tokens, 6 decimals
-        const tickerBytes = stringToBytes(tokenDetails.symbol); // Number array
+        const tokenAmount = Math.floor(amount * 10 ** 6);
+        const tickerBytes = stringToBytes(tokenDetails.symbol);
     
         const sellTransaction: InputTransactionData = {
           data: {
@@ -906,9 +942,16 @@ const TokenPage: React.FC = () => {
         await client.waitForTransaction({ transactionHash: response.hash });
         alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
     
-        await fetchTokenBalance();
+        let balanceUpdated = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          balanceUpdated = await fetchTokenBalance();
+          if (balanceUpdated) break;
+          console.log(`Balance fetch attempt ${attempt + 1} failed, retrying...`);
+        }
+        if (!balanceUpdated) {
+          console.warn("Failed to update balance after 3 attempts.");
+        }
         setRefreshChart((prev) => prev + 1);
-        setTimeout(() => setRefreshChart((prev) => prev + 1), 2000);
       } catch (error) {
         console.error("Sell failed:", error);
         alert("Failed to sell tokens. Check console.");
