@@ -9,7 +9,7 @@ import "../styles/TokenPage.css";
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
-  devnet: "0x305a60232bcdec28ce4777ea394c40bf7e17b016048a2468d14059c54baccaf2",
+  devnet: "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8",
   testnet: "",
   mainnet: "",
 };
@@ -768,7 +768,7 @@ const TokenPage: React.FC = () => {
       };
   
       const buyerStore = resources.find(
-        (r: any) => r.type === "0x305a60232bcdec28ce4777ea394c40bf7e17b016048a2468d14059c54baccaf2::token_launcher::BuyerStore"
+        (r: any) => r.type === "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8::token_launcher::BuyerStore"
       ) as { data: BuyerStoreData } | undefined;
   
       if (!buyerStore) {

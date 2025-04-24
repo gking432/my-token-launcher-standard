@@ -17,7 +17,7 @@ interface LaunchSuccessModalProps {
 }
 
 const tokenLauncherAddresses = {
-    devnet: "0x305a60232bcdec28ce4777ea394c40bf7e17b016048a2468d14059c54baccaf2",
+    devnet: "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8",
 };
 
 const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose, tokenDetails }) => {
