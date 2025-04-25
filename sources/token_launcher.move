@@ -146,6 +146,7 @@ fun pow(base: u64, exp: u64): u64 {
         ((100 as u128) * price_factor / 100) as u64
     }
 
+
     fun get_or_create_token_store(
         owner: &signer,
         metadata: Object<Metadata>
@@ -356,7 +357,7 @@ public entry fun initialize(admin: &signer) {
     let tokens_bought = amount;
     assert!(vault.remaining_supply >= tokens_bought, E_INSUFFICIENT_SUPPLY);
 
-    let apt_cost = ((tokens_bought as u128) * (vault.price_per_token as u128) / 100000000) as u64;
+    let apt_cost = ((tokens_bought as u128) * (vault.price_per_token as u128) / 1000000) as u64;
     assert!(apt_cost > 0, E_INSUFFICIENT_APT);
 
     vault.remaining_supply = vault.remaining_supply - tokens_bought;

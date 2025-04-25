@@ -890,7 +890,7 @@ const TokenPage: React.FC = () => {
             functionArguments: [
               tokenDetails.creatorAddress,
               tickerBytes,
-              aptAmount
+              tokenAmount
             ],
           },
         };

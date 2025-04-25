@@ -146,6 +146,7 @@ fun pow(base: u64, exp: u64): u64 {
         ((100 as u128) * price_factor / 100) as u64
     }
 
+
     fun get_or_create_token_store(
         owner: &signer,
         metadata: Object<Metadata>
