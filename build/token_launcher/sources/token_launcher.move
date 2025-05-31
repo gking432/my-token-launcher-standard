@@ -1,4 +1,4 @@
-module 0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8::token_launcher {
+module 0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828::token_launcher {
     use std::signer;
     use std::option;
     use aptos_framework::fungible_asset::{Self, Metadata};
@@ -11,6 +11,9 @@ module 0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8::token
     use aptos_std::bcs;
     use std::event;
     use aptos_framework::account;
+
+    const MODULE_ADDRESS: address = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
+    const RESOURCE_ADDRESS: address = @0x9d626293fad28ce43ff320d80b4efc93e75cd5d9033db5dd51432cd405e05ad4;
 
     const E_TICKER_EXISTS: u64 = 1001;
     const E_INSUFFICIENT_SUPPLY: u64 = 1002;
@@ -25,6 +28,9 @@ module 0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8::token
     const E_CONTRIBUTION_TOO_HIGH: u64 = 1011;
     const E_SLIPPAGE_TOO_HIGH: u64 = 1012;
     const E_ZERO_DIVISION: u64 = 1013;
+    const E_INSUFFICIENT_APT_OUT: u64 = 100; // Use a unique number not already used by other error codes
+    
+    const E_INVALID_APT_COST: u64 = 2;
 
 
 fun pow(base: u64, exp: u64): u64 {
@@ -36,7 +42,8 @@ fun pow(base: u64, exp: u64): u64 {
         };
         result
     }
-
+    #[event]
+struct DebugEvent has drop, store { total_apt_spent: u64, price_per_token: u64, tokens_bought: u64, apt_cost: u64 }
     #[event]
     struct TokenCreatedEvent has drop, store {
         creator: address,
@@ -100,7 +107,8 @@ fun pow(base: u64, exp: u64): u64 {
         metadata: Object<Metadata>,
         total_supply: u64,
         remaining_supply: u64,
-        price_per_token: u64
+        price_per_token: u64,
+        total_apt_spent: u64
     }
 
     struct TokenMetadataEntry has store {
@@ -139,13 +147,15 @@ fun pow(base: u64, exp: u64): u64 {
         key
     }
 
-    fun calculate_price(total_supply: u64, remaining_supply: u64): u64 {
-        let tokens_sold = total_supply - remaining_supply;
-        let sold_percentage = ((tokens_sold as u128) * 100) / (total_supply as u128);
-        let price_factor = 100 + (sold_percentage * 10); // Curve for 10,000 APT
-        ((100 as u128) * price_factor / 100) as u64
-    }
-
+    fun calculate_price(total_apt_spent: u64): u64 {
+    let x = (total_apt_spent as u128) / 100_000_000; // Whole APT
+    let denominator = 11_570_000_000_000_u128; // 1.157 * 10^13
+    let base = 21_u128; // 21 whole APT
+    let numerator = (base + x) * (base + x); // (21 + x)^2
+    let price_per_token = (numerator * 100_000_000) / denominator; // APT units per token unit
+    if (price_per_token == 0) { price_per_token = 4 }; // Round up to 3.81
+    (price_per_token as u64)
+}
 
     fun get_or_create_token_store(
         owner: &signer,
@@ -188,7 +198,7 @@ fun pow(base: u64, exp: u64): u64 {
 
 
 public entry fun register_resource_account(admin: &signer) {
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     let resource_addr = account::create_resource_address(&module_addr, b"token_launcher");
     if (!coin::is_account_registered<AptosCoin>(resource_addr)) {
         coin::register<AptosCoin>(admin); // Admin registers it
@@ -198,7 +208,7 @@ public entry fun register_resource_account(admin: &signer) {
 
 
 public entry fun initialize(admin: &signer) {
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     if (!exists<ModuleState>(module_addr)) {
         let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"token_launcher");
         let resource_addr = signer::address_of(&resource_signer);
@@ -226,8 +236,8 @@ public entry fun initialize(admin: &signer) {
         new_contribution_bps: u64
     ) acquires ModuleState {
         let admin_addr = signer::address_of(admin);
-        assert!(admin_addr == @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8, E_NOT_ADMIN);
-        let module_state = borrow_global_mut<ModuleState>(@0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8);
+        assert!(admin_addr == @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828, E_NOT_ADMIN);
+        let module_state = borrow_global_mut<ModuleState>(@0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828);
         assert!(new_contribution_bps <= 3000, E_CONTRIBUTION_TOO_HIGH);
         module_state.liquidity_contribution_bps = new_contribution_bps;
     }
@@ -243,7 +253,7 @@ public entry fun initialize(admin: &signer) {
     total_supply: u64
 ) acquires ModuleState, TokenCounter {
     let creator_addr = signer::address_of(creator);
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     let state = borrow_global_mut<ModuleState>(module_addr);
     let counter = borrow_global_mut<TokenCounter>(module_addr);
     counter.count = counter.count + 1;
@@ -300,7 +310,8 @@ public entry fun initialize(admin: &signer) {
         metadata,
         total_supply: scaled_total_supply,
         remaining_supply: scaled_remaining_supply,
-        price_per_token: 10000
+        price_per_token: 10000,
+        total_apt_spent: 0
     });
     move_to(&metadata_signer, VaultState {
         creator: creator_addr,
@@ -347,9 +358,9 @@ public entry fun initialize(admin: &signer) {
     amount: u64 // Tokens in smallest units
 ) acquires ModuleState, TokenVault, BuyerStore {
     let buyer_addr = signer::address_of(buyer);
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = @0xf3e60dc234b7e2800b6d5616e0c2311f17a1b097dc9f2f0364430dade265e0d9;
+    let resource_addr = @0x9d626293fad28ce43ff320d80b4efc93e75cd5d9033db5dd51432cd405e05ad4;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
@@ -357,27 +368,36 @@ public entry fun initialize(admin: &signer) {
     let tokens_bought = amount;
     assert!(vault.remaining_supply >= tokens_bought, E_INSUFFICIENT_SUPPLY);
 
-    let apt_cost = ((tokens_bought as u128) * (vault.price_per_token as u128) / 1000000) as u64;
-    assert!(apt_cost > 0, E_INSUFFICIENT_APT);
+    // Calculate APT cost
+    let price_per_token = calculate_price(vault.total_apt_spent);
+    let apt_cost = ((price_per_token as u128) * (tokens_bought as u128) / 100_000_000) as u64;
+    assert!(apt_cost > 0, E_INVALID_APT_COST); // Ensure cost isnt 0
 
+    // Debug event
+    event::emit(DebugEvent { total_apt_spent: vault.total_apt_spent, price_per_token, tokens_bought, apt_cost });
+
+    // Transfer APT to resource_addr
+    coin::transfer<AptosCoin>(buyer, resource_addr, apt_cost);
+
+    // Update vault
+    vault.total_apt_spent = vault.total_apt_spent + apt_cost;
     vault.remaining_supply = vault.remaining_supply - tokens_bought;
+    vault.price_per_token = calculate_price(vault.total_apt_spent); // Update price
 
+    // Initialize BuyerStore if needed
+    if (!exists<BuyerStore>(buyer_addr)) {
+        move_to(buyer, BuyerStore { stores: vector::empty() });
+    };
+
+    // Mint tokens to buyer
     let buyer_store = get_or_create_token_store(buyer, vault.metadata);
     fungible_asset::mint_to(&vault.mint_ref, buyer_store, tokens_bought);
 
-    if (!coin::is_account_registered<AptosCoin>(resource_addr)) {
-        coin::register<AptosCoin>(buyer);
-        coin::transfer<AptosCoin>(buyer, resource_addr, 0);
-    };
-
-    coin::transfer<AptosCoin>(buyer, resource_addr, apt_cost);
-    state.apt_amount = state.apt_amount + apt_cost;
-
-    vault.price_per_token = calculate_price(vault.total_supply, vault.remaining_supply);
-
+    // Update market cap
     let token_metadata_mut = table::borrow_mut(&mut state.token_metadata, creator_addr);
     token_metadata_mut.market_cap = (vault.total_supply - vault.remaining_supply) * vault.price_per_token;
 
+    // Emit event
     event::emit(TokenPurchaseEvent {
         buyer: buyer_addr,
         metadata_addr,
@@ -394,35 +414,64 @@ public entry fun sell_tokens(
     amount: u64
 ) acquires ModuleState, TokenVault, BuyerStore {
     let seller_addr = signer::address_of(seller);
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     let state = borrow_global_mut<ModuleState>(module_addr);
-let resource_addr = @0xf3e60dc234b7e2800b6d5616e0c2311f17a1b097dc9f2f0364430dade265e0d9;
+    let resource_addr = @0x9d626293fad28ce43ff320d80b4efc93e75cd5d9033db5dd51432cd405e05ad4;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
 
-    let decimals_factor = pow(10, 6);
+    // Check seller's balance
     let seller_store = get_or_create_token_store(seller, vault.metadata);
     assert!(fungible_asset::balance(seller_store) >= amount, E_INSUFFICIENT_LIQUIDITY);
-    let actual_balance = coin::balance<AptosCoin>(resource_addr);
-    state.apt_amount = actual_balance;
 
-    let apt_out = (amount * vault.price_per_token) / decimals_factor;
-    if (apt_out < 1000) { apt_out = 1000; };
-    assert!(state.apt_amount >= apt_out, E_INSUFFICIENT_APT);
+// Calculate tokens left before the sale
+let x_before = vault.total_apt_spent as u128;
+let denominator_before = 21 + x_before;
+let numerator = 16_800_000_000_u128; // 16,800,000,000
+let y_before = numerator / denominator_before;
 
-    fungible_asset::burn_from(&vault.burn_ref, seller_store, amount);
+    // Add tokens back to the pool
     vault.remaining_supply = vault.remaining_supply + amount;
 
+// Calculate the APT to give back
+let y_after = (y_before + (amount as u128)) as u128;
+let temp = 16_800_000_000_u128 - y_after;
+let x_after = if (temp > 0) {
+    (numerator / temp) - 21
+} else {
+    0
+};
+let apt_out = if ((vault.total_apt_spent as u128) > x_after) {
+    ((vault.total_apt_spent as u128) - x_after) as u64
+} else {
+    0
+};
+assert!(apt_out > 0, E_INSUFFICIENT_APT_OUT);
+
+    // Check if there's enough APT to pay the seller
+    let actual_balance = coin::balance<AptosCoin>(resource_addr);
+    state.apt_amount = actual_balance;
+    assert!(state.apt_amount >= apt_out, E_INSUFFICIENT_APT);
+
+    // Burn tokens from the seller
+    fungible_asset::burn_from(&vault.burn_ref, seller_store, amount);
+
+    // Subtract APT from total_apt_spent
+    vault.total_apt_spent = vault.total_apt_spent - apt_out;
+
+    // Transfer APT to the seller
     let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out);
+    coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out);
     state.apt_amount = state.apt_amount - apt_out;
 
-    vault.price_per_token = calculate_price(vault.total_supply, vault.remaining_supply);
+    // Update price per token
+    vault.price_per_token = calculate_price(vault.total_apt_spent);
 
+    // Update market cap (placeholder for now)
     let token_metadata_mut = table::borrow_mut(&mut state.token_metadata, creator_addr);
-    let tokens_sold_whole = (vault.total_supply - vault.remaining_supply) / decimals_factor;
-    token_metadata_mut.market_cap = (tokens_sold_whole * vault.price_per_token) / 100000000;
+    let tokens_sold_whole = (vault.total_supply - vault.remaining_supply);
+    token_metadata_mut.market_cap = (tokens_sold_whole * vault.price_per_token);
 }
 
      
@@ -430,7 +479,7 @@ coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out);
    
 
 public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState {
-    let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+    let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
     let admin_addr = signer::address_of(admin);
     assert!(admin_addr == module_addr, E_NOT_ADMIN);
     let state = borrow_global_mut<ModuleState>(module_addr);
@@ -451,7 +500,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         token_b_amount: u64
     ) acquires ModuleState, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+        let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
 
@@ -496,7 +545,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         is_token_to_coin: bool
     ) acquires ModuleState, BuyerStore {
         let trader_addr = signer::address_of(trader);
-        let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+        let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -653,7 +702,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         ticker: vector<u8>
     ) acquires ModuleState, TokenVault, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8;
+        let module_addr = @0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -730,7 +779,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
 
 #[view]
 public fun get_resource_info(): (address, bool) {
-    let resource_addr = account::create_resource_address(&@0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8, b"token_launcher");
+    let resource_addr = account::create_resource_address(&@0x9d626293fad28ce43ff320d80b4efc93e75cd5d9033db5dd51432cd405e05ad4, b"token_launcher");
     (resource_addr, coin::is_account_registered<AptosCoin>(resource_addr))
 }
 }

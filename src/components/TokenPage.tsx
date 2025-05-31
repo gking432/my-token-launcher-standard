@@ -6,10 +6,11 @@ import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import "../MoveMint.css";
 import "../styles/TokenPage.css";
+import { MODULE_ADDRESS } from "../config";
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
-  devnet: "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8",
+  devnet: MODULE_ADDRESS,
   testnet: "",
   mainnet: "",
 };
@@ -768,7 +769,7 @@ const TokenPage: React.FC = () => {
       };
   
       const buyerStore = resources.find(
-        (r: any) => r.type === "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8::token_launcher::BuyerStore"
+        (r: any) => r.type === "0xb4675eba97b3ff131853ef3f6ee7da12d662721aadc9b7a0a5b93efa88ddbff9::token_launcher::BuyerStore"
       ) as { data: BuyerStoreData } | undefined;
   
       if (!buyerStore) {

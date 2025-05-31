@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import '../styles/launchpage.css';
 import PreLaunchModal from './PreLaunchModal';
 import { Buffer } from "buffer";
+import { MODULE_ADDRESS } from "../config";
 window.Buffer = window.Buffer || Buffer;
 
 // Define interfaces at the top
@@ -21,7 +22,7 @@ interface TokenMetadata {
 }
 
 const CONTRACT_ADDRESSES: Record<string, string> = {
-    devnet: "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8",
+    devnet: MODULE_ADDRESS,
     testnet: "",
     mainnet: "",
 };

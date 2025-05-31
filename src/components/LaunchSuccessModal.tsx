@@ -4,6 +4,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import '../styles/LaunchSuccessModal.css';
+import { MODULE_ADDRESS } from "../config";
 
 interface LaunchSuccessModalProps {
     isOpen: boolean;
@@ -17,7 +18,7 @@ interface LaunchSuccessModalProps {
 }
 
 const tokenLauncherAddresses = {
-    devnet: "0xb93aec577a7d41a600a2edf96ddb529c05eaff47bdd0bbfccea8f9b25397d6f8",
+    devnet: MODULE_ADDRESS,
 };
 
 const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose, tokenDetails }) => {

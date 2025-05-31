@@ -1,0 +1,2 @@
+export const MODULE_ADDRESS = "0xb4675eba97b3ff131853ef3f6ee7da12d662721aadc9b7a0a5b93efa88ddbff9";
+export const RESOURCE_ADDRESS = "0xaf53e55630c4fb85f99cc80ba1c8f89360d46b6c3ace350869ea3e0468bb21fc"; 
