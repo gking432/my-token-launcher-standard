@@ -769,7 +769,7 @@ const TokenPage: React.FC = () => {
       };
   
       const buyerStore = resources.find(
-        (r: any) => r.type === "0xb4675eba97b3ff131853ef3f6ee7da12d662721aadc9b7a0a5b93efa88ddbff9::token_launcher::BuyerStore"
+        (r: any) => r.type === "0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828::token_launcher::BuyerStore"
       ) as { data: BuyerStoreData } | undefined;
   
       if (!buyerStore) {
