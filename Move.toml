@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-token_launcher = "0x8e2ae9d8fe7808bceb9f3568adeeab9ecde3bef7d62be82af72b0f454848aa93"
+token_launcher = "0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
