@@ -445,7 +445,7 @@ public entry fun buy_tokens(
     event::emit(DebugEvent { msg: b"APT Cost Pre-Scale", value: apt_cost });
     
     // Convert to Octas by dividing by scale (10^8)
-    let apt_cost_scaled = apt_cost / scale;
+    let apt_cost_scaled = apt_cost / precision;
     event::emit(DebugEvent { msg: b"APT Cost Scaled Raw", value: apt_cost_scaled });
     let apt_cost_u64 = apt_cost_scaled as u64;
     event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
