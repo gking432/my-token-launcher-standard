@@ -406,4 +406,14 @@
 .social-link-button.website:hover {
     background-color: #00cc7a;
     transform: translateY(-1px);
+}
+
+.token-trading-cost-estimate {
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  text-align: center;
 } 

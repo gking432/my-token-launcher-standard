@@ -6,8 +6,9 @@ import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import "../MoveMint.css";
 import "../styles/TokenPage.css";
-import { MODULE_ADDRESS } from "../config";
+import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 
+console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
   devnet: MODULE_ADDRESS,
@@ -26,6 +27,7 @@ const TokenPage: React.FC = () => {
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [estimatedCost, setEstimatedCost] = useState<number>(0);
 
   const fixedPrice = 0.001;
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -33,7 +35,14 @@ const TokenPage: React.FC = () => {
   const seriesRef = useRef<ISeriesApi<"Candlestick", Time> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram", Time> | null>(null);
 
-  const config = useMemo(() => new AptosConfig({ network: Network.DEVNET }), []);
+  const config = useMemo(() => new AptosConfig({ 
+    network: Network.DEVNET,
+    clientConfig: {
+      HEADERS: {
+        'Authorization': `Bearer ${process.env.REACT_APP_APTOS_API_KEY}`
+      }
+    }
+  }), []);
   const client = useMemo(() => new Aptos(config), [config]);
   const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
 
@@ -769,7 +778,7 @@ const TokenPage: React.FC = () => {
       };
   
       const buyerStore = resources.find(
-        (r: any) => r.type === "0xe331209a8a9645b3b843edf492187e75056eabd5f480970cf5138020924c9828::token_launcher::BuyerStore"
+        (r: any) => r.type === "0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090::token_launcher::BuyerStore"
       ) as { data: BuyerStoreData } | undefined;
   
       if (!buyerStore) {
@@ -874,7 +883,7 @@ const TokenPage: React.FC = () => {
       }
     
       try {
-        const tokenAmount = Math.floor(amount * 10 ** 6);
+        const tokenAmount = Math.floor(amount);
         const aptAmount = Math.floor(tokenAmount * 0.0001 * 10 ** 8 / 10 ** 6);
         const tickerBytes = stringToBytes(tokenDetails.symbol);
     
@@ -970,6 +979,28 @@ const TokenPage: React.FC = () => {
     console.log(`${type} ${amount} ${tokenDetails.symbol}`);
   };
 
+  const calculateEstimatedCost = (tokenAmount: number): number => {
+    const total_supply = 800_000_000;
+    const tokens_sold_before = 0; // For first purchase
+    const tokens_sold_after = tokens_sold_before + tokenAmount;
+    
+    const y_before = total_supply - tokens_sold_before;
+    const y_after = total_supply - tokens_sold_after;
+    
+    const scale = 100_000_000; // 10^8 for APT Octas
+    const precision = 1_000_000_000_000; // 10^12 for precision
+    const numerator = 16_800_000_000 * scale * precision;
+    
+    const x_before = tokens_sold_before === 0 ? 0 : 
+      (numerator / y_before) - (21 * scale * precision);
+    const x_after = (numerator / y_after) - (21 * scale * precision);
+    
+    const apt_cost = x_after > x_before ? x_after - x_before : 0;
+    const apt_cost_scaled = apt_cost / scale; // Changed from precision to scale
+    
+    return apt_cost_scaled / precision; // Convert to APT
+  };
+
   if (!coinHash) return <div className="token-trading-page">No coin hash provided.</div>;
   if (!tokenDetails) return <div className="token-trading-page">
     <div className="token-trading-header">
@@ -1038,15 +1069,29 @@ const TokenPage: React.FC = () => {
 
             <div className="token-trading-input-group">
               <label className="token-trading-input-label">Amount</label>
-          <input
-            type="number"
+              <input
+                type="number"
                 className="token-trading-input"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            placeholder="Enter amount"
+                value={amount}
+                onChange={(e) => {
+                  const newAmount = Number(e.target.value);
+                  setAmount(newAmount);
+                  if (newAmount > 0) {
+                    const cost = calculateEstimatedCost(newAmount);
+                    setEstimatedCost(cost);
+                  } else {
+                    setEstimatedCost(0);
+                  }
+                }}
+                placeholder="Enter amount"
               />
+              {amount > 0 && (
+                <div className="token-trading-cost-estimate">
+                  Estimated cost: {estimatedCost.toFixed(8)} APT
+                </div>
+              )}
             </div>
-
+ 
             <button 
               className={`token-trading-button ${tradeType === 'buy' ? 'token-trading-buy-button' : 'token-trading-sell-button'}`}
               onClick={() => tradeType === 'buy' ? handleBuy() : handleSell()}
