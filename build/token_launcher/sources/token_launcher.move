@@ -21,7 +21,7 @@ struct DebugState has copy, drop, store {
     remaining_supply: u64,  // Match vault field type
     diff: u64,             // Match vault subtraction result
 }
-
+const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
     const MODULE_ADDRESS: address = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
     const RESOURCE_ADDRESS: address = @0xe90527b3338636942c64a3facfea7bcc826b1c8a8ad02092f5d93644c45c7d7d;
 const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other error codes
@@ -44,6 +44,7 @@ const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other e
     const E_INVALID_VAULT_STATE: u64 = 4;
     const E_INVALID_TOKEN_SOLD: u64 = 10110;
     const E_INVALID_COST: u64 = 11204; // Use a unique error code
+const E_EXCEEDS_SUPPLY: u64 = 101223;    
 
 #[event]
 struct TokenSaleEvent has drop, store {
@@ -171,18 +172,6 @@ struct DebugEvent has drop, store {
         let key = bcs::to_bytes(&creator_addr);
         vector::append(&mut key, ticker);
         key
-    }
-
-    fun calculate_price(total_apt_spent: u64): u64 {
-        let x = total_apt_spent as u128; // x: APT spent (in Octas)
-        // Price (APT/token) = (21 + x)^2 / 1.157e21
-        let base = 21u128 * 100_000_000u128; // 21 APT in Octas
-        let x_scaled = x; // x is already in Octas
-        let sum = base + x_scaled;
-        let numerator = sum * sum; // (21 + x)^2, in Octas^2
-        let denominator = 1_157_000_000_000_000_000_000u128; // 1.157 * 10^21
-        let price_per_token = numerator / denominator; // APT per token, in Octas
-        if (price_per_token == 0) { 1 } else { price_per_token as u64 }
     }
 
     fun get_or_create_token_store(
@@ -420,61 +409,61 @@ public entry fun buy_tokens(
     event::emit(DebugEvent { msg: b"Decimals Factor", value: (vault.decimals_factor as u128) });
 
     let total_supply = 800_000_000u128;
-    let preminted_tokens = 200_000_000u64; // Preminted, not sold
+    let preminted_tokens = 200_000_000u64;
     let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 0 } else { ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens };
     let tokens_sold_after = tokens_sold_before + tokens_bought;
+    assert!(tokens_sold_after < 800_000_000, E_EXCEEDS_SUPPLY);
     event::emit(DebugEvent { msg: b"Tokens Sold Before", value: (tokens_sold_before as u128) });
     event::emit(DebugEvent { msg: b"Tokens Sold After", value: (tokens_sold_after as u128) });
 
-    let y_before = total_supply - (tokens_sold_before as u128);
-    let y_after = total_supply - (tokens_sold_after as u128);
-    event::emit(DebugEvent { msg: b"Y Before", value: y_before });
-    event::emit(DebugEvent { msg: b"Y After", value: y_after });
+    // Calculate apt_cost using the hyperbolic price formula
+    // Price formula: Price (Octas/token) = 500,000,000,000,000 / (800,000,000 - s)
+    // Scaled by 10^6 for fixed-point arithmetic
+    // Achieves 20x increase from launch to graduation
+    let scale = 100_000_000u128; // 10^8 for Octas
+    let price_numerator = 500_000_000_000_000u128; // Scaled by 10^6
+    let price_denominator_base = 800_000_000u128;
 
-    let scale = 100_000_000u128; // 10^8 for APT Octas
-    let precision = 1_000_000_000_000u128; // 10^12 for precision
-    let numerator = 16_800_000_000u128 * scale * precision; // 1.68 * 10^30
-    event::emit(DebugEvent { msg: b"Scaled Numerator", value: numerator });
-    event::emit(DebugEvent { msg: b"Scale", value: scale });
-    event::emit(DebugEvent { msg: b"Precision", value: precision });
-    let x_before = if (tokens_sold_before == 0) { 0u128 } else { 
-        (numerator / y_before) - (21u128 * scale * precision)
-    };
-    let x_after = (numerator / y_after) - (21u128 * scale * precision);
-    event::emit(DebugEvent { msg: b"X After Raw", value: (numerator / y_after) });
-    event::emit(DebugEvent { msg: b"X Before", value: x_before });
-    event::emit(DebugEvent { msg: b"X After", value: x_after });
-
-    let apt_cost = if (x_after > x_before) { x_after - x_before } else { 0u128 };
-    event::emit(DebugEvent { msg: b"APT Cost", value: apt_cost });
+    // Compute price before and after purchase
+    let price_before = price_numerator / (price_denominator_base - (tokens_sold_before as u128)); // Octas/token * 10^6
+    let price_after = price_numerator / (price_denominator_base - (tokens_sold_after as u128)); // Octas/token * 10^6
+    let average_price = (price_before + price_after) / 2; // Octas/token * 10^6
+    event::emit(DebugEvent { msg: b"Price Before", value: price_before });
+    event::emit(DebugEvent { msg: b"Price After", value: price_after });
+    event::emit(DebugEvent { msg: b"Average Price", value: average_price });
+    let apt_cost = (average_price * (tokens_bought as u128) * 1000) / scale; // Convert to Octas
     assert!(apt_cost > 0, E_INVALID_COST);
-    event::emit(DebugEvent { msg: b"Precision Factor", value: precision });
-    event::emit(DebugEvent { msg: b"APT Cost Pre-Scale", value: apt_cost });
-    
-    // Convert to Octas by dividing by scale (10^8)
-    let apt_cost_scaled = apt_cost / precision;
-    event::emit(DebugEvent { msg: b"APT Cost Scaled Raw", value: apt_cost_scaled });
-    let apt_cost_u64 = apt_cost_scaled as u64;
+    let apt_cost_u64 = apt_cost as u64;
     event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
 
+    // Transfer APT
     coin::transfer<AptosCoin>(buyer, resource_addr, apt_cost_u64);
 
+    // Update vault state
     vault.total_apt_spent = vault.total_apt_spent + apt_cost_u64;
     vault.remaining_supply = vault.remaining_supply - (tokens_bought * vault.decimals_factor);
-    vault.price_per_token = calculate_price(vault.total_apt_spent);
+    // Set price_per_token to the average transaction price
+    vault.price_per_token = if (tokens_bought > 0) { 
+        ((apt_cost_u64 as u128) / (tokens_bought as u128)) as u64 
+    } else { 
+        vault.price_per_token 
+    };
 
+    // Mint tokens and update buyer store
     if (!exists<BuyerStore>(buyer_addr)) {
         move_to(buyer, BuyerStore { stores: vector::empty() });
     };
     let buyer_store = get_or_create_token_store(buyer, vault.metadata);
     fungible_asset::mint_to(&vault.mint_ref, buyer_store, tokens_bought * vault.decimals_factor);
 
+    // Update market cap
     let token_metadata_mut = table::borrow_mut(&mut state.token_metadata, creator_addr);
     let total_sold = (vault.total_supply - vault.remaining_supply) as u128;
     let price = vault.price_per_token as u128;
     let decimals = vault.decimals_factor as u128;
     token_metadata_mut.market_cap = ((total_sold * price) / decimals) as u64;
 
+    // Emit event
     event::emit(TokenPurchaseEvent {
         buyer: buyer_addr,
         metadata_addr,
@@ -575,7 +564,11 @@ public entry fun sell_tokens(
     };
     state.apt_amount = state.apt_amount - apt_out;
 
-    vault.price_per_token = calculate_price(vault.total_apt_spent);
+    vault.price_per_token = if (amount > 0) { 
+        ((apt_out as u128) * 100_000_000u128 / (amount as u128)) as u64 
+    } else { 
+        vault.price_per_token 
+    };
 
     let token_metadata_mut = table::borrow_mut(&mut state.token_metadata, creator_addr);
     let total_sold = (vault.total_supply - vault.remaining_supply) as u128;
