@@ -416,22 +416,33 @@ public entry fun buy_tokens(
     event::emit(DebugEvent { msg: b"Tokens Sold Before", value: (tokens_sold_before as u128) });
     event::emit(DebugEvent { msg: b"Tokens Sold After", value: (tokens_sold_after as u128) });
 
-    // Calculate apt_cost using the hyperbolic price formula
-    // Price formula: Price (Octas/token) = 500,000,000,000,000 / (800,000,000 - s)
-    // Scaled by 10^6 for fixed-point arithmetic
-    // Achieves 20x increase from launch to graduation
+    // Calculate apt_cost using the corrected hyperbolic price formula
+    // Price formula: Price (Octas/token) = (4,757,378,689 / (800,000,000 - s)) + 61.9053276
+    // Scaled by 10^6 for fixed-point arithmetic, with constant scaled by 10^8
     let scale = 100_000_000u128; // 10^8 for Octas
-    let price_numerator = 500_000_000_000_000u128; // Scaled by 10^6
+    let price_numerator = 4_757_378_689u128; // Unscaled numerator
+    let price_constant = 6_190_532_760u128; // 61.9053276 * 10^8
     let price_denominator_base = 800_000_000u128;
+    let price_scale = 1_000_000u128; // 10^6 to match price scaling
+    let constant_scale = 100_000_000u128; // 10^8 for constant precision
 
-    // Compute price before and after purchase
-    let price_before = price_numerator / (price_denominator_base - (tokens_sold_before as u128)); // Octas/token * 10^6
-    let price_after = price_numerator / (price_denominator_base - (tokens_sold_after as u128)); // Octas/token * 10^6
+    // Compute price before and after purchase (Octas/token * 10^6)
+    let denominator_before = price_denominator_base - (tokens_sold_before as u128);
+    let denominator_after = price_denominator_base - (tokens_sold_after as u128);
+    // Hyperbolic term: (numerator * 10^6) / denominator
+    let hyperbolic_before = (price_numerator * price_scale) / denominator_before;
+    let hyperbolic_after = (price_numerator * price_scale) / denominator_after;
+    // Constant term: 61.9053276 * 10^6 = (6,190,532,760 / 10^2)
+    let constant_term = price_constant / (constant_scale / price_scale); // 6,190,532,760 / 100
+    // Total price
+    let price_before = hyperbolic_before + constant_term; // Octas/token * 10^6
+    let price_after = hyperbolic_after + constant_term; // Octas/token * 10^6
     let average_price = (price_before + price_after) / 2; // Octas/token * 10^6
     event::emit(DebugEvent { msg: b"Price Before", value: price_before });
     event::emit(DebugEvent { msg: b"Price After", value: price_after });
     event::emit(DebugEvent { msg: b"Average Price", value: average_price });
-    let apt_cost = (average_price * (tokens_bought as u128) * 1000) / scale; // Convert to Octas
+    // Compute cost: (average_price * tokens_bought * 1000) / scale
+    let apt_cost = (average_price * (tokens_bought as u128) * 100) / scale; // Convert to Octas
     assert!(apt_cost > 0, E_INVALID_COST);
     let apt_cost_u64 = apt_cost as u64;
     event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
