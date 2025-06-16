@@ -420,7 +420,7 @@ public entry fun buy_tokens(
     // Price formula: Price (Octas/token) = (4,757,378,689 / (800,000,000 - s)) + 61.9053276
     // Scaled by 10^6 for fixed-point arithmetic, with constant scaled by 10^8
     let scale = 100_000_000u128; // 10^8 for Octas
-    let price_numerator = 4_757_378_689u128; // Unscaled numerator
+    let price_numerator = 19_029_514_756u128; // Unscaled numerator
     let price_constant = 6_190_532_760u128; // 61.9053276 * 10^8
     let price_denominator_base = 800_000_000u128;
     let price_scale = 1_000_000u128; // 10^6 to match price scaling
