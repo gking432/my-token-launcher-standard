@@ -1,0 +1,19 @@
+.token-trading-cost-estimate {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.token-trading-cost-estimate > div {
+  margin-bottom: 4px;
+}
+
+.price-impact {
+  color: #666;
+  transition: color 0.2s ease;
+}
+
+.price-impact.high-impact {
+  color: #ff4d4f;
+  font-weight: 500;
+} 

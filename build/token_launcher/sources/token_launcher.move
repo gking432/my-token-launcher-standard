@@ -45,6 +45,17 @@ const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other e
     const E_INVALID_TOKEN_SOLD: u64 = 10110;
     const E_INVALID_COST: u64 = 11204; // Use a unique error code
 const E_EXCEEDS_SUPPLY: u64 = 101223;    
+const E_SLIPPAGE_EXCEEDED: u64 = 1015;
+const E_INVALID_EXPECTED_PRICE: u64 = 1016;
+const E_INVALID_SLIPPAGE: u64 = 1017;
+const MAX_RETRIES: u64 = 3;
+
+// Price calculation constants
+const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
+const PRICE_NUMERATOR: u128 = 19_029_514_756u128;
+const PRICE_CONSTANT: u128 = 6_190_532_760u128; // 61.9053276 * 10^8
+const MAX_TOKENS: u128 = 800_000_000u128;
+const PRECISION_FACTOR: u128 = 1_000_000u128; // 10^6 for price scaling
 
 #[event]
 struct TokenSaleEvent has drop, store {
@@ -506,10 +517,6 @@ public entry fun sell_tokens(
     event::emit(DebugEvent { msg: b"Amount to Burn", value: amount as u128 });
     assert!(seller_balance >= amount * vault.decimals_factor, E_INSUFFICIENT_LIQUIDITY);
 
-    let scale = 100_000_000u128; // 10^8 for APT Octas
-    let precision = 1_000_000_000_000u128; // 10^12 for higher precision
-    let numerator = 16_800_000_000u128 * scale * precision; // 1.68 * 10^30
-
     let total_supply = 800_000_000u128;
     let preminted_tokens = 200_000_000u64;
     let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 
@@ -518,65 +525,54 @@ public entry fun sell_tokens(
         ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens 
     };
     event::emit(DebugEvent { msg: b"Tokens Sold Before", value: tokens_sold_before as u128 });
-    event::emit(DebugEvent { msg: b"Remaining Supply", value: vault.remaining_supply as u128 });
-    event::emit(DebugEvent { msg: b"Total Supply", value: vault.total_supply as u128 });
-    event::emit(DebugEvent { msg: b"Decimals Factor", value: vault.decimals_factor as u128 });
 
-    let y_before = total_supply - (tokens_sold_before as u128);
-    event::emit(DebugEvent { msg: b"Y Before", value: y_before });
+    // Calculate price using the same formula as buy_tokens
+    let scale = 100_000_000u128; // 10^8 for Octas
+    let price_numerator = 19_029_514_756u128; // Unscaled numerator
+    let price_constant = 6_190_532_760u128; // 61.9053276 * 10^8
+    let price_scale = 1_000_000u128; // 10^6 for price scaling
+    let constant_scale = 100_000_000u128; // 10^8 for constant precision
 
-    let x_before = if (tokens_sold_before == 0) { 
-        0u128 
-    } else { 
-        let base = 21u128 * scale * precision;
-        let term = numerator / y_before;
-        event::emit(DebugEvent { msg: b"Term Before", value: term });
-        event::emit(DebugEvent { msg: b"Base", value: base });
-        if (term > base) { term - base } else { 0u128 }
-    };
-    event::emit(DebugEvent { msg: b"X Before", value: x_before });
-
-    vault.remaining_supply = vault.remaining_supply + (amount * vault.decimals_factor);
-
-    let y_after = y_before + (amount as u128);
-    event::emit(DebugEvent { msg: b"Y After", value: y_after });
-    let x_after = if (y_after >= total_supply) { 
-        0u128 
-    } else { 
-        let base = 21u128 * scale * precision;
-        let term = numerator / y_after;
-        event::emit(DebugEvent { msg: b"Term After", value: term });
-        if (term > base) { term - base } else { 0u128 }
-    };
-    event::emit(DebugEvent { msg: b"X After", value: x_after });
-    event::emit(DebugEvent { msg: b"Diff", value: (x_before - x_after) });
-
-    let apt_out = if (x_before > x_after) { 
-        let diff = x_before - x_after;
-        let scaled_diff = diff / (precision / 10000);
-        (scaled_diff / (scale / 10000)) as u64
-    } else { 
-        0u64 
-    };
+    // Calculate price before and after selling
+    let denominator_before = total_supply - (tokens_sold_before as u128);
+    let denominator_after = denominator_before + (amount as u128);
+    
+    // Hyperbolic term: (numerator * 10^6) / denominator
+    let hyperbolic_before = (price_numerator * price_scale) / denominator_before;
+    let hyperbolic_after = (price_numerator * price_scale) / denominator_after;
+    
+    // Constant term: 61.9053276 * 10^6
+    let constant_term = price_constant / (constant_scale / price_scale);
+    
+    // Total price
+    let price_before = hyperbolic_before + constant_term;
+    let price_after = hyperbolic_after + constant_term;
+    let average_price = (price_before + price_after) / 2;
+    
+    // Calculate APT to return
+    let apt_out = (average_price * (amount as u128) * 100) / scale;
+    let apt_out_u64 = apt_out as u64;
     event::emit(DebugEvent { msg: b"APT Out", value: apt_out as u128 });
     assert!(apt_out > 0 || amount == 0, E_INSUFFICIENT_APT_OUT);
 
     let actual_balance = coin::balance<AptosCoin>(resource_addr);
     state.apt_amount = actual_balance;
     event::emit(DebugEvent { msg: b"Resource Balance", value: actual_balance as u128 });
-    assert!(state.apt_amount >= apt_out, E_INSUFFICIENT_APT);
+    assert!(state.apt_amount >= apt_out_u64, E_INSUFFICIENT_APT);
 
+    // Update vault state
+    vault.remaining_supply = vault.remaining_supply + (amount * vault.decimals_factor);
     fungible_asset::burn_from(&vault.burn_ref, seller_store, amount * vault.decimals_factor);
 
-    vault.total_apt_spent = if (vault.total_apt_spent >= apt_out) { 
-        vault.total_apt_spent - apt_out 
+    vault.total_apt_spent = if (vault.total_apt_spent >= apt_out_u64) { 
+        vault.total_apt_spent - apt_out_u64 
     } else { 
         0 
     };
-    state.apt_amount = state.apt_amount - apt_out;
+    state.apt_amount = state.apt_amount - apt_out_u64;
 
     vault.price_per_token = if (amount > 0) { 
-        ((apt_out as u128) * 100_000_000u128 / (amount as u128)) as u64 
+        ((apt_out_u64 as u128) * 100_000_000u128 / (amount as u128)) as u64 
     } else { 
         vault.price_per_token 
     };
@@ -588,14 +584,14 @@ public entry fun sell_tokens(
     token_metadata_mut.market_cap = ((total_sold * price) / decimals) as u64;
 
     let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-    coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out);
+    coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out_u64);
 
     event::emit(TokenSaleEvent {
         seller: seller_addr,
         metadata_addr,
         amount: amount,
         price: vault.price_per_token,
-        apt_returned: apt_out,
+        apt_returned: apt_out_u64,
         timestamp: timestamp::now_microseconds(),
         tokens_sold: (tokens_sold_before as u128),
     });

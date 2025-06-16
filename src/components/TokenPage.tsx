@@ -933,7 +933,7 @@ const TokenPage: React.FC = () => {
       }
     
       try {
-        const tokenAmount = Math.floor(amount * 10 ** 6);
+        const tokenAmount = Math.floor(amount);
         const tickerBytes = stringToBytes(tokenDetails.symbol);
     
         const sellTransaction: InputTransactionData = {
@@ -984,21 +984,59 @@ const TokenPage: React.FC = () => {
     const tokens_sold_before = 0; // For first purchase
     const tokens_sold_after = tokens_sold_before + tokenAmount;
     
-    const y_before = total_supply - tokens_sold_before;
-    const y_after = total_supply - tokens_sold_after;
-    
     const scale = 100_000_000; // 10^8 for APT Octas
-    const precision = 1_000_000_000_000; // 10^12 for precision
-    const numerator = 16_800_000_000 * scale * precision;
+    const price_scale = 1_000_000; // 10^6 for price scaling
+    const price_numerator = 19_029_514_756; // New price numerator
+    const price_constant = 6_190_532_760; // 61.9053276 * 10^8
+
+    // For large purchases (over 100M tokens), use segmented approximation
+    if (tokenAmount > 100_000_000) {
+      const segments = 10; // Divide the purchase into 10 segments
+      const segment_size = tokenAmount / segments;
+      let total_cost = 0;
+
+      for (let i = 0; i < segments; i++) {
+        const segment_start = tokens_sold_before + (i * segment_size);
+        const segment_end = segment_start + segment_size;
+        
+        // Calculate price at start and end of segment
+        const denominator_start = total_supply - segment_start;
+        const denominator_end = total_supply - segment_end;
+        
+        const hyperbolic_start = (price_numerator * price_scale) / denominator_start;
+        const hyperbolic_end = (price_numerator * price_scale) / denominator_end;
+        
+        const constant_term = price_constant / (scale / price_scale);
+        
+        const price_start = hyperbolic_start + constant_term;
+        const price_end = hyperbolic_end + constant_term;
+        
+        // Use average price for this segment
+        const segment_avg_price = (price_start + price_end) / 2;
+        const segment_cost = (segment_avg_price * segment_size * 100) / scale;
+        
+        total_cost += segment_cost;
+      }
+      
+      return total_cost / 10 ** 8; // Convert to APT
+    }
     
-    const x_before = tokens_sold_before === 0 ? 0 : 
-      (numerator / y_before) - (21 * scale * precision);
-    const x_after = (numerator / y_after) - (21 * scale * precision);
+    // For smaller purchases, use the original average price method
+    const denominator_before = total_supply - tokens_sold_before;
+    const denominator_after = total_supply - tokens_sold_after;
     
-    const apt_cost = x_after > x_before ? x_after - x_before : 0;
-    const apt_cost_scaled = apt_cost / scale; // Changed from precision to scale
+    const hyperbolic_before = (price_numerator * price_scale) / denominator_before;
+    const hyperbolic_after = (price_numerator * price_scale) / denominator_after;
     
-    return apt_cost_scaled / precision; // Convert to APT
+    const constant_term = price_constant / (scale / price_scale);
+    
+    const price_before = hyperbolic_before + constant_term;
+    const price_after = hyperbolic_after + constant_term;
+    const average_price = (price_before + price_after) / 2;
+    
+    const apt_cost = (average_price * tokenAmount * 100) / scale;
+    
+    return apt_cost / 10 ** 8; // Convert to APT
   };
 
   if (!coinHash) return <div className="token-trading-page">No coin hash provided.</div>;
