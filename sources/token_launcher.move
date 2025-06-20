@@ -49,6 +49,13 @@ const E_SLIPPAGE_EXCEEDED: u64 = 1015;
 const E_INVALID_EXPECTED_PRICE: u64 = 1016;
 const E_INVALID_SLIPPAGE: u64 = 1017;
 const MAX_RETRIES: u64 = 3;
+const E_INSUFFICIENT_LAUNCH_FEE: u64 = 1018;
+
+// Fee constants
+const LAUNCH_FEE_APT: u64 = 20_000_000; // 0.2 APT in Octas
+const PRE_GRADUATION_PLATFORM_FEE_BPS: u128 = 90u128; // 0.9% (90 basis points)
+const PRE_GRADUATION_CREATOR_FEE_BPS: u128 = 10u128; // 0.1% (10 basis points)
+const PLATFORM_TREASURY_ADDRESS: address = @0xd89c5d7624a56413f3af6971d77be6047547be3a443566303ac2ac2ad7a70429;
 
 // Price calculation constants
 const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
@@ -288,6 +295,14 @@ public entry fun initialize(admin: &signer) {
     total_supply: u64
 ) acquires ModuleState, TokenCounter {
     let creator_addr = signer::address_of(creator);
+    
+    // Launch fee collection
+    let creator_balance = coin::balance<AptosCoin>(creator_addr);
+    assert!(creator_balance >= LAUNCH_FEE_APT, E_INSUFFICIENT_LAUNCH_FEE);
+    
+    // Transfer launch fee to platform treasury
+    coin::transfer<AptosCoin>(creator, PLATFORM_TREASURY_ADDRESS, LAUNCH_FEE_APT);
+    
     let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
     let state = borrow_global_mut<ModuleState>(module_addr);
     let counter = borrow_global_mut<TokenCounter>(module_addr);
@@ -403,7 +418,7 @@ public entry fun buy_tokens(
     creator_addr: address,
     ticker: vector<u8>,
     amount: u64
-) acquires ModuleState, TokenVault, BuyerStore {
+) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let buyer_addr = signer::address_of(buyer);
     let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
     let state = borrow_global_mut<ModuleState>(module_addr);
@@ -458,8 +473,27 @@ public entry fun buy_tokens(
     let apt_cost_u64 = apt_cost as u64;
     event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
 
-    // Transfer APT
-    coin::transfer<AptosCoin>(buyer, resource_addr, apt_cost_u64);
+    // Calculate trading fees ON TOP of bonding curve cost
+    let platform_fee = (apt_cost * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
+    let creator_fee = (apt_cost * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+    let total_cost = apt_cost + platform_fee + creator_fee;
+    let total_cost_u64 = total_cost as u64;
+    
+    event::emit(DebugEvent { msg: b"Platform Fee", value: platform_fee });
+    event::emit(DebugEvent { msg: b"Creator Fee", value: creator_fee });
+    event::emit(DebugEvent { msg: b"Total Cost", value: total_cost });
+
+    // Transfer total cost (bonding curve + fees)
+    coin::transfer<AptosCoin>(buyer, resource_addr, total_cost_u64);
+
+    // Get creator address from VaultState
+    let vault_state = borrow_global<VaultState>(metadata_addr);
+    let creator_addr = vault_state.creator;
+
+    // Distribute fees
+    let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
+    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, platform_fee as u64);
+    coin::transfer<AptosCoin>(&resource_signer, creator_addr, creator_fee as u64);
 
     // Update vault state
     vault.total_apt_spent = vault.total_apt_spent + apt_cost_u64;
@@ -502,7 +536,7 @@ public entry fun sell_tokens(
     creator_addr: address,
     ticker: vector<u8>,
     amount: u64
-) acquires ModuleState, TokenVault, BuyerStore {
+) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let seller_addr = signer::address_of(seller);
     let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
     let state = borrow_global_mut<ModuleState>(module_addr);
@@ -555,6 +589,16 @@ public entry fun sell_tokens(
     event::emit(DebugEvent { msg: b"APT Out", value: apt_out as u128 });
     assert!(apt_out > 0 || amount == 0, E_INSUFFICIENT_APT_OUT);
 
+    // Calculate trading fees ON TOP of bonding curve return
+    let platform_fee = (apt_out * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
+    let creator_fee = (apt_out * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+    let total_return = apt_out - platform_fee - creator_fee;
+    let total_return_u64 = total_return as u64;
+    
+    event::emit(DebugEvent { msg: b"Platform Fee", value: platform_fee });
+    event::emit(DebugEvent { msg: b"Creator Fee", value: creator_fee });
+    event::emit(DebugEvent { msg: b"Total Return", value: total_return });
+
     let actual_balance = coin::balance<AptosCoin>(resource_addr);
     state.apt_amount = actual_balance;
     event::emit(DebugEvent { msg: b"Resource Balance", value: actual_balance as u128 });
@@ -583,8 +627,17 @@ public entry fun sell_tokens(
     let decimals = vault.decimals_factor as u128;
     token_metadata_mut.market_cap = ((total_sold * price) / decimals) as u64;
 
+    // Get creator address from VaultState
+    let vault_state = borrow_global<VaultState>(metadata_addr);
+    let creator_addr = vault_state.creator;
+
+    // Distribute fees first
     let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-    coin::transfer<AptosCoin>(&resource_signer, seller_addr, apt_out_u64);
+    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, platform_fee as u64);
+    coin::transfer<AptosCoin>(&resource_signer, creator_addr, creator_fee as u64);
+
+    // Seller gets remaining amount
+    coin::transfer<AptosCoin>(&resource_signer, seller_addr, total_return_u64);
 
     event::emit(TokenSaleEvent {
         seller: seller_addr,
