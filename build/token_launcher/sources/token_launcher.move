@@ -1,4 +1,4 @@
-module 0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090::token_launcher {
+module 0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4::token_launcher {
     use std::signer;
     use std::option;
     use aptos_framework::fungible_asset::{Self, Metadata};
@@ -22,8 +22,8 @@ struct DebugState has copy, drop, store {
     diff: u64,             // Match vault subtraction result
 }
 const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
-    const MODULE_ADDRESS: address = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
-    const RESOURCE_ADDRESS: address = @0xe90527b3338636942c64a3facfea7bcc826b1c8a8ad02092f5d93644c45c7d7d;
+    const MODULE_ADDRESS: address = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
+    const RESOURCE_ADDRESS: address = @0x321ad16a24a9b6c1d156d013e38686db75f838872c567d6a36430894a460407d;
 const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other error codes
     const E_TICKER_EXISTS: u64 = 1001;
     const E_INSUFFICIENT_SUPPLY: u64 = 1002;
@@ -56,6 +56,21 @@ const LAUNCH_FEE_APT: u64 = 20_000_000; // 0.2 APT in Octas
 const PRE_GRADUATION_PLATFORM_FEE_BPS: u128 = 90u128; // 0.9% (90 basis points)
 const PRE_GRADUATION_CREATOR_FEE_BPS: u128 = 10u128; // 0.1% (10 basis points)
 const PLATFORM_TREASURY_ADDRESS: address = @0xd89c5d7624a56413f3af6971d77be6047547be3a443566303ac2ac2ad7a70429;
+
+// --- NEW: PHASE 3 CONSTANTS & ERRORS ---
+
+// New Error Codes for Graduation
+const E_ALREADY_GRADUATED: u64 = 1019;
+const E_MARKET_CAP_TOO_LOW: u64 = 1020;
+const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
+
+// Test Graduation Threshold
+const GRADUATION_MARKET_CAP_APT: u64 = 2_00000000; // 2 APT raised (not market cap)
+
+// Test Graduation Fee
+const GRADUATION_FEE_TOTAL_APT: u64 = 1_00000000;    // 1 APT
+const GRADUATION_PLATFORM_FEE_APT: u64 = 80_000_000;   // 0.8 APT
+const GRADUATION_CREATOR_FEE_APT: u64 = 20_000_000;    // 0.2 APT
 
 // Price calculation constants
 const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
@@ -153,7 +168,8 @@ struct DebugEvent has drop, store {
         remaining_supply: u64,
         price_per_token: u64,
         total_apt_spent: u64,
-        decimals_factor: u64  // Added field for token decimals scaling
+        decimals_factor: u64,  // Added field for token decimals scaling
+        is_graduated: bool,
     }
 
     struct TokenMetadataEntry has store {
@@ -240,7 +256,7 @@ struct DebugEvent has drop, store {
     }
 
 public entry fun register_resource_account(admin: &signer) {
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     let resource_addr = account::create_resource_address(&module_addr, b"token_launcher");
     if (!coin::is_account_registered<AptosCoin>(resource_addr)) {
         coin::register<AptosCoin>(admin); // Admin registers it
@@ -250,7 +266,7 @@ public entry fun register_resource_account(admin: &signer) {
 
 
 public entry fun initialize(admin: &signer) {
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     if (!exists<ModuleState>(module_addr)) {
         let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"token_launcher");
         let resource_addr = signer::address_of(&resource_signer);
@@ -278,8 +294,8 @@ public entry fun initialize(admin: &signer) {
         new_contribution_bps: u64
     ) acquires ModuleState {
         let admin_addr = signer::address_of(admin);
-        assert!(admin_addr == @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090, E_NOT_ADMIN);
-        let module_state = borrow_global_mut<ModuleState>(@0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090);
+        assert!(admin_addr == @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4, E_NOT_ADMIN);
+        let module_state = borrow_global_mut<ModuleState>(@0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4);
         assert!(new_contribution_bps <= 3000, E_CONTRIBUTION_TOO_HIGH);
         module_state.liquidity_contribution_bps = new_contribution_bps;
     }
@@ -303,7 +319,7 @@ public entry fun initialize(admin: &signer) {
     // Transfer launch fee to platform treasury
     coin::transfer<AptosCoin>(creator, PLATFORM_TREASURY_ADDRESS, LAUNCH_FEE_APT);
     
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     let state = borrow_global_mut<ModuleState>(module_addr);
     let counter = borrow_global_mut<TokenCounter>(module_addr);
     counter.count = counter.count + 1;
@@ -366,7 +382,8 @@ public entry fun initialize(admin: &signer) {
         remaining_supply: scaled_remaining_supply,
         price_per_token: 10000,
         total_apt_spent: 0,
-        decimals_factor
+        decimals_factor,
+        is_graduated: false,
     });
     move_to(&metadata_signer, VaultState {
         creator: creator_addr,
@@ -420,9 +437,9 @@ public entry fun buy_tokens(
     amount: u64
 ) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let buyer_addr = signer::address_of(buyer);
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = @0xe90527b3338636942c64a3facfea7bcc826b1c8a8ad02092f5d93644c45c7d7d;
+    let resource_addr = @0x321ad16a24a9b6c1d156d013e38686db75f838872c567d6a36430894a460407d;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     event::emit(DebugEvent { msg: b"Metadata Addr Used", value: 0 });
@@ -529,6 +546,24 @@ public entry fun buy_tokens(
         timestamp: timestamp::now_microseconds(),
         tokens_sold: (tokens_sold_before as u128),
     });
+
+    // Automatic graduation check
+    if (!vault.is_graduated && vault.total_apt_spent >= GRADUATION_MARKET_CAP_APT) {
+        // Mark token as graduated
+        vault.is_graduated = true;
+        
+        // Pay graduation fees
+        let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
+        coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, GRADUATION_PLATFORM_FEE_APT);
+        coin::transfer<AptosCoin>(&resource_signer, creator_addr, GRADUATION_CREATOR_FEE_APT);
+        
+        // Emit graduation event
+        event::emit(TokenGraduatedEvent {
+            metadata_addr,
+            market_cap_at_graduation: vault.total_apt_spent,
+            timestamp: timestamp::now_microseconds(),
+        });
+    }
 }
 
 public entry fun sell_tokens(
@@ -538,9 +573,9 @@ public entry fun sell_tokens(
     amount: u64
 ) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let seller_addr = signer::address_of(seller);
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = @0xe90527b3338636942c64a3facfea7bcc826b1c8a8ad02092f5d93644c45c7d7d;
+    let resource_addr = @0x321ad16a24a9b6c1d156d013e38686db75f838872c567d6a36430894a460407d;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
@@ -650,12 +685,66 @@ public entry fun sell_tokens(
     });
 }
 
-     
+// --- NEW: GRADUATION FUNCTION ---
 
-   
+#[event]
+struct TokenGraduatedEvent has drop, store {
+    metadata_addr: address,
+    market_cap_at_graduation: u64,
+    timestamp: u64,
+}
+
+public entry fun graduate_token(
+    _caller: &signer, // Anyone can call this, so caller is unused.
+    creator_addr: address,
+    ticker: vector<u8>
+) acquires ModuleState, TokenVault, VaultState {
+    // 1. Find the token's metadata address
+    let state = borrow_global<ModuleState>(@0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4);
+    let token_metadata = table::borrow(&state.token_metadata, creator_addr);
+    let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
+
+    // 2. Get the token's vault to check its state
+    let vault = borrow_global_mut<TokenVault>(metadata_addr);
+
+    // 3. --- VALIDATION CHECKS ---
+    // Check if it's already graduated
+    assert!(!vault.is_graduated, E_ALREADY_GRADUATED);
+
+    // Check if there's enough APT in the resource account (for testing)
+    let resource_balance = coin::balance<AptosCoin>(@0x321ad16a24a9b6c1d156d013e38686db75f838872c567d6a36430894a460407d);
+    assert!(resource_balance >= GRADUATION_MARKET_CAP_APT, E_MARKET_CAP_TOO_LOW);
+
+    // Check if there's enough APT in the pool to pay the 1 APT fee
+    assert!(resource_balance >= GRADUATION_FEE_TOTAL_APT, E_INSUFFICIENT_LIQUIDITY_FOR_FEE);
+
+    // 4. --- FEE COLLECTION & DISTRIBUTION ---
+    // Get the resource signer to authorize payments from the token's pool
+    let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
+    let vault_state = borrow_global<VaultState>(metadata_addr);
+
+    // Pay the platform 0.8 APT
+    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, GRADUATION_PLATFORM_FEE_APT);
+
+    // Pay the creator 0.2 APT
+    coin::transfer<AptosCoin>(&resource_signer, vault_state.creator, GRADUATION_CREATOR_FEE_APT);
+    
+    // 5. --- UPDATE TOKEN STATE ---
+    // No need to deduct from total_apt_spent since we're checking resource balance
+    
+    // Flip the switch!
+    vault.is_graduated = true;
+
+    // 6. --- EMIT EVENT ---
+    event::emit(TokenGraduatedEvent {
+        metadata_addr,
+        market_cap_at_graduation: resource_balance, // Log the resource balance
+        timestamp: timestamp::now_microseconds(),
+    });
+}
 
 public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState {
-    let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+    let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
     let admin_addr = signer::address_of(admin);
     assert!(admin_addr == module_addr, E_NOT_ADMIN);
     let state = borrow_global_mut<ModuleState>(module_addr);
@@ -676,7 +765,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         token_b_amount: u64
     ) acquires ModuleState, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+        let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
 
@@ -721,7 +810,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         is_token_to_coin: bool
     ) acquires ModuleState, BuyerStore {
         let trader_addr = signer::address_of(trader);
-        let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+        let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -878,7 +967,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         ticker: vector<u8>
     ) acquires ModuleState, TokenVault, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090;
+        let module_addr = @0x320d34cb526f47b638f353f0b86f9404a1332aec8953a9ab09c2da559c639da4;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -955,7 +1044,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
 
 #[view]
 public fun get_resource_info(): (address, bool) {
-    let resource_addr = account::create_resource_address(&@0xe90527b3338636942c64a3facfea7bcc826b1c8a8ad02092f5d93644c45c7d7d, b"token_launcher");
+    let resource_addr = account::create_resource_address(&@0x321ad16a24a9b6c1d156d013e38686db75f838872c567d6a36430894a460407d, b"token_launcher");
     (resource_addr, coin::is_account_registered<AptosCoin>(resource_addr))
 }
 }
