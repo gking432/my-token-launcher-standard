@@ -57,6 +57,11 @@ const PRE_GRADUATION_PLATFORM_FEE_BPS: u128 = 90u128; // 0.9% (90 basis points)
 const PRE_GRADUATION_CREATOR_FEE_BPS: u128 = 10u128; // 0.1% (10 basis points)
 const PLATFORM_TREASURY_ADDRESS: address = @0xd89c5d7624a56413f3af6971d77be6047547be3a443566303ac2ac2ad7a70429;
 
+// Phase 4: Post-Graduation Trading Fees
+const POST_GRADUATION_PLATFORM_FEE_BPS: u128 = 50u128;   // 0.05%
+const POST_GRADUATION_CREATOR_FEE_BPS: u128 = 200u128;   // 0.2%
+const POST_GRADUATION_LP_FEE_BPS: u128 = 50u128;         // 0.05%
+
 // --- NEW: PHASE 3 CONSTANTS & ERRORS ---
 
 // New Error Codes for Graduation
@@ -65,12 +70,12 @@ const E_MARKET_CAP_TOO_LOW: u64 = 1020;
 const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
 
 // Test Graduation Threshold
-const GRADUATION_MARKET_CAP_APT: u64 = 2_00000000; // 2 APT raised (not market cap)
+const GRADUATION_MARKET_CAP_APT: u64 = 1200_00000000; // 1,200 APT raised (not market cap)
 
 // Test Graduation Fee
-const GRADUATION_FEE_TOTAL_APT: u64 = 1_00000000;    // 1 APT
-const GRADUATION_PLATFORM_FEE_APT: u64 = 80_000_000;   // 0.8 APT
-const GRADUATION_CREATOR_FEE_APT: u64 = 20_000_000;    // 0.2 APT
+const GRADUATION_FEE_TOTAL_APT: u64 = 60_00000000;    // 60 APT
+const GRADUATION_PLATFORM_FEE_APT: u64 = 55_00000000;   // 55 APT
+const GRADUATION_CREATOR_FEE_APT: u64 = 5_00000000;    // 5 APT
 
 // Price calculation constants
 const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
@@ -491,8 +496,17 @@ public entry fun buy_tokens(
     event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
 
     // Calculate trading fees ON TOP of bonding curve cost
-    let platform_fee = (apt_cost * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
-    let creator_fee = (apt_cost * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+    let (platform_fee, creator_fee) = if (vault.is_graduated) {
+        // Post-graduation fees
+        let platform_fee = (apt_cost * POST_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.05%
+        let creator_fee = (apt_cost * POST_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.2%
+        (platform_fee, creator_fee)
+    } else {
+        // Pre-graduation fees
+        let platform_fee = (apt_cost * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
+        let creator_fee = (apt_cost * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+        (platform_fee, creator_fee)
+    };
     let total_cost = apt_cost + platform_fee + creator_fee;
     let total_cost_u64 = total_cost as u64;
     
@@ -625,8 +639,17 @@ public entry fun sell_tokens(
     assert!(apt_out > 0 || amount == 0, E_INSUFFICIENT_APT_OUT);
 
     // Calculate trading fees ON TOP of bonding curve return
-    let platform_fee = (apt_out * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
-    let creator_fee = (apt_out * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+    let (platform_fee, creator_fee) = if (vault.is_graduated) {
+        // Post-graduation fees
+        let platform_fee = (apt_out * POST_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.05%
+        let creator_fee = (apt_out * POST_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.2%
+        (platform_fee, creator_fee)
+    } else {
+        // Pre-graduation fees
+        let platform_fee = (apt_out * PRE_GRADUATION_PLATFORM_FEE_BPS) / 10000; // 0.9%
+        let creator_fee = (apt_out * PRE_GRADUATION_CREATOR_FEE_BPS) / 10000;   // 0.1%
+        (platform_fee, creator_fee)
+    };
     let total_return = apt_out - platform_fee - creator_fee;
     let total_return_u64 = total_return as u64;
     
