@@ -28,12 +28,19 @@ const TokenPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
+  const [slippage, setSlippage] = useState<number>(500); // Default 5% (500 bps)
+  const [priceImpact, setPriceImpact] = useState<number>(0);
+  const [showSlippageInput, setShowSlippageInput] = useState<boolean>(false);
 
   const fixedPrice = 0.001;
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick", Time> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram", Time> | null>(null);
+
+  // Slippage options (in basis points)
+  const slippageOptions = [50, 100, 200, 500, 1000]; // 0.5%, 1%, 2%, 5%, 10%
+  const maxSlippage = 1000; // 10% max
 
   const config = useMemo(() => new AptosConfig({ 
     network: Network.DEVNET,
@@ -876,7 +883,7 @@ const TokenPage: React.FC = () => {
     }
 
     const handleBuy = async () => {
-      console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol);
+      console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol, "slippage:", slippage);
       if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
         alert("Connect wallet, enter a valid amount, or ensure token details are available.");
         return;
@@ -890,7 +897,8 @@ const TokenPage: React.FC = () => {
         console.log("Buying tokens with params:", {
           creatorAddress: tokenDetails.creatorAddress,
           ticker: tickerBytes,
-          aptAmount: aptAmount
+          aptAmount: aptAmount,
+          maxSlippageBps: slippage
         });
     
         const buyTransaction: InputTransactionData = {
@@ -900,7 +908,8 @@ const TokenPage: React.FC = () => {
             functionArguments: [
               tokenDetails.creatorAddress,
               tickerBytes,
-              tokenAmount
+              tokenAmount,
+              slippage
             ],
           },
         };
@@ -920,9 +929,19 @@ const TokenPage: React.FC = () => {
           console.warn("Failed to update balance after 3 attempts.");
         }
         setRefreshChart((prev) => prev + 1);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Buy error:", error);
-        alert("Failed to buy tokens. Check console.");
+        
+        // Enhanced error handling for slippage protection
+        if (error.errorCode === '1012' || error.message?.includes('1012')) {
+          const currentSlippage = slippage / 100;
+          const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
+          alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
+          alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        } else {
+          alert("Failed to buy tokens. Check console.");
+        }
       }
     };
     
@@ -936,6 +955,13 @@ const TokenPage: React.FC = () => {
         const tokenAmount = Math.floor(amount);
         const tickerBytes = stringToBytes(tokenDetails.symbol);
     
+        console.log("Selling tokens with params:", {
+          creatorAddress: tokenDetails.creatorAddress,
+          ticker: tickerBytes,
+          tokenAmount: tokenAmount,
+          maxSlippageBps: slippage
+        });
+    
         const sellTransaction: InputTransactionData = {
           data: {
             function: `${tokenLauncherAddress}::token_launcher::sell_tokens`,
@@ -943,7 +969,8 @@ const TokenPage: React.FC = () => {
             functionArguments: [
               tokenDetails.creatorAddress,
               tickerBytes,
-              tokenAmount
+              tokenAmount,
+              slippage
             ],
           },
         };
@@ -962,9 +989,19 @@ const TokenPage: React.FC = () => {
           console.warn("Failed to update balance after 3 attempts.");
         }
         setRefreshChart((prev) => prev + 1);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Sell failed:", error);
-        alert("Failed to sell tokens. Check console.");
+        
+        // Enhanced error handling for slippage protection
+        if (error.errorCode === '1012' || error.message?.includes('1012')) {
+          const currentSlippage = slippage / 100;
+          const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
+          alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
+          alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        } else {
+          alert("Failed to sell tokens. Check console.");
+        }
       }
     };
   const handleTrade = (type: 'buy' | 'sell') => {
@@ -1037,6 +1074,46 @@ const TokenPage: React.FC = () => {
     const apt_cost = (average_price * tokenAmount * 100) / scale;
     
     return apt_cost / 10 ** 8; // Convert to APT
+  };
+
+  // Helper function to handle slippage changes
+  const handleSlippageChange = (value: number) => {
+    if (value >= 1 && value <= maxSlippage) {
+      setSlippage(value);
+    } else {
+      alert(`Slippage must be between 0.1% and 10%`);
+    }
+  };
+
+  // Helper function to calculate price impact (simplified version)
+  const calculatePriceImpact = (tokenAmount: number): number => {
+    if (tokenAmount <= 0) return 0;
+    
+    // Simplified price impact calculation based on bonding curve
+    const total_supply = 800_000_000;
+    const tokens_sold_before = 0; // For first purchase
+    const tokens_sold_after = tokens_sold_before + tokenAmount;
+    
+    const price_numerator = 19_029_514_756;
+    const price_scale = 1_000_000;
+    
+    const denominator_before = total_supply - tokens_sold_before;
+    const denominator_after = total_supply - tokens_sold_after;
+    
+    const hyperbolic_before = (price_numerator * price_scale) / denominator_before;
+    const hyperbolic_after = (price_numerator * price_scale) / denominator_after;
+    
+    const price_before = hyperbolic_before + 61_905_327;
+    const price_after = hyperbolic_after + 61_905_327;
+    
+    return ((price_after - price_before) * 10000) / price_before;
+  };
+
+  // Helper function to get price impact color
+  const getPriceImpactColor = (impact: number): string => {
+    if (impact < 200) return '#22c55e'; // Green for < 2%
+    if (impact < 500) return '#eab308'; // Yellow for 2-5%
+    return '#ef4444'; // Red for > 5%
   };
 
   if (!coinHash) return <div className="token-trading-page">No coin hash provided.</div>;
@@ -1117,8 +1194,11 @@ const TokenPage: React.FC = () => {
                   if (newAmount > 0) {
                     const cost = calculateEstimatedCost(newAmount);
                     setEstimatedCost(cost);
+                    const impact = calculatePriceImpact(newAmount);
+                    setPriceImpact(impact);
                   } else {
                     setEstimatedCost(0);
+                    setPriceImpact(0);
                   }
                 }}
                 placeholder="Enter amount"
@@ -1129,7 +1209,71 @@ const TokenPage: React.FC = () => {
                 </div>
               )}
             </div>
- 
+
+            {/* Slippage Protection Section */}
+            <div className="token-trading-input-group">
+              <label className="token-trading-input-label">
+                Slippage Tolerance
+                <button 
+                  className="token-trading-slippage-toggle"
+                  onClick={() => setShowSlippageInput(!showSlippageInput)}
+                >
+                  {showSlippageInput ? '▼' : '▶'}
+                </button>
+              </label>
+              
+              {showSlippageInput && (
+                <div className="token-trading-slippage-container">
+                  <div className="token-trading-slippage-presets">
+                    {slippageOptions.map((option) => (
+                      <button
+                        key={option}
+                        className={`token-trading-slippage-preset ${slippage === option ? 'active' : ''}`}
+                        onClick={() => handleSlippageChange(option)}
+                      >
+                        {(option / 100).toFixed(1)}%
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="token-trading-slippage-custom">
+                    <input
+                      type="number"
+                      className="token-trading-input"
+                      value={(slippage / 100).toFixed(1)}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        handleSlippageChange(Math.round(value * 100));
+                      }}
+                      placeholder="Custom %"
+                      min="0.1"
+                      max="10"
+                      step="0.1"
+                    />
+                    <span className="token-trading-slippage-unit">%</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Price Impact Display */}
+              {amount > 0 && priceImpact > 0 && (
+                <div className="token-trading-price-impact">
+                  <span>Estimated Price Impact: </span>
+                  <span 
+                    style={{ color: getPriceImpactColor(priceImpact) }}
+                    className="token-trading-price-impact-value"
+                  >
+                    {(priceImpact / 100).toFixed(2)}%
+                  </span>
+                  {priceImpact > slippage && (
+                    <div className="token-trading-slippage-warning">
+                      ⚠️ Price impact exceeds slippage tolerance
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button 
               className={`token-trading-button ${tradeType === 'buy' ? 'token-trading-buy-button' : 'token-trading-sell-button'}`}
               onClick={() => tradeType === 'buy' ? handleBuy() : handleSell()}
