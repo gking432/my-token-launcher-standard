@@ -21,10 +21,10 @@ struct DebugState has copy, drop, store {
     remaining_supply: u64,  // Match vault field type
     diff: u64,             // Match vault subtraction result
 }
-const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
+    const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
     const MODULE_ADDRESS: address = @0x5961dc0cdccca02f9fd135ef9df791c549bfd6b91136d37829afa44909edd32a;
     const RESOURCE_ADDRESS: address = @0xa9c99dc8aeb5d96a639a2d7d6eb4413a558085443ba6bfce1a634e708e050427;
-const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other error codes
+    const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other error codes
     const E_TICKER_EXISTS: u64 = 1001;
     const E_INSUFFICIENT_SUPPLY: u64 = 1002;
     const E_METADATA_NOT_FOUND: u64 = 1003;
@@ -44,12 +44,12 @@ const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other e
     const E_INVALID_VAULT_STATE: u64 = 4;
     const E_INVALID_TOKEN_SOLD: u64 = 10110;
     const E_INVALID_COST: u64 = 11204; // Use a unique error code
-const E_EXCEEDS_SUPPLY: u64 = 101223;    
-const E_SLIPPAGE_EXCEEDED: u64 = 1015;
-const E_INVALID_EXPECTED_PRICE: u64 = 1016;
-const E_INVALID_SLIPPAGE: u64 = 1017;
-const MAX_RETRIES: u64 = 3;
-const E_INSUFFICIENT_LAUNCH_FEE: u64 = 1018;
+    const E_EXCEEDS_SUPPLY: u64 = 101223;    
+    const E_SLIPPAGE_EXCEEDED: u64 = 1015;
+    const E_INVALID_EXPECTED_PRICE: u64 = 1016;
+    const E_INVALID_SLIPPAGE: u64 = 1017;
+    const MAX_RETRIES: u64 = 3;
+    const E_INSUFFICIENT_LAUNCH_FEE: u64 = 1018;
 
 // Fee constants
 const LAUNCH_FEE_APT: u64 = 20_000_000; // 0.2 APT in Octas
@@ -70,12 +70,12 @@ const E_MARKET_CAP_TOO_LOW: u64 = 1020;
 const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
 
 // Test Graduation Threshold
-const GRADUATION_MARKET_CAP_APT: u64 = 1200_00000000; // 1,200 APT raised (not market cap)
+const GRADUATION_MARKET_CAP_APT: u64 = 2_00000000; // 2 APT raised (for testing)
 
 // Test Graduation Fee
-const GRADUATION_FEE_TOTAL_APT: u64 = 60_00000000;    // 60 APT
-const GRADUATION_PLATFORM_FEE_APT: u64 = 55_00000000;   // 55 APT
-const GRADUATION_CREATOR_FEE_APT: u64 = 5_00000000;    // 5 APT
+const GRADUATION_FEE_TOTAL_APT: u64 = 1_00000000;    // 1 APT
+const GRADUATION_PLATFORM_FEE_APT: u64 = 0_50000000;   // 0.5 APT
+const GRADUATION_CREATOR_FEE_APT: u64 = 0_50000000;    // 0.5 APT
 
 // Price calculation constants
 const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
@@ -372,17 +372,9 @@ public entry fun initialize(admin: &signer) {
     let mint_ref = fungible_asset::generate_mint_ref(&token_constructor);
     let burn_ref = fungible_asset::generate_burn_ref(&token_constructor);
     let module_signer = object::generate_signer_for_extending(&state.extend_ref);
-    let dex_store_constructor = object::create_object(module_addr);
-    let dex_reserve_store = fungible_asset::create_store(&dex_store_constructor, metadata);
     
-    // Set 200M preminted, 800M remaining
-    let scaled_premint_amount = 200000000 * decimals_factor;
+    // Set 800M remaining for bonding curve (no pre-minting)
     let scaled_remaining_supply = 800000000 * decimals_factor;
-    fungible_asset::mint_to(&mint_ref, dex_reserve_store, scaled_premint_amount);
-    let minted_supply_opt = fungible_asset::supply(metadata);
-    let minted_supply = option::extract(&mut minted_supply_opt);
-    let minted_supply_u64 = (minted_supply / 100_000_000) as u64;
-    assert!(minted_supply == (scaled_premint_amount as u128), E_PREMINT_FAILED);
 
     let metadata_signer = object::generate_signer_for_extending(&extend_ref);
     move_to(&metadata_signer, TokenVault {
@@ -422,10 +414,10 @@ public entry fun initialize(admin: &signer) {
         metadata_addr,
         ticker,
         total_supply,
-        minted_supply: minted_supply_u64,
+        minted_supply: 0,
         remaining_supply: (scaled_remaining_supply / 100_000_000) as u64,
         decimals_factor,
-        premint_amount: (scaled_premint_amount / 100_000_000) as u64,
+        premint_amount: 0,
         timestamp: timestamp::now_microseconds(),
     });
 }
@@ -457,6 +449,9 @@ public entry fun buy_tokens(
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     event::emit(DebugEvent { msg: b"Metadata Addr Used", value: 0 });
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
+
+    // Prevent trading after graduation
+    assert!(!vault.is_graduated, E_ALREADY_GRADUATED);
 
     // Validate slippage parameter
     assert!(max_slippage_bps > 0, E_INVALID_SLIPPAGE);
@@ -590,12 +585,47 @@ public entry fun buy_tokens(
         coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, GRADUATION_PLATFORM_FEE_APT);
         coin::transfer<AptosCoin>(&resource_signer, creator_addr, GRADUATION_CREATOR_FEE_APT);
         
-        // Emit graduation event
-        event::emit(TokenGraduatedEvent {
-            metadata_addr,
-            market_cap_at_graduation: vault.total_apt_spent,
-            timestamp: timestamp::now_microseconds(),
-        });
+        // Allocate tokens during graduation
+        {
+            let creator_has_store = false;
+            let creator_tokens = 20_000_000 * vault.decimals_factor;
+            let total_supply = 1_000_000_000 * vault.decimals_factor;
+            let bonding_curve_supply = 800_000_000 * vault.decimals_factor;
+            let tokens_sold = bonding_curve_supply - vault.remaining_supply;
+            let pool_tokens = total_supply - tokens_sold - creator_tokens;
+            let pool_store = get_or_create_token_store(&resource_signer, vault.metadata);
+
+            if (exists<BuyerStore>(creator_addr)) {
+                let buyer_store = borrow_global<BuyerStore>(creator_addr);
+                let i = 0;
+                let len = vector::length(&buyer_store.stores);
+                while (i < len) {
+                    let entry = vector::borrow(&buyer_store.stores, i);
+                    if (entry.metadata_addr == metadata_addr) {
+                        let creator_store = entry.store;
+                        fungible_asset::mint_to(&vault.mint_ref, creator_store, creator_tokens);
+                        creator_has_store = true;
+                        break;
+                    };
+                    i = i + 1;
+                };
+            };
+
+            if (!creator_has_store) {
+                let treasury_store = get_or_create_token_store(&resource_signer, vault.metadata);
+                fungible_asset::mint_to(&vault.mint_ref, treasury_store, creator_tokens);
+            };
+
+            // Always mint pool tokens
+            fungible_asset::mint_to(&vault.mint_ref, pool_store, pool_tokens);
+
+            // Emit graduation event
+            event::emit(TokenGraduatedEvent {
+                metadata_addr,
+                market_cap_at_graduation: vault.total_apt_spent,
+                timestamp: timestamp::now_microseconds(),
+            });
+        }
     }
 }
 
@@ -613,6 +643,9 @@ public entry fun sell_tokens(
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
+
+    // Prevent trading after graduation
+    assert!(!vault.is_graduated, E_ALREADY_GRADUATED);
 
     // Validate slippage parameter
     assert!(max_slippage_bps > 0, E_INVALID_SLIPPAGE);
@@ -746,55 +779,6 @@ struct TokenGraduatedEvent has drop, store {
     metadata_addr: address,
     market_cap_at_graduation: u64,
     timestamp: u64,
-}
-
-public entry fun graduate_token(
-    _caller: &signer, // Anyone can call this, so caller is unused.
-    creator_addr: address,
-    ticker: vector<u8>
-) acquires ModuleState, TokenVault, VaultState {
-    // 1. Find the token's metadata address
-    let state = borrow_global<ModuleState>(@0x5961dc0cdccca02f9fd135ef9df791c549bfd6b91136d37829afa44909edd32a);
-    let token_metadata = table::borrow(&state.token_metadata, creator_addr);
-    let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
-
-    // 2. Get the token's vault to check its state
-    let vault = borrow_global_mut<TokenVault>(metadata_addr);
-
-    // 3. --- VALIDATION CHECKS ---
-    // Check if it's already graduated
-    assert!(!vault.is_graduated, E_ALREADY_GRADUATED);
-
-    // Check if there's enough APT in the resource account (for testing)
-    let resource_balance = coin::balance<AptosCoin>(@0xa9c99dc8aeb5d96a639a2d7d6eb4413a558085443ba6bfce1a634e708e050427);
-    assert!(resource_balance >= GRADUATION_MARKET_CAP_APT, E_MARKET_CAP_TOO_LOW);
-
-    // Check if there's enough APT in the pool to pay the 1 APT fee
-    assert!(resource_balance >= GRADUATION_FEE_TOTAL_APT, E_INSUFFICIENT_LIQUIDITY_FOR_FEE);
-
-    // 4. --- FEE COLLECTION & DISTRIBUTION ---
-    // Get the resource signer to authorize payments from the token's pool
-    let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-    let vault_state = borrow_global<VaultState>(metadata_addr);
-
-    // Pay the platform 0.8 APT
-    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, GRADUATION_PLATFORM_FEE_APT);
-
-    // Pay the creator 0.2 APT
-    coin::transfer<AptosCoin>(&resource_signer, vault_state.creator, GRADUATION_CREATOR_FEE_APT);
-    
-    // 5. --- UPDATE TOKEN STATE ---
-    // No need to deduct from total_apt_spent since we're checking resource balance
-    
-    // Flip the switch!
-    vault.is_graduated = true;
-
-    // 6. --- EMIT EVENT ---
-    event::emit(TokenGraduatedEvent {
-        metadata_addr,
-        market_cap_at_graduation: resource_balance, // Log the resource balance
-        timestamp: timestamp::now_microseconds(),
-    });
 }
 
 public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState {
@@ -1100,5 +1084,40 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
 public fun get_resource_info(): (address, bool) {
     let resource_addr = account::create_resource_address(&@0xa9c99dc8aeb5d96a639a2d7d6eb4413a558085443ba6bfce1a634e708e050427, b"token_launcher");
     (resource_addr, coin::is_account_registered<AptosCoin>(resource_addr))
+}
+
+#[view]
+public fun get_price_impact(
+    creator_addr: address,
+    ticker: vector<u8>,
+    amount: u64,
+    is_buy: bool
+): u128 acquires ModuleState, TokenVault {
+    let module_addr = @0x5961dc0cdccca02f9fd135ef9df791c549bfd6b91136d37829afa44909edd32a;
+    let state = borrow_global<ModuleState>(module_addr);
+    let token_metadata = table::borrow(&state.token_metadata, creator_addr);
+    let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
+    let vault = borrow_global<TokenVault>(metadata_addr);
+
+    let total_supply = 800_000_000u128;
+    let preminted_tokens = 200_000_000u64;
+    let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 
+        0 
+    } else { 
+        ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens 
+    };
+
+    let price_before = calculate_price(tokens_sold_before);
+    let price_after = if (is_buy) {
+        calculate_price(tokens_sold_before + amount)
+    } else {
+        calculate_price(tokens_sold_before - amount)
+    };
+
+    if (is_buy) {
+        ((price_after - price_before) * 10000) / price_before
+    } else {
+        ((price_before - price_after) * 10000) / price_before
+    }
 }
 }
