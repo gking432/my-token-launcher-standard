@@ -1,3 +1,3 @@
-export const MODULE_ADDRESS = "0x5961dc0cdccca02f9fd135ef9df791c549bfd6b91136d37829afa44909edd32a";
+export const MODULE_ADDRESS = "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b";
 export const RESOURCE_ADDRESS = "0xa9c99dc8aeb5d96a639a2d7d6eb4413a558085443ba6bfce1a634e708e050427"; 
 export const APTOS_API_KEY = process.env.REACT_APP_APTOS_API_KEY; 

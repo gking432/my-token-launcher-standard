@@ -10,6 +10,7 @@
     "@aptos-labs/wallet-adapter-react": "^4.1.0",
     "@aptos-labs/wallet-standard": "^0.3.0",
     "@fewcha/web3": "^0.1.38",
+    "@hyperionxyz/sdk": "^0.0.16",
     "@martiandao/aptos-web3-bip44.js": "^2.0.2",
     "@mizuwallet-sdk/aptos-wallet-adapter": "^0.3.2",
     "@mizuwallet-sdk/core": "^1.4.0",

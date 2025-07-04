@@ -10,6 +10,7 @@ import Profile from "./components/Profile";
 import Launch from "./components/Launch";
 import TokenPage from "./components/TokenPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { GraduationListener } from "./components/GraduationListener";
 import "./styles/Landing.css";
 
 const App: React.FC = () => {
@@ -21,6 +22,7 @@ const App: React.FC = () => {
       onError={(error: Error) => {
         console.log('Wallet Connection Error:', error);
       }}>
+      <GraduationListener />
       <Router>
         <Routes>
           <Route path="/" element={
