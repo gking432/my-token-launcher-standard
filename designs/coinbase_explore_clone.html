@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoveMint | Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #0a0b0d;
+            line-height: 1.5;
+        }
+
+        .promo-banner {
+            background: #00d4aa;
+            color: white;
+            text-align: center;
+            padding: 12px 0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #e7ebee;
+            padding: 16px 0;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 28px;
+            font-weight: 900;
+            color: #0a0b0d;
+        }
+
+        .logo-dot {
+            width: 12px;
+            height: 12px;
+            background: #00d4aa;
+            border-radius: 50%;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #5b616e;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: #0a0b0d;
+        }
+
+        .auth-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .settings-icon {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+        }
+
+        .sign-in {
+            color: #0a0b0d;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .sign-up {
+            background: #00d4aa;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .sign-up:hover {
+            background: #00b894;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+            display: flex;
+            gap: 32px;
+            min-height: calc(100vh - 200px);
+        }
+
+        .content {
+            flex: 1;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #0a0b0d;
+        }
+
+        .index-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #5b616e;
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+
+        .index-change {
+            color: #00d4aa;
+            font-weight: 600;
+        }
+
+        .search-container {
+            margin-bottom: 32px;
+        }
+
+        .search-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 16px;
+            border: 1px solid #d8dce0;
+            border-radius: 8px;
+            font-size: 16px;
+            background: #f7f8fa;
+        }
+
+        .search-input::placeholder {
+            color: #8a92a5;
+        }
+
+        .section-header {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .section-subtitle {
+            color: #5b616e;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .read-more {
+            color: #00d4aa;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .control-dropdown {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 1px solid #d8dce0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            color: #0a0b0d;
+        }
+
+        .crypto-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .crypto-table th {
+            text-align: left;
+            padding: 16px 12px;
+            font-weight: 600;
+            color: #5b616e;
+            font-size: 14px;
+            border-bottom: 1px solid #e7ebee;
+        }
+
+        .crypto-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid #f7f8fa;
+        }
+
+        .crypto-table tr:hover {
+            background: #f7f8fa;
+        }
+
+        .asset-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .asset-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 16px;
+        }
+
+        .doge { background: linear-gradient(135deg, #c2a633, #f7d794); }
+        .pepe { background: linear-gradient(135deg, #4caf50, #81c784); }
+        .shib { background: linear-gradient(135deg, #ff6b35, #ff8f65); }
+        .bonk { background: linear-gradient(135deg, #9c27b0, #ba68c8); }
+        .floki { background: linear-gradient(135deg, #ff5722, #ff8a65); }
+
+        .asset-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .asset-name {
+            font-weight: 600;
+            color: #0a0b0d;
+            font-size: 16px;
+        }
+
+        .asset-symbol {
+            color: #5b616e;
+            font-size: 14px;
+        }
+
+        .price {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .chart-mini {
+            width: 80px;
+            height: 40px;
+        }
+
+        .change-positive {
+            color: #00d4aa;
+            font-weight: 600;
+        }
+
+        .change-negative {
+            color: #ff4747;
+            font-weight: 600;
+        }
+
+        .mkt-cap {
+            color: #00d4aa;
+            font-weight: 600;
+        }
+
+        .volume {
+            color: #5b616e;
+        }
+
+        .trade-btn {
+            background: #00d4aa;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .trade-btn:hover {
+            background: #00b894;
+        }
+
+        .sidebar {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            min-height: 100%;
+        }
+
+        .sidebar-card {
+            background: #00d4aa;
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-card p {
+            margin-bottom: 16px;
+            opacity: 0.9;
+        }
+
+        .sidebar-btn {
+            background: white;
+            color: #00d4aa;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .coin-icon {
+            position: absolute;
+            right: 16px;
+            top: 16px;
+            width: 48px;
+            height: 48px;
+            opacity: 0.3;
+        }
+
+        .movers-card {
+            background: white;
+            border: 1px solid #e7ebee;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .movers-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .movers-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .movers-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-arrow {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #e7ebee;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #5b616e;
+        }
+
+        .movers-subtitle {
+            color: #5b616e;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .mover-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #f7f8fa;
+        }
+
+        .mover-item:last-child {
+            border-bottom: none;
+        }
+
+        .mover-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+        }
+
+        .mover-info {
+            flex: 1;
+        }
+
+        .mover-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .mover-price {
+            color: #5b616e;
+            font-size: 12px;
+        }
+
+        .mover-change {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        /* Footer Styles */
+        .footer {
+            background: #ffffff;
+            border-top: 1px solid #e7ebee;
+            width: 100%;
+            padding: 40px 24px;
+        }
+        
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+        }
+        
+        .footer-section h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #050f19;
+            margin-bottom: 16px;
+        }
+        
+        .footer-section p {
+            font-size: 14px;
+            color: #5b616e;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .footer-social {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .social-link {
+            color: #5b616e;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .social-link:hover {
+            color: #00d4aa;
+        }
+        
+        .footer-links {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .footer-links li {
+            margin-bottom: 8px;
+        }
+        
+        .footer-links a {
+            color: #5b616e;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        
+        .footer-links a:hover {
+            color: #00d4aa;
+        }
+        
+        .footer-bottom {
+            border-top: 1px solid #e7ebee;
+            padding: 20px 0;
+            margin-top: 40px;
+        }
+        
+        .footer-bottom-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-bottom p {
+            font-size: 14px;
+            color: #5b616e;
+        }
+        
+        .footer-bottom-links {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .footer-bottom-links a {
+            color: #5b616e;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        
+        .footer-bottom-links a:hover {
+            color: #00d4aa;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+            
+            .page-title {
+                font-size: 32px;
+            }
+            
+            .table-controls {
+                flex-direction: column;
+            }
+            
+            .crypto-table {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .footer-container {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .footer-bottom-content {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="promo-banner">
+        Get 25 APT and 50 MILLION tokens in rewards when you manage a project to graduation! 🚀
+    </div>
+
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo">
+                MoveMint
+                <div class="logo-dot"></div>
+            </div>
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="#">Marketplace</a></li>
+                    <li><a href="#">Trending</a></li>
+                    <li><a href="#">Communities</a></li>
+                    <li><a href="#">Learn</a></li>
+                    <li><a href="#">Docs</a></li>
+                </ul>
+            </nav>
+            <div class="auth-section">
+                <div class="settings-icon">⚙️</div>
+                <a href="#" class="sign-in">Launch</a>
+                <a href="#" class="sign-up">Connect Wallet</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <main class="content">
+            <div class="page-header">
+                <h1 class="page-title">Explore meme coins</h1>
+                <div class="index-info">
+                    <span>MoveMint Meme Index is up</span>
+                    <span class="index-change">⬆ 12.34% (24hrs)</span>
+                    <span>●</span>
+                </div>
+            </div>
+
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search for a meme coin...">
+            </div>
+
+            <section>
+                <div class="section-header">
+                    <h2 class="section-title">Meme coin prices</h2>
+                    <span style="color: #5b616e; font-size: 16px;">2,847 meme assets</span>
+                    <p class="section-subtitle">
+                        The meme coin market is going absolutely bonkers! 🚀 As of today, the total meme coin market capitalization is 420 billion, representing a 69% increase from last week. Much wow!
+                    </p>
+                    <a href="#" class="read-more">Read more</a>
+                </div>
+
+                <div class="table-controls">
+                    <div class="control-dropdown">
+                        <span>🔥 All memes</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="control-dropdown">
+                        <span>1D</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="control-dropdown">
+                        <span>USD</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="control-dropdown">
+                        <span>10 rows</span>
+                        <span>▼</span>
+                    </div>
+                </div>
+
+                <table class="crypto-table">
+                    <thead>
+                        <tr>
+                            <th>Asset</th>
+                            <th>Price</th>
+                            <th>Chart</th>
+                            <th>Change</th>
+                            <th style="color: #00d4aa;">Mkt cap</th>
+                            <th>Volume</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="asset-cell">
+                                    <div class="asset-icon doge">🐕</div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">Dogecoin</div>
+                                        <div class="asset-symbol">DOGE</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="price">$0.4206</td>
+                            <td>
+                                <svg class="chart-mini" viewBox="0 0 80 40">
+                                    <polyline fill="none" stroke="#00d4aa" stroke-width="2" points="0,30 20,25 40,15 60,10 80,5"/>
+                                </svg>
+                            </td>
+                            <td class="change-positive">⬆ 42.0%</td>
+                            <td class="mkt-cap">$69.4B</td>
+                            <td class="volume">$4.2B</td>
+                            <td><button class="trade-btn">Trade</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="asset-cell">
+                                    <div class="asset-icon pepe">🐸</div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">Pepe</div>
+                                        <div class="asset-symbol">PEPE</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="price">$0.0000234</td>
+                            <td>
+                                <svg class="chart-mini" viewBox="0 0 80 40">
+                                    <polyline fill="none" stroke="#00d4aa" stroke-width="2" points="0,35 20,30 40,20 60,15 80,8"/>
+                                </svg>
+                            </td>
+                            <td class="change-positive">⬆ 87.5%</td>
+                            <td class="mkt-cap">$9.8B</td>
+                            <td class="volume">$1.2B</td>
+                            <td><button class="trade-btn">Trade</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="asset-cell">
+                                    <div class="asset-icon shib">🐕‍🦺</div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">Shiba Inu</div>
+                                        <div class="asset-symbol">SHIB</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="price">$0.00003420</td>
+                            <td>
+                                <svg class="chart-mini" viewBox="0 0 80 40">
+                                    <polyline fill="none" stroke="#00d4aa" stroke-width="2" points="0,25 20,20 40,18 60,12 80,10"/>
+                                </svg>
+                            </td>
+                            <td class="change-positive">⬆ 28.7%</td>
+                            <td class="mkt-cap">$20.1B</td>
+                            <td class="volume">$890M</td>
+                            <td><button class="trade-btn">Trade</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="asset-cell">
+                                    <div class="asset-icon bonk">🦴</div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">Bonk</div>
+                                        <div class="asset-symbol">BONK</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="price">$0.00005678</td>
+                            <td>
+                                <svg class="chart-mini" viewBox="0 0 80 40">
+                                    <polyline fill="none" stroke="#00d4aa" stroke-width="2" points="0,20 20,15 40,12 60,8 80,5"/>
+                                </svg>
+                            </td>
+                            <td class="change-positive">⬆ 156.3%</td>
+                            <td class="mkt-cap">$4.2B</td>
+                            <td class="volume">$420M</td>
+                            <td><button class="trade-btn">Trade</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="asset-cell">
+                                    <div class="asset-icon floki">🐺</div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">Floki Inu</div>
+                                        <div class="asset-symbol">FLOKI</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="price">$0.0003141</td>
+                            <td>
+                                <svg class="chart-mini" viewBox="0 0 80 40">
+                                    <polyline fill="none" stroke="#ff4747" stroke-width="2" points="0,15 20,18 40,22 60,25 80,30"/>
+                                </svg>
+                            </td>
+                            <td class="change-negative">⬇ 12.5%</td>
+                            <td class="mkt-cap">$3.0B</td>
+                            <td class="volume">$180M</td>
+                            <td><button class="trade-btn">Trade</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <aside class="sidebar">
+            <div class="sidebar-card">
+                
+                <h3>Launch your token today!</h3>
+                <p>For 0.2 APT, your project can begin trading immediately.</p>
+                <button class="sidebar-btn">Launch Now</button>
+            </div>
+
+            <div class="movers-card">
+                <div class="movers-header">
+                    <h3 class="movers-title">Top Communities 🔥</h3>
+                    
+                </div>
+                <div class="movers-subtitle">Compete with other communities for visibility</div>
+                
+                <div class="mover-item">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #ff6b6b, #4ecdc4);">🚀</div>
+                    <div class="mover-info">
+                        <div class="mover-name">MOONSHOT</div>
+                        <div class="mover-price">$0.00142</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆ 420 APT</div>
+                </div>
+
+                <div class="mover-item">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #a8edea, #fed6e3);">🎭</div>
+                    <div class="mover-info">
+                        <div class="mover-name">GIGACHAD</div>
+                        <div class="mover-price">$0.0891</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆ 234 APT</div>
+                </div>
+                <div class="mover-item" style="margin-top: 1px;">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #443101, #764ba2);">😩</div>
+                    <div class="mover-info">
+                        <div class="mover-name">SHITFUCK</div>
+                        
+                        <div style="color: #5b616e; font-size: 12px;">$0.0000287</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆ 219 APT</div>
+                </div>
+
+                <div class="mover-item">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #f093fb, #f5576c);">🦄</div>
+                    <div class="mover-info">
+                        <div class="mover-name">UNICORN</div>
+                        
+                        <div style="color: #5b616e; font-size: 12px;">$0.0000078</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆ 169 APT</div>
+                </div>
+
+                <div class="mover-item" style="margin-top: 1px;">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #667eea, #764ba2);">🌙</div>
+                    <div class="mover-info">
+                        <div class="mover-name">MOONCAT</div>
+                        
+                        <div style="color: #5b616e; font-size: 12px;">$0.000000433</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆ 146 APT</div>
+                </div>
+
+                <div class="mover-item">
+                    <div class="mover-icon" style="background: linear-gradient(45deg, #2d9734, #f5576c);"> 💩</div>
+                    <div class="mover-info">
+                        <div class="mover-name">FUCKSHIT</div>
+                        
+                        <div style="color: #5b616e; font-size: 12px;">$0.000457</div>
+                    </div>
+                    <div class="mover-change change-positive">⬆  138 APT</div>
+                </div>
+            </div>
+
+           
+        </aside>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-section">
+                <h4>MoveMint</h4>
+                <p>Launch and trade tokens on the MoveMint platform. Join the future of decentralized finance.</p>
+                <div class="footer-social">
+                    <a href="#" class="social-link">Twitter</a>
+                    <a href="#" class="social-link">Telegram</a>
+                    <a href="#" class="social-link">Discord</a>
+                    <a href="#" class="social-link">GitHub</a>
+                </div>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Products</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Marketplace</a></li>
+                    <li><a href="#">Token Launch</a></li>
+                    <li><a href="#">Trading</a></li>
+                    <li><a href="#">Analytics</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">API</a></li>
+                    <li><a href="#">Support</a></li>
+                    <li><a href="#">Blog</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Company</h4>
+                <ul class="footer-links">
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Careers</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="footer-bottom-content">
+                <p>&copy; 2024 MoveMint. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                    <a href="#">Cookies</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

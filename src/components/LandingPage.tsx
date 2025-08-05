@@ -151,7 +151,25 @@ const LandingPage: React.FC = () => {
     };
 
     return (
-        <>
+        <div className="landing-container">
+            {/* Temporary link to new HomePage for testing */}
+            <div style={{ 
+                position: 'fixed', 
+                top: '10px', 
+                left: '10px', 
+                zIndex: 9999, 
+                background: '#00d4aa', 
+                color: 'white', 
+                padding: '10px 15px', 
+                borderRadius: '5px',
+                textDecoration: 'none',
+                fontWeight: 'bold'
+            }}>
+                <Link to="/homepage" style={{ color: 'white', textDecoration: 'none' }}>
+                    🏠 View New HomePage
+                </Link>
+            </div>
+
             <div className="hexagon-grid" ref={gridRef}></div>
             <div className="viewport">
                 <h1 className="headline">Fast, Simple, Secure</h1>
@@ -348,7 +366,7 @@ const LandingPage: React.FC = () => {
                     )}
                 </div>
             </div>
-        </>
+        </div>
     );
 };
 

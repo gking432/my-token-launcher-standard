@@ -1,0 +1,257 @@
+// Aptos Indexer GraphQL API integration
+// Documentation: https://cloud.aptoslabs.com/indexer-api
+
+// Use mainnet indexer for testing (it has real data and works)
+// For production, you would use: 'https://indexer.mainnet.aptoslabs.com/v1/graphql'
+const APTOS_INDEXER_URL = 'https://indexer.mainnet.aptoslabs.com/v1/graphql';
+
+// Enable indexer calls to test functionality
+const isDevnet = false; // Set to true to disable indexer calls
+
+interface FungibleAssetMetadata {
+  symbol: string;
+  name: string;
+  decimals: number;
+  asset_type: string;
+  __typename: string;
+}
+
+interface FungibleAssetBalance {
+  asset_type: string;
+  amount: string;
+  __typename: string;
+}
+
+interface TokenDataByName {
+  token_uri: string;
+  __typename: string;
+}
+
+interface GraphQLResponse<T> {
+  data: T;
+  errors?: any[];
+}
+
+// Get fungible asset metadata by asset types
+export async function getFungibleAssetInfo(assetTypes: string[], offset: number = 0): Promise<FungibleAssetMetadata[]> {
+  const query = `
+    query GetFungibleAssetInfo($in: [String!], $offset: Int) {
+      fungible_asset_metadata(
+        where: {asset_type: {_in: $in}},
+        offset: $offset,
+        limit: 100
+      ) {
+        symbol
+        name
+        decimals
+        asset_type
+        __typename
+      }
+    }
+  `;
+
+  const variables = {
+    in: assetTypes,
+    offset
+  };
+
+  try {
+    const response = await fetch(APTOS_INDEXER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables
+      })
+    });
+
+    const result: GraphQLResponse<{ fungible_asset_metadata: FungibleAssetMetadata[] }> = await response.json();
+    
+    if (result.errors) {
+      console.error('GraphQL errors:', result.errors);
+      throw new Error('GraphQL query failed');
+    }
+
+    return result.data.fungible_asset_metadata;
+  } catch (error) {
+    console.error('Error fetching fungible asset info:', error);
+    throw error;
+  }
+}
+
+// Get token metadata by name within a collection
+export async function getTokensDataByName(tokenName: string, collectionId: string): Promise<TokenDataByName[]> {
+  const query = `
+    query GetTokensDataByName($token_name: String, $collectionId: String) {
+      current_token_datas_v2(
+        where: {token_name: {_eq: $token_name}, collection_id: {_eq: $collectionId}}
+      ) {
+        token_uri
+        __typename
+      }
+    }
+  `;
+
+  const variables = {
+    token_name: tokenName,
+    collectionId
+  };
+
+  try {
+    const response = await fetch(APTOS_INDEXER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables
+      })
+    });
+
+    const result: GraphQLResponse<{ current_token_datas_v2: TokenDataByName[] }> = await response.json();
+    
+    if (result.errors) {
+      console.error('GraphQL errors:', result.errors);
+      throw new Error('GraphQL query failed');
+    }
+
+    return result.data.current_token_datas_v2;
+  } catch (error) {
+    console.error('Error fetching token data by name:', error);
+    throw error;
+  }
+}
+
+// Get fungible asset balances for an account
+export async function getFungibleAssetBalances(
+  address: string, 
+  tokenStandard: string = 'v1', 
+  offset: number = 0
+): Promise<FungibleAssetBalance[]> {
+  const query = `
+    query GetFungibleAssetBalances($address: String, $offset: Int, $token_standard: String) {
+      current_fungible_asset_balances(
+        where: {owner_address: {_eq: $address}, token_standard:{ _eq: $token_standard}},
+        offset: $offset,
+        limit: 100,
+        order_by: {amount: desc}
+      ) {
+        asset_type
+        amount
+        __typename
+      }
+    }
+  `;
+
+  const variables = {
+    address,
+    token_standard: tokenStandard,
+    offset
+  };
+
+  try {
+    const response = await fetch(APTOS_INDEXER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables
+      })
+    });
+
+    const result: GraphQLResponse<{ current_fungible_asset_balances: FungibleAssetBalance[] }> = await response.json();
+    
+    if (result.errors) {
+      console.error('GraphQL errors:', result.errors);
+      throw new Error('GraphQL query failed');
+    }
+
+    return result.data.current_fungible_asset_balances;
+  } catch (error) {
+    console.error('Error fetching fungible asset balances:', error);
+    throw error;
+  }
+}
+
+// Helper function to generate collection ID from creator address and collection name
+export async function generateCollectionId(creatorAddress: string, collectionName: string): Promise<string> {
+  // Remove '0x' prefix if present
+  const handle = creatorAddress.startsWith('0x') ? creatorAddress.slice(2) : creatorAddress;
+  const standardizedAddress = `0x${handle.padStart(64, '0')}`;
+  
+  // Combine creator address and collection name
+  const combinedString = `${creatorAddress}::${collectionName}`;
+  
+  // Compute SHA256 hash using Web Crypto API
+  const encoder = new TextEncoder();
+  const data = encoder.encode(combinedString);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  
+  // Convert to hex string
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return `0x${hashHex}`;
+}
+
+// Get all tokens from our token launcher module
+export async function getTokenLauncherTokens(moduleAddress: string): Promise<FungibleAssetMetadata[]> {
+  // This would query all tokens created by our token launcher module
+  // We'd need to track asset types of created tokens
+  const assetTypes: string[] = [
+    // Example asset types from our token launcher
+    // These would be dynamically generated based on created tokens
+  ];
+  
+  return getFungibleAssetInfo(assetTypes);
+}
+
+// Get token metadata for leaderboard display
+export async function getTokenMetadataForLeaderboard(tokenAssetTypes: string[]): Promise<FungibleAssetMetadata[]> {
+  return getFungibleAssetInfo(tokenAssetTypes);
+}
+
+// Fetch token metadata URI for additional token information
+export async function getTokenMetadataURI(tokenName: string, creatorAddress: string, collectionName: string): Promise<string | null> {
+  try {
+    const collectionId = await generateCollectionId(creatorAddress, collectionName);
+    const tokenData = await getTokensDataByName(tokenName, collectionId);
+    
+    if (tokenData.length > 0) {
+      return tokenData[0].token_uri;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching token metadata URI:', error);
+    return null;
+  }
+}
+
+// Get token metadata for a specific asset type
+export async function getTokenMetadata(assetType: string): Promise<FungibleAssetMetadata | null> {
+  try {
+    const metadata = await getFungibleAssetInfo([assetType]);
+    return metadata.length > 0 ? metadata[0] : null;
+  } catch (error) {
+    console.error('Error fetching token metadata:', error);
+    return null;
+  }
+}
+
+// Get token balance for a specific asset type and address
+export async function getTokenBalance(address: string, assetType: string): Promise<string> {
+  try {
+    const balances = await getFungibleAssetBalances(address);
+    const balance = balances.find(b => b.asset_type === assetType);
+    return balance ? balance.amount : '0';
+  } catch (error) {
+    console.error('Error fetching token balance:', error);
+    return '0';
+  }
+}
