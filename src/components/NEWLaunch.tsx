@@ -1,7 +1,61 @@
 import React, { useState } from 'react';
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { Aptos, AptosConfig, Network, AccountAddress } from "@aptos-labs/ts-sdk";
+import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
+import { useNavigate } from "react-router-dom";
+import { Buffer } from "buffer";
+import { MODULE_ADDRESS } from "../config";
+import PreLaunchModal from './PreLaunchModal';
 import GlobalSidebar from './GlobalSidebar';
 
+window.Buffer = window.Buffer || Buffer;
+
+// Define interfaces at the top
+interface TokenMetadataEntry {
+    original_name: number[];
+    ticker: number[];
+    image: number[];
+    metadata_addr: string;
+}
+interface TokenMetadata {
+    entries: TokenMetadataEntry[];
+    market_cap: string;
+}
+
+const CONTRACT_ADDRESSES: Record<string, string> = {
+    devnet: MODULE_ADDRESS,
+    testnet: "",
+    mainnet: "",
+};
+
+function stringToBytes(str: string): number[] {
+    return Array.from(new TextEncoder().encode(str));
+}
+
+function stringToHex(str: string): string {
+    return "0x" + Buffer.from(str, "utf8").toString("hex");
+}
+
+const config = new AptosConfig({
+    network: Network.DEVNET,
+    fullnode: "https://fullnode.devnet.aptoslabs.com/v1",
+});
+const client = new Aptos(config);
+const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
+
 const Launch: React.FC = () => {
+  const { account, signAndSubmitTransaction, network } = useWallet();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [logo, setLogo] = useState<File | null>(null);
+  const [showPreLaunchModal, setShowPreLaunchModal] = useState(false);
+  const [pendingLaunchData, setPendingLaunchData] = useState<{
+    name: string;
+    symbol: string;
+    twitterLink: string | null;
+    websiteLink: string | null;
+  } | null>(null);
+  
   const [formData, setFormData] = useState({
     tokenName: '',
     ticker: '',
@@ -40,18 +94,200 @@ const Launch: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogo(e.target.files[0]);
+    }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!formData.tokenName || !formData.ticker) {
-      alert('Please fill in the required fields: Token Name and Ticker Symbol');
+    if (!account) {
+      alert("You must connect your wallet before launching a token.");
       return;
     }
-    if (!formData.verify) {
-      alert('Please select Yes or No for Verify token.');
-      return;
+
+    const name = formData.tokenName;
+    const symbol = formData.ticker.startsWith("$") ? formData.ticker : `$${formData.ticker}`;
+    const twitterLink = formData.xLink || null;
+    const websiteLink = formData.website || null;
+    
+    setPendingLaunchData({
+      name,
+      symbol,
+      twitterLink,
+      websiteLink
+    });
+    setShowPreLaunchModal(true);
+  };
+
+  const handleLaunchToken = async (initialPurchaseAmount: string) => {
+    if (!pendingLaunchData || !account) return;
+  
+    setLoading(true);
+    const walletString = String(account.address);
+    let users = JSON.parse(localStorage.getItem("users") || "{}");
+    if (!users[walletString]) {
+      users[walletString] = { launchedTokens: [] };
     }
-    console.log('Form submitted:', formData);
-    alert('Token launch form submitted successfully!');
+    if (!Array.isArray(users[walletString].launchedTokens)) {
+      users[walletString].launchedTokens = [];
+    }
+    localStorage.setItem("users", JSON.stringify(users));
+  
+    try {
+      const supply = 1000000000;
+      const symbolBytes = stringToBytes(pendingLaunchData.symbol);
+      console.log("=== LAUNCHING TOKEN ===");
+      console.log("Symbol:", pendingLaunchData.symbol);
+      console.log("Symbol bytes:", JSON.stringify(symbolBytes));
+      console.log("Symbol hex:", Buffer.from(symbolBytes).toString("hex"));
+      console.log("Creator address:", account.address.toString());
+      console.log("=====================");
+  
+      const createTransaction: InputTransactionData = {
+        data: {
+          function: `${tokenLauncherAddress}::token_launcher::create_token`,
+          typeArguments: [],
+          functionArguments: [
+            stringToBytes(pendingLaunchData.name),
+            symbolBytes,
+            6,
+            supply,
+          ],
+        },
+      };
+  
+      const createResponse = await signAndSubmitTransaction(createTransaction);
+      if (!createResponse?.hash) {
+        throw new Error("Token creation failed: " + JSON.stringify(createResponse));
+      }
+  
+      const createHash = createResponse.hash;
+      console.log("Token created. Tx:", createHash);
+      await client.waitForTransaction({ transactionHash: createHash });
+      console.log("Creation transaction confirmed:", createHash);
+  
+      // Store token in localStorage
+      const tokenData = {
+        name: pendingLaunchData.name,
+        symbol: pendingLaunchData.symbol,
+        supply,
+        txHash: createHash,
+        image: null,
+        launchDate: new Date().toISOString(),
+        creator: walletString
+      };
+      
+      let users = JSON.parse(localStorage.getItem("users") || "{}");
+      if (!users[walletString]) {
+        users[walletString] = { launchedTokens: [] };
+      }
+      if (!Array.isArray(users[walletString].launchedTokens)) {
+        users[walletString].launchedTokens = [];
+      }
+      users[walletString].launchedTokens.push(tokenData);
+      localStorage.setItem("users", JSON.stringify(users));
+  
+      let metadataAddress = "";
+      const creatorAddress = walletString;
+      const maxAttempts = 10;
+      const delayMs = 2000;
+  
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const moduleState = await client.getAccountResource({
+            accountAddress: tokenLauncherAddress,
+            resourceType: `${tokenLauncherAddress}::token_launcher::ModuleState`,
+          });
+          console.log(`Attempt ${attempt} - Raw ModuleState:`, JSON.stringify(moduleState, null, 2));
+  
+          if (!moduleState.token_metadata?.handle) {
+            throw new Error("ModuleState lacks token_metadata.handle");
+          }
+  
+          const tokenMetadata = await client.getTableItem<TokenMetadata>({
+            handle: moduleState.token_metadata.handle,
+            data: {
+              key: creatorAddress,
+              key_type: "address",
+              value_type: `${tokenLauncherAddress}::token_launcher::TokenMetadata`,
+            },
+          });
+  
+          console.log(`Attempt ${attempt} - TokenMetadata entries:`, JSON.stringify(tokenMetadata.entries, null, 2));
+                const tokenInfo = tokenMetadata.entries.find((t: TokenMetadataEntry) => {
+        const tickerHex = Array.isArray(t.ticker) ? Buffer.from(t.ticker).toString("hex") : t.ticker;
+        const symbolHex = Buffer.from(symbolBytes).toString("hex");
+        console.log(`Attempt ${attempt} - Comparing ticker: ${tickerHex} with symbol: ${symbolHex}`);
+        return tickerHex === symbolHex;
+      });
+  
+          if (tokenInfo) {
+            metadataAddress = tokenInfo.metadata_addr;
+            console.log(`Found metadata address for ${pendingLaunchData.symbol}:`, metadataAddress);
+            break;
+          }
+  
+          console.log(`Attempt ${attempt} - ${pendingLaunchData.symbol} not found in metadata`);
+        } catch (error) {
+          console.error(`Attempt ${attempt} - Metadata fetch error:`, error);
+        }
+  
+        if (attempt < maxAttempts) {
+          console.log(`Retrying in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          console.warn("Max attempts reached. Token metadata not found.");
+        }
+      }
+  
+      if (!metadataAddress) {
+        console.warn("Metadata not found, deriving from ticker...");
+        const tickerHex = Buffer.from(symbolBytes).toString("hex");
+        metadataAddress = `${creatorAddress}::${tickerHex}`;
+      }
+  
+      if (initialPurchaseAmount && parseFloat(initialPurchaseAmount) > 0) {
+        console.log("Initial purchase amount (APT):", initialPurchaseAmount);
+        const aptAmountInOctas = Math.floor(parseFloat(initialPurchaseAmount) * 10 ** 8);
+        console.log("APT in Octas:", aptAmountInOctas);
+        const buyTransaction: InputTransactionData = {
+          data: {
+            function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
+            functionArguments: [creatorAddress, symbolBytes, aptAmountInOctas],
+          },
+        };
+        const buyResponse = await signAndSubmitTransaction(buyTransaction);
+        console.log("Buy response:", buyResponse);
+        await client.waitForTransaction({ transactionHash: buyResponse.hash });
+        console.log(`Bought with ${initialPurchaseAmount} APT. Tx: ${buyResponse.hash}`);
+      }
+  
+      navigate(`/newtoken/${createHash}`, {
+        state: {
+          name: pendingLaunchData.name,
+          symbol: pendingLaunchData.symbol,
+          supply,
+          txHash: createHash,
+          twitterLink: pendingLaunchData.twitterLink,
+          websiteLink: pendingLaunchData.websiteLink,
+          metadataAddress,
+          initialPurchase: initialPurchaseAmount ? parseFloat(initialPurchaseAmount) : 0,
+          creatorAddress: creatorAddress,
+          creationDate: new Date().getTime(),
+        },
+      });
+  
+    } catch (error) {
+      console.error("Error launching token:", error);
+      alert(`Failed to launch token: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setLoading(false);
+      setLogo(null);
+      setShowPreLaunchModal(false);
+      setPendingLaunchData(null);
+    }
   };
 
   // Watchlist data for the sidebar
@@ -61,6 +297,52 @@ const Launch: React.FC = () => {
     { name: 'Tether', symbol: 'USDT', icon: '₮', iconBg: '#50af95' },
     { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
   ];
+
+  if (!account) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        width: '100vw',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        margin: 0,
+        padding: 0,
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          background: '#f8fafc'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            padding: '40px',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h1 style={{
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              color: '#1e293b',
+              marginBottom: '16px'
+            }}>
+              Connect Your Wallet
+            </h1>
+            <p style={{
+              color: '#64748b',
+              fontSize: '1.1rem'
+            }}>
+              Please connect your wallet to launch a token.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -125,16 +407,29 @@ const Launch: React.FC = () => {
               }}>
                 Launch
               </a>
-              <a href="#" style={{
-                background: '#00d4aa',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                textDecoration: 'none',
-                fontWeight: '600'
-              }}>
-                Connect Wallet
-              </a>
+              {account ? (
+                <div style={{
+                  background: '#00d4aa',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  fontSize: '14px'
+                }}>
+                  {account.address.toString().slice(0, 6)}...{account.address.toString().slice(-4)}
+                </div>
+              ) : (
+                <a href="#" style={{
+                  background: '#00d4aa',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  textDecoration: 'none',
+                  fontWeight: '600'
+                }}>
+                  Connect Wallet
+                </a>
+              )}
             </div>
           </div>
 
@@ -179,7 +474,7 @@ const Launch: React.FC = () => {
                 <p style={{ color: '#64748b' }}>Create and deploy your token in minutes</p>
               </div>
 
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleFormSubmit}>
                 <div style={{ display: 'flex', gap: '40px' }}>
                   {/* Left Column */}
                   <div style={{ flex: 1 }}>
@@ -724,6 +1019,19 @@ const Launch: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {showPreLaunchModal && pendingLaunchData && (
+        <PreLaunchModal
+          isOpen={showPreLaunchModal}
+          onClose={() => {
+            setShowPreLaunchModal(false);
+            setPendingLaunchData(null);
+          }}
+          onLaunch={handleLaunchToken}
+          tokenDetails={pendingLaunchData}
+          loading={loading}
+        />
+      )}
     </div>
   );
 };

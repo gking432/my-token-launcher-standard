@@ -11,6 +11,8 @@ import Marketplace from "./components/Marketplace";
 import Profile from "./components/Profile";
 import Launch from "./components/Launch";
 import TokenPage from "./components/TokenPage";
+import NEWtokenpage from "./components/NEWtokenpage";
+import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
@@ -77,7 +79,7 @@ const App: React.FC = () => {
             <TokenPage />
           } />
           <Route path="/launchpage" element={
-            <Launch />
+            <NEWLaunch />
           } />
           <Route path="/profile" element={
             <Layout>
@@ -90,7 +92,7 @@ const App: React.FC = () => {
             </Layout>
           } />
           <Route path="/launch" element={
-            <Launch />
+            <NEWLaunch />
           } />
           <Route path="/token/:coinHash" element={
             <Layout>
@@ -98,6 +100,11 @@ const App: React.FC = () => {
                 <TokenPage />
               </ErrorBoundary>
             </Layout>
+          } />
+          <Route path="/newtoken/:coinHash" element={
+            <ErrorBoundary>
+              <NEWtokenpage />
+            </ErrorBoundary>
           } />
           <Route path="*" element={
             <Layout>

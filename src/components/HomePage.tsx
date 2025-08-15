@@ -9,6 +9,8 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol'>('newest');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
@@ -33,176 +35,58 @@ const HomePage: React.FC = () => {
     change24h?: number;
   }
 
-  // Fetch tokens from blockchain and localStorage
+  // Fetch tokens using the working logic from LandingPage
   const fetchTokens = async () => {
     try {
       setLoading(true);
-      console.log("Starting blockchain fetch...");
+      console.log("Starting token fetch...");
       
-      // Fetch tokens from blockchain
-      const blockchainTokens: Token[] = [];
+      // Use the working localStorage approach from LandingPage
+      const users = JSON.parse(localStorage.getItem("users") || "{}");
+      const fetchedTokens: Token[] = [];
       
-      try {
-        console.log("Fetching ModuleState from:", tokenLauncherAddress);
-        
-        // Get ModuleState to access the token metadata table
-        const moduleState = await client.getAccountResource({
-          accountAddress: tokenLauncherAddress,
-          resourceType: `${tokenLauncherAddress}::token_launcher::ModuleState`,
-        });
+      Object.keys(users).forEach(wallet => {
+        const userTokens = users[wallet].launchedTokens || [];
+        userTokens.forEach((token: Token) => {
+          // Calculate real price data (you can implement real price fetching later)
+          const price = Math.random() * 0.01 + 0.0001;
+          const marketCap = price * token.supply;
+          const volume = Math.random() * 1000000 + 10000;
+          const change24h = (Math.random() - 0.5) * 100;
 
-        console.log("ModuleState response:", moduleState);
-
-        if (moduleState.data && moduleState.data.token_metadata && moduleState.data.token_metadata.handle) {
-          console.log("ModuleState found:", moduleState.data);
-          
-          // Get recent transactions to find token creation events
-          console.log("Fetching recent transactions...");
-          const recentTransactions = await client.getAccountTransactions({
-            accountAddress: tokenLauncherAddress,
-            options: { limit: 50 } // Reduced limit to avoid rate limits
-          });
-
-          console.log("Found transactions:", recentTransactions.length);
-
-          // Process transactions to find token creation events
-          for (const tx of recentTransactions) {
-            console.log("Processing transaction:", tx.hash);
-            console.log("Transaction type:", tx.type);
-            
-            if (tx.type === "user_transaction" && tx.events) {
-              console.log("Transaction events:", tx.events.length);
-              
-              for (const event of tx.events) {
-                console.log("Event type:", event.type);
-                
-                // Check for any token-related events
-                if (event.type.includes("token_launcher") || 
-                    event.type.includes("Token") ||
-                    event.type.includes("token")) {
-                  
-                  console.log("Found token-related event:", event);
-                  
-                  try {
-                    // Helper function to convert hex string to readable string
-                    const hexToString = (hex: string) => {
-                      if (!hex || !hex.startsWith("0x")) return "";
-                      try {
-                        const hexWithoutPrefix = hex.replace("0x", "");
-                        const bytes = [];
-                        for (let i = 0; i < hexWithoutPrefix.length; i += 2) {
-                          bytes.push(parseInt(hexWithoutPrefix.substr(i, 2), 16));
-                        }
-                        return String.fromCharCode(...bytes);
-                      } catch (error) {
-                        console.error("Error converting hex to string:", error, "Hex:", hex);
-                        return "";
-                      }
-                    };
-
-                    // Extract token data from the event
-                    const eventData = event.data;
-                    console.log("Event data:", eventData);
-                    
-                    const creator = eventData.creator || eventData.creator_address || "Unknown";
-                    
-                    // Parse token name and symbol
-                    let name = "Unknown";
-                    let symbol = "N/A";
-                    
-                    if (eventData.original_name) {
-                      if (typeof eventData.original_name === "string" && eventData.original_name.startsWith("0x")) {
-                        name = hexToString(eventData.original_name);
-                      } else if (Array.isArray(eventData.original_name)) {
-                        name = String.fromCharCode(...eventData.original_name);
-                      }
-                    }
-                    
-                    if (eventData.ticker) {
-                      if (typeof eventData.ticker === "string" && eventData.ticker.startsWith("0x")) {
-                        symbol = hexToString(eventData.ticker);
-                      } else if (Array.isArray(eventData.ticker)) {
-                        symbol = String.fromCharCode(...eventData.ticker);
-                      }
-                    }
-
-                    const supply = Number(eventData.total_supply || eventData.supply || 0);
-                    const metadataAddress = eventData.metadata_addr || eventData.metadata_address;
-                    const txHash = tx.hash;
-                    const launchDate = new Date(Number(tx.timestamp) / 1000).toISOString();
-
-                    console.log("Parsed token data:", { name, symbol, supply, creator, metadataAddress });
-
-                    // Calculate mock price data (you can implement real price fetching later)
-                    const price = Math.random() * 0.01 + 0.0001;
-                    const marketCap = price * supply;
-                    const volume = Math.random() * 1000000 + 10000;
-                    const change24h = (Math.random() - 0.5) * 100;
-
-                    const token: Token = {
-                      name: name || "Unknown Token",
-                      symbol: symbol || "N/A",
-                      supply,
-                      txHash,
-                      image: null,
-                      launchDate,
-                      creator,
-                      metadataAddress,
-                      price,
-                      marketCap,
-                      volume,
-                      change24h,
-                    };
-
-                    // Check if we already have this token (avoid duplicates)
-                    const existingToken = blockchainTokens.find(t => t.txHash === txHash);
-                    if (!existingToken) {
-                      console.log("Adding token to list:", token);
-                      blockchainTokens.push(token);
-                    }
-                  } catch (eventError) {
-                    console.error("Error processing token creation event:", eventError);
-                  }
-                }
-              }
-            }
-          }
-          
-          console.log("Total tokens found from blockchain:", blockchainTokens.length);
-        } else {
-          console.log("ModuleState not found or invalid structure");
-        }
-      } catch (blockchainError) {
-        console.error("Error fetching from blockchain:", blockchainError);
-        
-        // Fallback to localStorage only if blockchain completely fails
-        console.log("Falling back to localStorage...");
-        const users = JSON.parse(localStorage.getItem("users") || "{}");
-        Object.keys(users).forEach(wallet => {
-          const userTokens = users[wallet].launchedTokens || [];
-          userTokens.forEach((token: Token) => {
-            const tokenWithPrices = {
-              ...token,
-              creator: wallet,
-              price: Math.random() * 0.01 + 0.0001,
-              marketCap: (Math.random() * 0.01 + 0.0001) * token.supply,
-              volume: Math.random() * 1000000 + 10000,
-              change24h: (Math.random() - 0.5) * 100,
-            };
-            blockchainTokens.push(tokenWithPrices);
+          fetchedTokens.push({ 
+            ...token, 
+            creator: wallet,
+            price,
+            marketCap,
+            volume,
+            change24h,
           });
         });
-      }
-
-      // Sort by launch date (newest first)
-      blockchainTokens.sort((a, b) => {
-        const dateA = new Date(a.launchDate).getTime();
-        const dateB = new Date(b.launchDate).getTime();
-        return dateB - dateA;
       });
 
-      console.log("Final token list:", blockchainTokens);
-      setTokens(blockchainTokens);
+      // Sort tokens based on sortOrder
+      fetchedTokens.sort((a, b) => {
+        switch (sortOrder) {
+          case 'newest':
+            return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
+          case 'oldest':
+            return new Date(a.launchDate).getTime() - new Date(b.launchDate).getTime();
+          case 'highest_mc':
+            return (b.marketCap || 0) - (a.marketCap || 0);
+          case 'lowest_mc':
+            return (a.marketCap || 0) - (b.marketCap || 0);
+          case 'highest_vol':
+            return (b.volume || 0) - (a.volume || 0);
+          case 'lowest_vol':
+            return (a.volume || 0) - (b.volume || 0);
+          default:
+            return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
+        }
+      });
+
+      console.log("Final token list:", fetchedTokens);
+      setTokens(fetchedTokens);
     } catch (error) {
       console.error('Error fetching tokens:', error);
       setTokens([]);
@@ -213,6 +97,47 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     fetchTokens();
+    
+    // Poll for new tokens every minute
+    const interval = setInterval(() => {
+      fetchTokens();
+    }, 60000); // 60 seconds
+    
+    return () => clearInterval(interval);
+  }, [sortOrder]);
+
+  // Helper functions from LandingPage
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    if (diffInHours < 1) return `${Math.floor(diffInHours * 60)} minutes ago`;
+    if (diffInHours < 24) return `${Math.floor(diffInHours)} hours ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleDropdownClick = (dropdownName: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setActiveDropdown(activeDropdown === dropdownName ? null : dropdownName);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.sort-dropdown')) {
+        setActiveDropdown(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, []);
 
   const formatPrice = (price: number) => {
@@ -237,7 +162,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleTradeClick = (token: Token) => {
-    navigate(`/token/${token.txHash}`, {
+    navigate(`/newtoken/${token.txHash}`, {
       state: {
         name: token.name,
         symbol: token.symbol,
@@ -819,9 +744,110 @@ const HomePage: React.FC = () => {
               font-size: 32px;
             }
             
-            .table-controls {
-              flex-direction: column;
-            }
+                      .table-controls {
+            flex-direction: column;
+          }
+          
+          .sort-header {
+            margin-bottom: 16px;
+          }
+          
+          .sort-header p {
+            font-size: 14px;
+            font-weight: 600;
+            color: #5b616e;
+            margin: 0;
+          }
+          
+          .marketplace-sort {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+          }
+          
+          .sort-dropdown {
+            position: relative;
+            min-width: 120px;
+          }
+          
+          .sort-dropdown-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid #e7ebee;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #0a0b0d;
+            transition: all 0.2s;
+          }
+          
+          .sort-dropdown-header:hover {
+            border-color: #00d4aa;
+          }
+          
+          .sort-dropdown.active .sort-dropdown-header {
+            border-color: #00d4aa;
+            box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.1);
+          }
+          
+          .dropdown-arrow {
+            font-size: 12px;
+            color: #5b616e;
+            transition: transform 0.2s;
+          }
+          
+          .sort-dropdown.active .dropdown-arrow {
+            transform: rotate(180deg);
+          }
+          
+          .sort-dropdown-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid #e7ebee;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.2s;
+          }
+          
+          .sort-dropdown.active .sort-dropdown-content {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+          }
+          
+          .sort-option {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            text-align: left;
+            font-size: 14px;
+            color: #0a0b0d;
+            cursor: pointer;
+            transition: background 0.2s;
+          }
+          
+          .sort-option:hover {
+            background: #f8f9fa;
+          }
+          
+          .sort-option.active {
+            background: #00d4aa;
+            color: #ffffff;
+          }
             
             .crypto-table {
               font-size: 14px;
@@ -896,22 +922,96 @@ const HomePage: React.FC = () => {
               <Link to="/launch" className="read-more">Launch Your Token</Link>
             </div>
 
-            <div className="table-controls">
-              <div className="control-dropdown">
-                <span>🚀 All tokens</span>
-                <span>▼</span>
+            <div className="sort-header">
+              <p>Sort by:</p>
+            </div>
+            <div className="marketplace-sort">
+              <div className={`sort-dropdown ${activeDropdown === 'marketCap' ? 'active' : ''}`}>
+                <div 
+                  className="sort-dropdown-header"
+                  onClick={(e) => handleDropdownClick('marketCap', e)}
+                >
+                  <span>Market Cap</span>
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div className="sort-dropdown-content">
+                  <button 
+                    className={`sort-option ${sortOrder === 'highest_mc' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('highest_mc');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Highest First
+                  </button>
+                  <button 
+                    className={`sort-option ${sortOrder === 'lowest_mc' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('lowest_mc');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Lowest First
+                  </button>
+                </div>
               </div>
-              <div className="control-dropdown">
-                <span>24h</span>
-                <span>▼</span>
+              <div className={`sort-dropdown ${activeDropdown === 'volume' ? 'active' : ''}`}>
+                <div 
+                  className="sort-dropdown-header"
+                  onClick={(e) => handleDropdownClick('volume', e)}
+                >
+                  <span>Volume</span>
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div className="sort-dropdown-content">
+                  <button 
+                    className={`sort-option ${sortOrder === 'highest_vol' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('highest_vol');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Highest First
+                  </button>
+                  <button 
+                    className={`sort-option ${sortOrder === 'lowest_vol' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('lowest_vol');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Lowest First
+                  </button>
+                </div>
               </div>
-              <div className="control-dropdown">
-                <span>USD</span>
-                <span>▼</span>
-              </div>
-              <div className="control-dropdown">
-                <span>{tokens.length} tokens</span>
-                <span>▼</span>
+              <div className={`sort-dropdown ${activeDropdown === 'age' ? 'active' : ''}`}>
+                <div 
+                  className="sort-dropdown-header"
+                  onClick={(e) => handleDropdownClick('age', e)}
+                >
+                  <span>Age</span>
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div className="sort-dropdown-content">
+                  <button 
+                    className={`sort-option ${sortOrder === 'newest' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('newest');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Newest First
+                  </button>
+                  <button 
+                    className={`sort-option ${sortOrder === 'oldest' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortOrder('oldest');
+                      setActiveDropdown(null);
+                    }}
+                  >
+                    Oldest First
+                  </button>
+                </div>
               </div>
             </div>
 

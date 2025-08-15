@@ -69,13 +69,13 @@ const E_ALREADY_GRADUATED: u64 = 1019;
 const E_MARKET_CAP_TOO_LOW: u64 = 1020;
 const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
 
-// Test Graduation Threshold
-const GRADUATION_MARKET_CAP_APT: u64 = 1_00000000; // 1 APT raised (for testing)
+// Production Graduation Threshold
+const GRADUATION_MARKET_CAP_APT: u64 = 1283_00000000; // 1283 APT raised
 
-// Test Graduation Fee
-const GRADUATION_FEE_TOTAL_APT: u64 = 0_10000000;    // 0.1 APT
-const GRADUATION_PLATFORM_FEE_APT: u64 = 0_08500000;   // 0.085 APT
-const GRADUATION_CREATOR_FEE_APT: u64 = 0_01500000;    // 0.015 APT
+// Production Graduation Fee
+const GRADUATION_FEE_TOTAL_APT: u64 = 83_00000000;    // 83 APT total (60 + 23)
+const GRADUATION_PLATFORM_FEE_APT: u64 = 60_00000000;   // 60 APT to treasury
+const GRADUATION_CREATOR_FEE_APT: u64 = 23_00000000;    // 23 APT to creator
 
 // Price calculation constants
 const SCALE: u128 = 100_000_000u128; // 10^8 for Octas
@@ -417,7 +417,7 @@ public entry fun initialize(admin: &signer) {
         ticker,
         total_supply,
         minted_supply: 0,
-        remaining_supply: (scaled_remaining_supply / 100_000_000) as u64,
+        remaining_supply: 800000000,
         decimals_factor,
         premint_amount: 0,
         timestamp: timestamp::now_microseconds(),

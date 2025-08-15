@@ -1,18 +1,29 @@
 // Aptos Indexer GraphQL API integration
 // Documentation: https://cloud.aptoslabs.com/indexer-api
 
-// Use mainnet indexer for testing (it has real data and works)
-// For production, you would use: 'https://indexer.mainnet.aptoslabs.com/v1/graphql'
-const APTOS_INDEXER_URL = 'https://indexer.mainnet.aptoslabs.com/v1/graphql';
+// Use the correct devnet indexer URL
+const APTOS_INDEXER_URL = 'https://api.devnet.aptoslabs.com/v1/graphql';
 
 // Enable indexer calls to test functionality
-const isDevnet = false; // Set to true to disable indexer calls
+const isDevnet = true; // Set to true to use devnet indexer
+
+// API key to avoid rate limiting
+const API_KEY = 'aptoslabs_AZymB2JNfK3_JdAe5j8VCk3w8YCojaUTrxZGyBdsFZ7Wa';
 
 interface FungibleAssetMetadata {
   symbol: string;
   name: string;
   decimals: number;
   asset_type: string;
+  creator_address?: string;
+  last_transaction_timestamp?: string;
+  __typename: string;
+}
+
+interface TokenCreationEvent {
+  type: string;
+  data: any;
+  sequence_number: string;
   __typename: string;
 }
 
@@ -60,6 +71,7 @@ export async function getFungibleAssetInfo(assetTypes: string[], offset: number 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
         query,
@@ -104,6 +116,7 @@ export async function getTokensDataByName(tokenName: string, collectionId: strin
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
         query,
@@ -157,6 +170,7 @@ export async function getFungibleAssetBalances(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
         query,
@@ -199,16 +213,81 @@ export async function generateCollectionId(creatorAddress: string, collectionNam
   return `0x${hashHex}`;
 }
 
-// Get all tokens from our token launcher module
-export async function getTokenLauncherTokens(moduleAddress: string): Promise<FungibleAssetMetadata[]> {
-  // This would query all tokens created by our token launcher module
-  // We'd need to track asset types of created tokens
-  const assetTypes: string[] = [
-    // Example asset types from our token launcher
-    // These would be dynamically generated based on created tokens
-  ];
-  
-  return getFungibleAssetInfo(assetTypes);
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Get all tokens launched through our token launcher module
+export async function getTokenLauncherTokens(moduleAddress: string): Promise<TokenCreationEvent[]> {
+  // Query for events from our token launcher contract to find tokens created through it
+  const query = `
+    query GetTokenLauncherTokens {
+      events(
+        where: {
+          type: {_like: "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::%"}
+        },
+        order_by: {sequence_number: desc},
+        limit: 100
+      ) {
+        type
+        data
+        sequence_number
+        __typename
+      }
+    }
+  `;
+
+  const maxRetries = 3;
+  const baseDelay = 2000; // 2 seconds
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`Querying indexer for events from module: ${moduleAddress} (attempt ${attempt + 1}/${maxRetries})`);
+      
+      const response = await fetch(APTOS_INDEXER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({
+          query
+        })
+      });
+
+      console.log('Indexer response status:', response.status);
+
+      if (response.status === 429) {
+        console.log(`Rate limited (429). Waiting ${baseDelay * (attempt + 1)}ms before retry...`);
+        await delay(baseDelay * (attempt + 1));
+        continue;
+      }
+
+      if (!response.ok) {
+        console.error('HTTP error:', response.status, response.statusText);
+        return [];
+      }
+
+      const result: GraphQLResponse<{ events: TokenCreationEvent[] }> = await response.json();
+      
+      if (result.errors) {
+        console.error('GraphQL errors:', result.errors);
+        console.error('Full error details:', JSON.stringify(result.errors, null, 2));
+        return [];
+      }
+
+      console.log('Found events:', result.data.events.length);
+      return result.data.events;
+    } catch (error) {
+      console.error(`Error fetching token launcher tokens (attempt ${attempt + 1}):`, error);
+      if (attempt < maxRetries - 1) {
+        console.log(`Retrying in ${baseDelay * (attempt + 1)}ms...`);
+        await delay(baseDelay * (attempt + 1));
+      }
+    }
+  }
+
+  console.error('All retry attempts failed');
+  return [];
 }
 
 // Get token metadata for leaderboard display

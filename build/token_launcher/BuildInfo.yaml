@@ -11,7 +11,7 @@ compiled_package_info:
     token_launcher: 660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: 5BA37038CAFED852E5B3C8814B9642D5EF3EC4718B4E0ADDA68B03BC7A30972B
+  source_digest: ABF73B3DEA39681157F17236E2053AC5E451699A3DB3CEF7DE826D380E5606D0
   build_flags:
     dev_mode: false
     test_mode: false
@@ -22,7 +22,8 @@ compiled_package_info:
     full_model_generation: false
     install_dir: ~
     force_recompilation: false
-    additional_named_addresses: {}
+    additional_named_addresses:
+      token_launcher: 660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false
     compiler_config:

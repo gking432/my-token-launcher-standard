@@ -417,7 +417,7 @@ public entry fun initialize(admin: &signer) {
         ticker,
         total_supply,
         minted_supply: 0,
-        remaining_supply: (scaled_remaining_supply / 100_000_000) as u64,
+        remaining_supply: 800000000,
         decimals_factor,
         premint_amount: 0,
         timestamp: timestamp::now_microseconds(),
