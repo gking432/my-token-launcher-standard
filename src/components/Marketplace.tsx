@@ -100,7 +100,7 @@ const Marketplace: React.FC = () => {
       
       tokenEvents.forEach((event, index) => {
         // Parse the event data to extract token information
-        const eventData = event.data;
+        const eventData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         console.log("Event data:", eventData);
         
         // Convert hex ticker to readable string
@@ -108,9 +108,8 @@ const Marketplace: React.FC = () => {
         const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
         
         // Parse supply data
-        const totalSupply = parseInt(eventData?.total_supply || '0');
+        const totalSupply = parseInt(eventData?.total_supply || '1000000');
         const remainingSupply = parseInt(eventData?.remaining_supply || '0');
-        const mintedSupply = parseInt(eventData?.minted_supply || '0');
         
         // Generate mock data for demonstration (you can replace with real price feeds later)
         const price = Math.random() * 0.01 + 0.0001;
@@ -124,7 +123,7 @@ const Marketplace: React.FC = () => {
           supply: totalSupply,
           txHash: event.sequence_number || `0x${Math.random().toString(16).substr(2, 64)}`,
           image: null,
-          launchDate: new Date().toISOString(), // We'll use current time since timestamp isn't available
+          launchDate: new Date().toISOString(), // Use current time if timestamp isn't available
           creator: eventData?.creator || 'Unknown',
           creatorAddress: eventData?.creator || 'Unknown',
           metadataAddress: eventData?.metadata_addr || 'Unknown',
@@ -395,9 +394,14 @@ const Marketplace: React.FC = () => {
     setAmount(numAmount);
   }, [amountString]);
 
-  // Fetch tokens on component mount
+  // Fetch tokens on component mount with debouncing
   useEffect(() => {
-    fetchTokens();
+    // Add a small delay to prevent rapid duplicate calls
+    const timer = setTimeout(() => {
+      fetchTokens();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle click outside wallet dropdown

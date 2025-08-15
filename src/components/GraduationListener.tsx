@@ -17,19 +17,31 @@ export const GraduationListener: React.FC = () => {
     if (!account) return;
     
     const client = new AptosClient("https://fullnode.devnet.aptoslabs.com");
+    const API_KEY = "aptoslabs_AZymB2JNfK3_JdAe5j8VCk3w8YCojaUTrxZGyBdsFZ7Wa";
     
     const checkForGraduationEvents = async () => {
       try {
         console.log('Checking for graduation events...');
         
-        // Get recent transactions for the token launcher contract
-        // Use module address for the ModuleState event handle
-        const events = await client.getEventsByEventHandle(
-          MODULE_ADDRESS,
-          `${MODULE_ADDRESS}::token_launcher::ModuleState`,
-          "graduation_events",
-          { start: lastCheckedRef.current, limit: 10 }
-        );
+        // Use direct REST API with API key to avoid rate limiting
+        const url = `https://fullnode.devnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::ModuleState/graduation_events?start=${lastCheckedRef.current}&limit=10`;
+        
+        const response = await fetch(url, {
+          headers: { "x-api-key": API_KEY },
+        });
+        
+        if (response.status === 429) {
+          console.warn("Rate limit exceeded for graduation events, retrying...");
+          // Add retry logic
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const events = await response.json();
         
         for (const event of events) {
           const graduationEvent: GraduationReadyEvent = {
