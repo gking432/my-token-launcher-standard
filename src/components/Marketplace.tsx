@@ -107,6 +107,8 @@ const Marketplace: React.FC = () => {
         const tickerHex = eventData?.ticker || '';
         const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
         
+
+        
         // Parse supply data
         const totalSupply = parseInt(eventData?.total_supply || '1000000');
         const remainingSupply = parseInt(eventData?.remaining_supply || '0');

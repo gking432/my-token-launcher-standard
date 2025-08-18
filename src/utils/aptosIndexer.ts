@@ -219,166 +219,271 @@ export async function generateCollectionId(creatorAddress: string, collectionNam
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Get all tokens launched through our token launcher module
-// Add a request deduplication mechanism
+// Add a request deduplication mechanism and caching
 let activeRequest: Promise<TokenCreationEvent[]> | null = null;
 
+// Cache for token data with 5-minute TTL
+interface CacheEntry {
+  data: TokenCreationEvent[];
+  timestamp: number;
+  ttl: number; // 5 minutes in milliseconds
+}
+
+let tokenCache: CacheEntry | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Function to clear cache (for future use with sort/filter operations)
+export function clearTokenCache(): void {
+  tokenCache = null;
+  console.log("🗑️ CACHE CLEARED: Token cache cleared");
+}
+
 export async function getTokenLauncherTokens(moduleAddress: string): Promise<TokenCreationEvent[]> {
-  // If there's already an active request, return it instead of making a new one
+  // Check cache first
+  if (tokenCache && (Date.now() - tokenCache.timestamp) < tokenCache.ttl) {
+    console.log("💾 CACHE HIT: Returning cached token data");
+    return tokenCache.data;
+  }
+
+  // Request deduplication
   if (activeRequest) {
-    console.log('Request already in progress, returning existing promise...');
+    console.log("🔄 Request already in progress, waiting for result...");
     return activeRequest;
   }
 
-  console.log(`Getting tokens launched through module: ${moduleAddress} using Indexer API`);
+  console.log(`🚀 OPTIMIZED: Getting tokens launched through module: ${moduleAddress}`);
+  const startTime = Date.now();
 
   // Create the request and store it
   activeRequest = (async () => {
     try {
-      console.log('Trying Indexer query with SDK...');
-
-    // Use the correct SDK configuration with API key for Indexer API ONLY
-    const clientConfig: ClientConfig = {
-      API_KEY: API_KEY
-    };
-    
-    const config = new AptosConfig({ 
-      indexer: "https://api.devnet.aptoslabs.com/v1/graphql",
-      clientConfig 
-    });
-    
-    const aptos = new Aptos(config);
-
-    // Use direct GraphQL with the correct API key configuration
-    try {
-      const query = `
-        query {
-          events(
-            where: {
-              type: { _eq: "${moduleAddress}::token_launcher::TokenCreatedEvent" }
-            }
-            order_by: [{ transaction_version: desc }]
-            limit: 100
-          ) {
-            transaction_version
-            event_index
-            data
-          }
-        }
-      `;
-
-      // Use direct GraphQL with API key (this is the correct approach for Indexer API)
-      // Add retry logic for timeouts
-      let response;
-      let retries = 0;
-      const maxRetries = 3;
+      // OPTIMIZATION 1: Start with Indexer (fastest and cheapest when working)
+      console.log('🎯 OPTIMIZATION: Starting with Indexer (fastest method)...');
       
-      while (retries < maxRetries) {
-        try {
-          console.log(`Attempt ${retries + 1} of ${maxRetries} for indexer query...`);
-          
-          response = await fetch('https://api.devnet.aptoslabs.com/v1/graphql', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${API_KEY}`,
-            },
-            body: JSON.stringify({ query }),
-            // Add timeout to avoid hanging
-            signal: AbortSignal.timeout(15000) // 15 second timeout
-          });
-
-          console.log("Direct GraphQL response status:", response.status);
-
-          if (response.status === 429) {
-            throw new Error('Rate limit exceeded');
-          }
-
-          if (response.status === 408) {
-            retries++;
-            if (retries < maxRetries) {
-              console.log(`Timeout on attempt ${retries}, retrying in ${retries * 2} seconds...`);
-              await new Promise(resolve => setTimeout(resolve, retries * 2000));
-              continue;
-            } else {
-              throw new Error('Max retries exceeded for indexer timeouts');
-            }
-          }
-
-          const result = await response.json();
-
-          if (result.errors) {
-            throw new Error("GraphQL errors: " + JSON.stringify(result.errors));
-          }
-
-          const tokens = result.data?.events?.map((event: any) => ({
-            type: 'TokenCreatedEvent',
-            sequence_number: event.event_index.toString(),
-            data: JSON.parse(event.data),
-            __typename: 'TokenCreatedEvent'
-          })) || [];
-
-          console.log("Direct GraphQL tokens found:", tokens.length);
-          return tokens;
-          
-        } catch (fetchError: any) {
-          if (fetchError.name === 'TimeoutError') {
-            retries++;
-            if (retries < maxRetries) {
-              console.log(`Timeout on attempt ${retries}, retrying in ${retries * 2} seconds...`);
-              await new Promise(resolve => setTimeout(resolve, retries * 2000));
-              continue;
-            }
-          }
-          throw fetchError;
+      try {
+        const tokens = await getTokensFromIndexer(moduleAddress);
+        const loadTime = Date.now() - startTime;
+        console.log(`✅ INDEXER SUCCESS: ${tokens.length} tokens in ${loadTime}ms`);
+        
+        // Cache successful result (only if we have tokens)
+        if (tokens.length > 0) {
+          tokenCache = {
+            data: tokens,
+            timestamp: Date.now(),
+            ttl: CACHE_TTL
+          };
+          console.log("💾 CACHED: Token data cached for 5 minutes");
+        } else {
+          console.log("⚠️ NOT CACHING: Empty result, not caching to avoid caching failures");
         }
+        
+        return tokens;
+      } catch (indexerError) {
+        console.log("❌ Indexer failed:", indexerError);
       }
-
-    } catch (sdkIndexerError) {
-      console.log("SDK Indexer failed:", sdkIndexerError);
-      throw sdkIndexerError; // Re-throw to trigger fallback
+      
+      // OPTIMIZATION 2: Fallback to SDK resource reading
+      console.log('🔄 FALLBACK: Trying SDK resource reading...');
+      
+      try {
+        const tokens = await getTokensFromSDK(moduleAddress);
+        const loadTime = Date.now() - startTime;
+        console.log(`✅ SDK SUCCESS: ${tokens.length} tokens in ${loadTime}ms`);
+        
+        // Cache successful result (only if we have tokens)
+        if (tokens.length > 0) {
+          tokenCache = {
+            data: tokens,
+            timestamp: Date.now(),
+            ttl: CACHE_TTL
+          };
+          console.log("💾 CACHED: Token data cached for 5 minutes");
+        } else {
+          console.log("⚠️ NOT CACHING: Empty result, not caching to avoid caching failures");
+        }
+        
+        return tokens;
+      } catch (sdkError) {
+        console.log("❌ SDK fallback failed:", sdkError);
+      }
+      
+      // OPTIMIZATION 3: Fallback to direct event query (more expensive but reliable)
+      console.log('🔄 FALLBACK: Trying direct event query...');
+      
+      try {
+        const tokens = await getTokensFromDirectEventQuery(moduleAddress);
+        const loadTime = Date.now() - startTime;
+        console.log(`✅ DIRECT EVENT SUCCESS: ${tokens.length} tokens in ${loadTime}ms`);
+        
+        // Cache successful result (only if we have tokens)
+        if (tokens.length > 0) {
+          tokenCache = {
+            data: tokens,
+            timestamp: Date.now(),
+            ttl: CACHE_TTL
+          };
+          console.log("💾 CACHED: Token data cached for 5 minutes");
+        } else {
+          console.log("⚠️ NOT CACHING: Empty result, not caching to avoid caching failures");
+        }
+        
+        return tokens;
+      } catch (directEventError) {
+        console.log("❌ Direct event query failed:", directEventError);
+      }
+      
+      // OPTIMIZATION 4: Final fallback to localStorage
+      console.log('🔄 FINAL FALLBACK: Using localStorage...');
+      
+      try {
+        const tokens = await getTokensFromLocalStorage();
+        const loadTime = Date.now() - startTime;
+        console.log(`✅ LOCALSTORAGE SUCCESS: ${tokens.length} tokens in ${loadTime}ms`);
+        
+        // Cache successful result (only if we have tokens)
+        if (tokens.length > 0) {
+          tokenCache = {
+            data: tokens,
+            timestamp: Date.now(),
+            ttl: CACHE_TTL
+          };
+          console.log("💾 CACHED: Token data cached for 5 minutes");
+        } else {
+          console.log("⚠️ NOT CACHING: Empty result, not caching to avoid caching failures");
+        }
+        
+        return tokens;
+      } catch (localStorageError) {
+        console.log("❌ localStorage fallback failed:", localStorageError);
+        const loadTime = Date.now() - startTime;
+        console.log(`💥 ALL METHODS FAILED: ${loadTime}ms wasted`);
+        return [];
+      }
+      
+    } catch (error) {
+      const loadTime = Date.now() - startTime;
+      console.log(`💥 CRITICAL ERROR: ${loadTime}ms wasted`);
+      throw error;
     }
-
-                } catch (indexerError) {
-              console.error("Indexer failed:", indexerError);
-              console.log("Falling back to SDK...");
-
-              // Fallback to SDK (slower but reliable)
-              try {
-                return await getTokensFromSDK(moduleAddress);
-              } catch (sdkError) {
-                console.error("SDK fallback also failed:", sdkError);
-                console.log("Trying final fallback: direct event querying...");
-                
-                // Final fallback: try direct event querying
-                try {
-                  return await getTokensFromDirectEventQuery(moduleAddress);
-                } catch (eventError) {
-                  console.error("All methods failed:", eventError);
-                  console.log("🔄 FINAL FINAL FALLBACK: localStorage fallback...");
-                  
-                  // Final fallback: localStorage with the real tokens we found earlier
-                  try {
-                    return await getTokensFromLocalStorage();
-                  } catch (localStorageError) {
-                    console.error("Even localStorage failed:", localStorageError);
-                    return [];
-                  }
-                }
-              }
-            }
     
-    // This should never be reached, but TypeScript requires it
-    return [];
   })();
 
-  // Clear the active request when done
-  activeRequest.then(() => {
+  try {
+    const result = await activeRequest;
     activeRequest = null;
-  }).catch(() => {
+    return result;
+  } catch (error) {
     activeRequest = null;
-  });
+    throw error;
+  }
+}
 
-  return activeRequest;
+async function getTokensFromIndexer(moduleAddress: string): Promise<TokenCreationEvent[]> {
+  console.log('Trying Indexer query with SDK...');
+
+  // Use the correct SDK configuration with API key for Indexer API ONLY
+  const clientConfig: ClientConfig = {
+    API_KEY: API_KEY
+  };
+  
+  const config = new AptosConfig({ 
+    indexer: "https://api.devnet.aptoslabs.com/v1/graphql",
+    clientConfig 
+  });
+  
+  const aptos = new Aptos(config);
+
+  // Use direct GraphQL with the correct API key configuration
+  try {
+    const query = `
+      query {
+        events(
+          where: {
+            type: { _eq: "${moduleAddress}::token_launcher::TokenCreatedEvent" }
+          }
+          order_by: [{ transaction_version: desc }]
+          limit: 100
+        ) {
+          transaction_version
+          event_index
+          data
+        }
+      }
+    `;
+
+    // Use direct GraphQL with API key (this is the correct approach for Indexer API)
+    // Add retry logic for timeouts
+    let response;
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        console.log(`Attempt ${retries + 1} of ${maxRetries} for indexer query...`);
+        
+        response = await fetch('https://api.devnet.aptoslabs.com/v1/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${API_KEY}`,
+          },
+          body: JSON.stringify({ query }),
+          // Add timeout to avoid hanging
+          signal: AbortSignal.timeout(15000) // 15 second timeout
+        });
+
+        console.log("Direct GraphQL response status:", response.status);
+
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded');
+        }
+
+        if (response.status === 408) {
+          retries++;
+          if (retries < maxRetries) {
+            console.log(`Timeout on attempt ${retries}, retrying in ${retries * 2} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, retries * 2000));
+            continue;
+          } else {
+            throw new Error('Max retries exceeded for indexer timeouts');
+          }
+        }
+
+        const result = await response.json();
+
+        if (result.errors) {
+          throw new Error("GraphQL errors: " + JSON.stringify(result.errors));
+        }
+
+        const tokens = result.data?.events?.map((event: any) => ({
+          type: 'TokenCreatedEvent',
+          sequence_number: event.event_index.toString(),
+          data: JSON.parse(event.data),
+          __typename: 'TokenCreatedEvent'
+        })) || [];
+
+        console.log("Direct GraphQL tokens found:", tokens.length);
+        return tokens;
+        
+      } catch (fetchError: any) {
+        if (fetchError.name === 'TimeoutError') {
+          retries++;
+          if (retries < maxRetries) {
+            console.log(`Timeout on attempt ${retries}, retrying in ${retries * 2} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, retries * 2000));
+            continue;
+          }
+        }
+        throw fetchError;
+      }
+    }
+
+  } catch (sdkIndexerError) {
+    console.log("SDK Indexer failed:", sdkIndexerError);
+    throw sdkIndexerError; // Re-throw to trigger fallback
+  }
+
+  return [];
 }
 
 async function getTokensFromSDK(moduleAddress: string): Promise<TokenCreationEvent[]> {
@@ -807,11 +912,10 @@ async function getTokensFromSDK(moduleAddress: string): Promise<TokenCreationEve
                         const eventData = event.data;
                         if (eventData) {
                           const ticker = eventData.ticker && eventData.ticker.startsWith('0x') ? hexToString(eventData.ticker) : eventData.ticker || 'UNKNOWN';
-                          const name = eventData.name && eventData.name.startsWith('0x') ? hexToString(eventData.name) : eventData.name || 'UNKNOWN';
                           const metadataAddr = eventData.metadata_addr || 'Unknown';
                           const creator = eventData.creator || 'Unknown';
                           
-                          console.log(`🎯 Token: ticker="${ticker}", name="${name}", metadata_addr=${metadataAddr}, creator=${creator}`);
+                          console.log(`🎯 Token: ticker="${ticker}", metadata_addr=${metadataAddr}, creator=${creator}`);
                           
                           tokenEvents.push({
                             type: 'TokenCreatedEvent',
@@ -819,7 +923,7 @@ async function getTokensFromSDK(moduleAddress: string): Promise<TokenCreationEve
                             data: {
                               creator: creator,
                               ticker: ticker,
-                              name: name,
+                              name: ticker, // Use ticker as name
                               total_supply: eventData.total_supply?.toString() || '800000000',
                               metadata_addr: metadataAddr
                             },
@@ -894,7 +998,7 @@ async function getTokensFromSDK(moduleAddress: string): Promise<TokenCreationEve
     }
     
     console.log("No tokens found in TokenCounter");
-    return [];
+    throw new Error("No tokens found in TokenCounter");
     
   } catch (error) {
     console.error("Alternative approach failed:", error);
@@ -1014,11 +1118,10 @@ async function getTokensFromDirectEventQuery(moduleAddress: string): Promise<Tok
         const eventData = event.data;
         if (eventData) {
           const ticker = eventData.ticker && eventData.ticker.startsWith('0x') ? hexToString(eventData.ticker) : eventData.ticker || 'UNKNOWN';
-          const name = eventData.name && eventData.name.startsWith('0x') ? hexToString(eventData.name) : eventData.name || 'UNKNOWN';
           const metadataAddr = eventData.metadata_addr || 'Unknown';
           const creator = eventData.creator || 'Unknown';
           
-          console.log(`🎯 Token: ticker="${ticker}", name="${name}", metadata_addr=${metadataAddr}, creator=${creator}`);
+          console.log(`🎯 Token: ticker="${ticker}", metadata_addr=${metadataAddr}, creator=${creator}`);
           
           tokenEvents.push({
             type: 'TokenCreatedEvent',
@@ -1026,7 +1129,7 @@ async function getTokensFromDirectEventQuery(moduleAddress: string): Promise<Tok
             data: {
               creator: creator,
               ticker: ticker,
-              name: name,
+              name: ticker, // Use ticker as name
               total_supply: eventData.total_supply?.toString() || '800000000',
               metadata_addr: metadataAddr
             },
@@ -1047,9 +1150,9 @@ async function getTokensFromDirectEventQuery(moduleAddress: string): Promise<Tok
     console.log("❌ Error querying TokenCreatedEvent events:", eventQueryError);
   }
   
-  // If all else fails, return empty array
-  console.log("❌ Direct event querying failed, returning empty array");
-  return [];
+  // If all else fails, throw error to trigger fallback
+  console.log("❌ Direct event querying failed, throwing error to trigger fallback");
+  throw new Error("Direct event querying failed");
 }
 
 // Final fallback: localStorage with real token data
@@ -1074,7 +1177,7 @@ async function getTokensFromLocalStorage(): Promise<TokenCreationEvent[]> {
         data: {
           creator: '0xc156a41155e21f972e4158caf1cac90311543b062f49b45536d6fd17708a4198',
           ticker: '$TKN',
-          name: 'Token',
+          name: 'My Token',
           total_supply: '1000000000',
           metadata_addr: '0x36ec72d74dbc8f593d47e35aa3ca6b14caa5028203929030a367232654731d30'
         },
@@ -1086,7 +1189,7 @@ async function getTokensFromLocalStorage(): Promise<TokenCreationEvent[]> {
         data: {
           creator: '0xb48dab8685a30b756235e6df2284b6f572c9a60480cff0072bd7811b1ee9021',
           ticker: '$TKN',
-          name: 'Token',
+          name: 'Another Token',
           total_supply: '1000000000',
           metadata_addr: '0x9d721d0af521dcd767940bc32df7cc6732111c0264ed5abdcd4d06ab3040a901'
         },
