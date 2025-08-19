@@ -4,11 +4,13 @@ import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import GlobalSidebar from './GlobalSidebar';
-import { Link } from 'react-router-dom';
-import { getFungibleAssetInfo, getTokenMetadata, getTokenBalance, getTokenLauncherTokens } from '../utils/aptosIndexer';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useTokenData } from '../hooks/useTokenData';
 
 const Marketplace: React.FC = () => {
   const { account, signAndSubmitTransaction } = useWallet();
+  const { metadataAddress } = useParams<{ metadataAddress?: string }>();
+  const navigate = useNavigate();
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
@@ -20,9 +22,13 @@ const Marketplace: React.FC = () => {
   const [slippage, setSlippage] = useState(100);
   const [headerMinimized, setHeaderMinimized] = useState(false);
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [loading, setLoading] = useState(true);
   const [tokenBalance, setTokenBalance] = useState<string>('0.000');
+  const [tokenBalanceMap, setTokenBalanceMap] = useState<Map<string, string>>(new Map());
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [lastBalanceFetch, setLastBalanceFetch] = useState(0);
+
+  // Use the shared token data hook
+  const { tokens: rawTokens, loading, error, refetch } = useTokenData();
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
@@ -31,6 +37,11 @@ const Marketplace: React.FC = () => {
   }), []);
   const client = useMemo(() => new Aptos(config), [config]);
   const tokenLauncherAddress = MODULE_ADDRESS;
+
+  // Create a separate client without API key for balance fetching (to avoid rate limits)
+  const balanceClient = useMemo(() => new Aptos(new AptosConfig({ 
+    network: Network.DEVNET
+  })), []);
 
   interface Token {
     name: string;
@@ -75,102 +86,252 @@ const Marketplace: React.FC = () => {
 
 
 
-  // Fetch tokens using Aptos Indexer
-  const fetchTokens = async () => {
+  // Use tokens directly from the shared hook (they're already processed)
+  const tokens = rawTokens;
+
+  // Auto-select token based on URL parameter
+  useEffect(() => {
+    console.log('🔍 URL metadataAddress:', metadataAddress);
+    console.log('🔍 Available tokens:', tokens.map(t => ({ symbol: t.symbol, metadataAddress: t.metadataAddress })));
+    
+    if (metadataAddress && tokens.length > 0) {
+      const token = tokens.find(t => t.metadataAddress === metadataAddress);
+      if (token) {
+        setSelectedToken(token);
+        console.log('✅ Auto-selected token from URL:', token);
+      } else {
+        console.log('❌ Token not found for metadata address:', metadataAddress);
+        console.log('🔍 Available metadata addresses:', tokens.map(t => t.metadataAddress));
+      }
+    }
+  }, [metadataAddress, tokens]);
+
+  // Fetch balance when selected token changes
+  useEffect(() => {
+    if (selectedToken && account?.address) {
+      fetchAllTokenBalances();
+    }
+  }, [selectedToken, account?.address]);
+
+  // Fetch all token balances when account changes or component mounts
+  useEffect(() => {
+    if (account?.address) {
+      fetchAllTokenBalances();
+    }
+  }, [account?.address]);
+
+  // Batch fetch all token balances for the user with fallbacks
+  const fetchAllTokenBalances = async (force = false) => {
+    if (!account) return;
+    
+    // Debounce: Don't fetch if we've fetched recently (within 5 seconds)
+    const now = Date.now();
+    if (!force && now - lastBalanceFetch < 5000) {
+      console.log("⏱️ Balance fetch debounced, using cached data");
+      if (selectedToken?.metadataAddress) {
+        const cachedBalance = tokenBalanceMap.get(selectedToken.metadataAddress) || "0.000";
+        setTokenBalance(cachedBalance);
+      }
+      return;
+    }
+    
+    // Prevent multiple simultaneous calls
+    if (isLoadingBalances) {
+      console.log("⏳ Balance fetch already in progress, skipping");
+      return;
+    }
+    
+    setIsLoadingBalances(true);
+    setLastBalanceFetch(now);
+    
     try {
-      setLoading(true);
-      console.log("Starting token fetch from indexer for module:", tokenLauncherAddress);
+      const accountAddress = account.address.toString();
+      console.log("💰 Batch fetching all token balances for:", accountAddress);
       
-      // Add a small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const fetchedTokens: Token[] = [];
-      
-      // Fetch tokens created by our token launcher module
-      const tokenEvents = await getTokenLauncherTokens(tokenLauncherAddress);
-      
-      console.log("Raw token creation events from indexer:", tokenEvents);
-      
-      if (tokenEvents.length === 0) {
-        console.log("No token creation events found. This could mean:");
-        console.log("1. No tokens have been launched yet");
-        console.log("2. The devnet indexer doesn't have the events");
-        console.log("3. The event name might be different");
+      // Try to get user resources with fallback
+      let resources;
+      try {
+        // Primary method: Direct API call
+        resources = await balanceClient.getAccountResources({ accountAddress });
+        console.log("✅ Primary balance fetch successful");
+      } catch (error: any) {
+        console.log("⚠️ Primary balance fetch failed, trying fallback...");
+        
+        // Fallback: Try with different client configuration
+        try {
+          const fallbackClient = new Aptos(new AptosConfig({ 
+            network: Network.DEVNET,
+            fullnode: "https://fullnode.devnet.aptoslabs.com/v1"
+          }));
+          resources = await fallbackClient.getAccountResources({ accountAddress });
+          console.log("✅ Fallback balance fetch successful");
+        } catch (fallbackError) {
+          console.log("❌ All balance fetch methods failed, using cached data if available");
+          
+          // If we have cached balances, use them
+          if (tokenBalanceMap.size > 0) {
+            console.log("📊 Using cached balance data");
+            return;
+          }
+          
+          // Set default balance and return
+          setTokenBalance("0.000");
+          return;
+        }
       }
       
-      tokenEvents.forEach((event, index) => {
-        // Parse the event data to extract token information
-        const eventData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        console.log("Event data:", eventData);
-        
-        // Convert hex ticker to readable string
-        const tickerHex = eventData?.ticker || '';
-        const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
-        
+      type BuyerStoreData = {
+        stores: { metadata_addr: string; store: { inner: string } }[];
+      };
 
-        
-        // Parse supply data
-        const totalSupply = parseInt(eventData?.total_supply || '1000000');
-        const remainingSupply = parseInt(eventData?.remaining_supply || '0');
-        
-        // Generate mock data for demonstration (you can replace with real price feeds later)
-        const price = Math.random() * 0.01 + 0.0001;
-        const marketCap = price * totalSupply;
-        const volume = Math.random() * 1000000 + 10000;
-        const change24h = (Math.random() - 0.5) * 100;
-        
-        const token: Token = {
-          name: symbol || `Token ${index + 1}`,
-          symbol: symbol || `TKN${index + 1}`,
-          supply: totalSupply,
-          txHash: event.sequence_number || `0x${Math.random().toString(16).substr(2, 64)}`,
-          image: null,
-          launchDate: new Date().toISOString(), // Use current time if timestamp isn't available
-          creator: eventData?.creator || 'Unknown',
-          creatorAddress: eventData?.creator || 'Unknown',
-          metadataAddress: eventData?.metadata_addr || 'Unknown',
-          price,
-          marketCap,
-          volume,
-          change24h,
-        };
-        
-        fetchedTokens.push(token);
+      const buyerStore = resources.find(
+        (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
+      ) as { data: BuyerStoreData } | undefined;
+
+      if (!buyerStore) {
+        console.log("❌ No BuyerStore found for user");
+        setTokenBalance("0.000");
+        return;
+      }
+
+      // Create a map of metadata addresses to store addresses
+      const storeMap = new Map<string, string>();
+      buyerStore.data.stores?.forEach((s) => {
+        storeMap.set(s.metadata_addr, s.store.inner);
       });
 
-      console.log("Final token list from indexer:", fetchedTokens);
-      setTokens(fetchedTokens);
+      console.log(`📊 Found ${storeMap.size} token stores for user`);
+
+      // Batch fetch all store resources with individual fallbacks
+      const storeAddresses = Array.from(storeMap.values());
+      const balanceMap = new Map<string, string>();
+      
+      // Process stores one by one with fallbacks to avoid overwhelming the API
+      for (const storeAddress of storeAddresses) {
+        try {
+          let storeResources;
+          
+          // Primary method
+          try {
+            storeResources = await balanceClient.getAccountResources({ accountAddress: storeAddress });
+          } catch (error) {
+            // Fallback method
+            try {
+              const fallbackClient = new Aptos(new AptosConfig({ 
+                network: Network.DEVNET,
+                fullnode: "https://fullnode.devnet.aptoslabs.com/v1"
+              }));
+              storeResources = await fallbackClient.getAccountResources({ accountAddress: storeAddress });
+            } catch (fallbackError) {
+              console.log(`⚠️ Store ${storeAddress} failed both methods, skipping`);
+              continue;
+            }
+          }
+          
+          const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
+          
+          if (fungibleStore) {
+            const balanceNumber = Number(fungibleStore.data.balance || 0) / 10 ** 6;
+            // Find the metadata address for this store
+            storeMap.forEach((storeAddr, metadataAddr) => {
+              if (storeAddr === storeAddress) {
+                balanceMap.set(metadataAddr, balanceNumber.toString());
+              }
+            });
+          }
+          
+          // Add small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (error) {
+          console.error(`Error processing store ${storeAddress}:`, error);
+          continue;
+        }
+      }
+
+      console.log(`✅ Batch balance fetch complete. Found ${balanceMap.size} token balances`);
+      
+      // Store the balance map for quick access
+      setTokenBalanceMap(balanceMap);
+      
+      // Update current token balance if a token is selected
+      if (selectedToken?.metadataAddress) {
+        const currentBalance = balanceMap.get(selectedToken.metadataAddress) || "0.000";
+        setTokenBalance(currentBalance);
+      }
+      
     } catch (error) {
-      console.error('Error fetching tokens from indexer:', error);
-      setTokens([]);
+      console.error("Error in batch balance fetch:", error);
+      // If we have cached data, use it
+      if (tokenBalanceMap.size > 0) {
+        console.log("📊 Using cached balance data after error");
+        if (selectedToken?.metadataAddress) {
+          const cachedBalance = tokenBalanceMap.get(selectedToken.metadataAddress) || "0.000";
+          setTokenBalance(cachedBalance);
+        }
+      }
     } finally {
-      setLoading(false);
+      setIsLoadingBalances(false);
     }
   };
 
-  // Function to fetch user's token balance using indexer
-  const fetchUserTokenBalance = async (): Promise<boolean> => {
-    if (!selectedToken || !account?.address) {
+  // Get balance for a specific token from the cached map
+  const getTokenBalance = (metadataAddress: string): string => {
+    return tokenBalanceMap.get(metadataAddress) || "0.000";
+  };
+
+  // Legacy individual balance fetch (kept for compatibility, but should use batch approach)
+  const fetchUserTokenBalance = async () => {
+    if (!account || !selectedToken) {
       console.log("No token selected or wallet not connected");
-      setTokenBalance("0.000");
       return false;
     }
 
     try {
       const accountAddress = account.address.toString();
-      console.log("Fetching balance for:", accountAddress, "Token:", selectedToken.symbol);
+      const metadataAddress = selectedToken.metadataAddress;
+      console.log("💰 Fetching balance for:", accountAddress, "Token:", metadataAddress);
       
-      // Use the indexer to get token balance
-      const balance = await getTokenBalance(accountAddress, selectedToken.metadataAddress || selectedToken.symbol);
+      // Use the same logic as NEWtokenpage - Fullnode without API key
+      const resources = await balanceClient.getAccountResources({ accountAddress });
       
-      // Convert balance to readable format (assuming 6 decimals)
-      const balanceNumber = Number(balance) / 10 ** 6;
-      console.log(`Found balance for ${accountAddress}:`, balanceNumber);
-      
+      type BuyerStoreData = {
+        stores: { metadata_addr: string; store: { inner: string } }[];
+      };
+
+      const buyerStore = resources.find(
+        (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
+      ) as { data: BuyerStoreData } | undefined;
+
+      if (!buyerStore) {
+        console.log("❌ No BuyerStore found for user");
+        setTokenBalance("0.000");
+        return false;
+      }
+
+      const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
+      if (!storeEntry) {
+        console.log("❌ Token not found in BuyerStore for metadata:", metadataAddress);
+        setTokenBalance("0.000");
+        return false;
+      }
+
+      const storeAddress = storeEntry.store.inner;
+      const storeResources = await balanceClient.getAccountResources({ accountAddress: storeAddress });
+
+      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
+      if (!fungibleStore) {
+        console.log("❌ No FungibleStore found at store address:", storeAddress);
+        setTokenBalance("0.000");
+        return false;
+      }
+
+      const balanceNumber = Number(fungibleStore.data.balance || 0) / 10 ** 6;
+      console.log(`✅ Balance found: ${balanceNumber}`);
       setTokenBalance(balanceNumber.toString());
       return true;
     } catch (error) {
-      console.error("Error getting balance from indexer:", error);
+      console.error("Error getting balance:", error);
       setTokenBalance("0.000");
       return false;
     }
@@ -213,8 +374,8 @@ const Marketplace: React.FC = () => {
       await client.waitForTransaction({ transactionHash: response.hash });
       alert(`Bought ${amount} ${selectedToken.symbol}! Tx: ${response.hash}`);
 
-      // Refresh token balance
-      await fetchUserTokenBalance();
+      // Refresh all token balances (force refresh after trade)
+      await fetchAllTokenBalances(true);
     } catch (error: any) {
       console.error("Buy error:", error);
       
@@ -272,8 +433,8 @@ const Marketplace: React.FC = () => {
       await client.waitForTransaction({ transactionHash: response.hash });
       alert(`Sold ${amount} ${selectedToken.symbol}! Tx: ${response.hash}`);
 
-      // Refresh token balance
-      await fetchUserTokenBalance();
+      // Refresh all token balances (force refresh after trade)
+      await fetchAllTokenBalances(true);
     } catch (error: any) {
       console.error("Sell error:", error);
       
@@ -396,15 +557,8 @@ const Marketplace: React.FC = () => {
     setAmount(numAmount);
   }, [amountString]);
 
-  // Fetch tokens on component mount with debouncing
-  useEffect(() => {
-    // Add a small delay to prevent rapid duplicate calls
-    const timer = setTimeout(() => {
-      fetchTokens();
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
+  // Tokens are now fetched by the shared useTokenData hook
+  // No need for local fetching logic
 
   // Handle click outside wallet dropdown
   useEffect(() => {
@@ -421,8 +575,18 @@ const Marketplace: React.FC = () => {
   }, [walletDropdownOpen]);
 
   const handleTokenSelect = (token: any) => {
-    setSelectedToken(token);
-    console.log('Selected token:', token);
+    console.log('🔄 handleTokenSelect called with token:', token);
+    console.log('🔄 Token metadataAddress:', token.metadataAddress);
+    
+    // Navigate to the token's trading URL
+    if (token.metadataAddress) {
+      const url = `/marketplace/${token.metadataAddress}`;
+      console.log('🔄 Navigating to:', url);
+      navigate(url);
+    } else {
+      setSelectedToken(token);
+      console.log('Selected token (no metadata address):', token);
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -1077,9 +1241,14 @@ const Marketplace: React.FC = () => {
                                     console.log("Token creatorAddress:", token.creatorAddress);
                                     console.log("Token creator:", token.creator);
                                     setSelectedToken(token);
-                                    // Fetch token balance after setting selected token
-                                    if (account?.address) {
-                                      await fetchUserTokenBalance();
+                                    // Use cached balance if available, otherwise fetch all
+                                    if (token.metadataAddress) {
+                                      const cachedBalance = tokenBalanceMap.get(token.metadataAddress);
+                                      if (cachedBalance !== undefined) {
+                                        setTokenBalance(cachedBalance);
+                                      } else if (account?.address) {
+                                        await fetchAllTokenBalances();
+                                      }
                                     }
                                   }}
                                   style={{
@@ -1157,6 +1326,74 @@ const Marketplace: React.FC = () => {
                   border: '1px solid #e6e8ea',
                   height: '100%'
                 }}>
+                  {/* Token Info Section */}
+                  {selectedToken ? (
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      background: '#ffffff',
+                      borderRadius: '8px',
+                      border: '1px solid #e6e8ea'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          background: '#00d4aa',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 'bold',
+                          fontSize: '14px',
+                          marginRight: '12px'
+                        }}>
+                          {selectedToken.symbol.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 style={{
+                            fontSize: '18px',
+                            fontWeight: '700',
+                            color: '#0a0b0d',
+                            margin: '0'
+                          }}>
+                            {selectedToken.symbol}
+                          </h4>
+                          <p style={{
+                            fontSize: '14px',
+                            color: '#6c757d',
+                            margin: '0'
+                          }}>
+                            {selectedToken.name}
+                          </p>
+                        </div>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      marginBottom: '20px',
+                      padding: '16px',
+                      background: '#f8f9fa',
+                      borderRadius: '8px',
+                      border: '1px solid #e6e8ea',
+                      textAlign: 'center'
+                    }}>
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#6c757d',
+                        margin: '0'
+                      }}>
+                        Select a token to start trading
+                      </p>
+                    </div>
+                  )}
+
                   <div style={{ marginBottom: '20px' }}>
                     <h3 style={{
                       fontSize: '16px',

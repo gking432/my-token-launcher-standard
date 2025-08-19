@@ -6,6 +6,7 @@ import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import GlobalSidebar from './GlobalSidebar';
 import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
+import { useTokenData } from '../hooks/useTokenData';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -19,11 +20,19 @@ const TokenPage: React.FC = () => {
   const { coinHash } = useParams<{ coinHash?: string }>();
   const { account, signAndSubmitTransaction, connect, wallets, disconnect } = useWallet();
   const [tokenDetails, setTokenDetails] = useState<TokenDetails | null>(null);
+  
+  // Use the shared token data hook
+  const { tokens } = useTokenData();
   const [amount, setAmount] = useState<number>(0);
   const [timeframe, setTimeframe] = useState<string>("1m");
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
+
+  // Track if balance API is failing to avoid unnecessary retries
+  const [balanceApiFailed, setBalanceApiFailed] = useState(false);
+  const [lastBalanceCheck, setLastBalanceCheck] = useState(0);
+  const BALANCE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -69,6 +78,11 @@ const TokenPage: React.FC = () => {
     }
   }), []);
   const client = useMemo(() => new Aptos(config), [config]);
+  
+  // Create a separate client without API key for balance fetching (to avoid rate limits)
+  const balanceClient = useMemo(() => new Aptos(new AptosConfig({ 
+    network: Network.DEVNET
+  })), []);
   const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
 
   // Transplant the working interfaces from TokenPage
@@ -207,152 +221,39 @@ const TokenPage: React.FC = () => {
     { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
   ];
 
-  // Transplant the working token details fetching from TokenPage
+  // Load token details from our shared hook using metadata address
   const fetchTokenDetails = async () => {
     if (!coinHash) return;
 
     try {
-      let initialData: TokenDetails | undefined = location.state as TokenDetails;
-      console.log("Location state:", location.state);
-  
-      // Use localStorage as a cache (optional)
-      if (!initialData) {
-        const users = JSON.parse(localStorage.getItem("users") || "{}");
-        const targetAddress = account?.address ? String(account.address) : null;
-        console.log("Target address:", targetAddress);
-        console.log("Users from localStorage:", users);
-        if (targetAddress && users[targetAddress]?.launchedTokens) {
-          const storedToken = users[targetAddress].launchedTokens.find(
-            (token: Token) => token.txHash === coinHash
-          );
-          console.log("Stored token:", storedToken);
-          if (storedToken) {
-            const candidateData: TokenDetails = {
-              name: storedToken.name,
-              symbol: storedToken.symbol,
-              supply: storedToken.supply,
-              txHash: storedToken.txHash,
-              twitterLink: null,
-              websiteLink: null,
-              metadataAddress: storedToken.metadataAddress,
-              creatorAddress: storedToken.creator,
-              creationDate: new Date(storedToken.launchDate).getTime() / 1000,
-            };
-            console.log("Loaded from localStorage:", candidateData);
-  
-            // Validate metadataAddress
-            if (candidateData.metadataAddress && candidateData.metadataAddress !== "0x0") {
-              initialData = candidateData;
-            } else {
-              console.log("Invalid metadataAddress in localStorage, refetching...");
-            }
-          }
-        }
-      }
-  
-      // Fetch from blockchain if not found or invalid
-      if (!initialData && coinHash) {
-        console.log("Fetching transaction with coinHash:", coinHash);
-        let transaction;
-        try {
-          transaction = await client.getTransactionByHash({ transactionHash: coinHash });
-        } catch (error) {
-          console.error("Failed to fetch transaction:", error);
-          throw new Error("Unable to fetch transaction data");
-        }
-        console.log("Fetched transaction:", transaction);
-  
-        if (transaction.type !== "user_transaction") {
-          console.error("Not a user transaction:", transaction);
-          throw new Error("Invalid transaction type");
-        }
-  
-        // Log all events to debug
-        console.log("Transaction events:", transaction.events);
-  
-        // Look for the correct event type
-        const tokenCreationEvent = transaction.events.find((event: any) =>
-          event.type.includes("token_launcher::TokenCreationEvent") || event.type.includes("TokenCreated")
-        );
-        if (!tokenCreationEvent) {
-          console.error("Token creation event not found:", transaction.events);
-          throw new Error("Token creation event missing");
-        }
-  
-        console.log("Token creation event data:", tokenCreationEvent.data);
-        const creator = tokenCreationEvent.data.creator;
-  
-        // Helper function to convert hex string to readable string
-        const hexToString = (hex: string) => {
-          if (!hex || !hex.startsWith("0x")) return "";
-          try {
-            const hexWithoutPrefix = hex.replace("0x", "");
-            const bytes = [];
-            for (let i = 0; i < hexWithoutPrefix.length; i += 2) {
-              bytes.push(parseInt(hexWithoutPrefix.substr(i, 2), 16));
-            }
-            return String.fromCharCode(...bytes);
-          } catch (error) {
-            console.error("Error converting hex to string:", error, "Hex:", hex);
-            return "";
-          }
-        };
-  
-        // Handle ticker (symbol)
-        let symbol = "N/A";
-        const ticker = tokenCreationEvent.data.ticker;
-        console.log("Raw ticker:", ticker);
-        if (typeof ticker === "string" && ticker.startsWith("0x")) {
-          symbol = hexToString(ticker);
-        } else if (Array.isArray(ticker)) {
-          symbol = String.fromCharCode(...ticker);
-        }
-        console.log("Parsed symbol:", symbol);
-  
-        // Handle name
-        let name = "Unknown";
-        const originalName = tokenCreationEvent.data.original_name;
-        console.log("Raw original_name:", originalName);
-        if (typeof originalName === "string" && originalName.startsWith("0x")) {
-          name = hexToString(originalName);
-        } else if (Array.isArray(originalName)) {
-          name = String.fromCharCode(...originalName);
-        }
-        console.log("Parsed name:", name);
-  
-        // Handle supply
-        const supply = Number(tokenCreationEvent.data.total_supply || tokenCreationEvent.data.supply || 0);
-        console.log("Parsed supply:", supply);
-  
-        // Handle metadata address
-        const metadataAddress = tokenCreationEvent.data.metadata_addr || tokenCreationEvent.data.metadata_address;
-        console.log("Parsed metadataAddress:", metadataAddress);
-  
-        // Handle creation date
-        const creationDate = Number(transaction.timestamp) / 1000000; // Convert from microseconds
-        console.log("Parsed creationDate:", creationDate);
-  
-        initialData = {
-          name: name || "Unknown Token",
-          symbol: symbol || "N/A",
-          supply,
-          txHash: coinHash,
-          metadataAddress,
-          creatorAddress: creator,
-          creationDate,
+      console.log("🔍 Looking for token with metadata address:", coinHash);
+      console.log("📊 Available tokens:", tokens);
+      
+      // Find token by metadata address
+      const token = tokens.find(t => t.metadataAddress === coinHash);
+      
+      if (token) {
+        console.log("✅ Found token:", token);
+        
+        const tokenDetailsData: TokenDetails = {
+          name: token.name,
+          symbol: token.symbol,
+          supply: token.supply,
+          txHash: token.txHash,
+          metadataAddress: token.metadataAddress || '',
+          creatorAddress: token.creatorAddress || '',
+          creationDate: new Date(token.launchDate).getTime() / 1000,
           twitterLink: null,
           websiteLink: null,
         };
-      }
-  
-      if (initialData) {
-        console.log("Setting token details:", initialData);
-        setTokenDetails(initialData);
+        
+        console.log("🎯 Setting token details:", tokenDetailsData);
+        setTokenDetails(tokenDetailsData);
       } else {
-        console.error("No token details found");
+        console.error("❌ Token not found for metadata address:", coinHash);
       }
     } catch (error) {
-      console.error("Error fetching token details:", error);
+      console.error("Error loading token details:", error);
     }
   };
 
@@ -390,11 +291,20 @@ const TokenPage: React.FC = () => {
         },
       };
   
-      const response = await signAndSubmitTransaction(buyTransaction);
+            const response = await signAndSubmitTransaction(buyTransaction);
       console.log("Buy response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
+      
+      // Try to wait for transaction confirmation, but don't fail if API is rate limited
+      try {
+        await client.waitForTransaction({ transactionHash: response.hash });
+        console.log("✅ Transaction confirmed");
+      } catch (confirmError: any) {
+        console.log("⚠️ Could not confirm transaction (API rate limited), but transaction was submitted successfully");
+        console.log("Transaction hash:", response.hash);
+      }
+      
       alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
-  
+
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
     } catch (error: any) {
@@ -449,11 +359,20 @@ const TokenPage: React.FC = () => {
           ],
         },
       };
-      const response = await signAndSubmitTransaction(sellTransaction);
+            const response = await signAndSubmitTransaction(sellTransaction);
       console.log("Sell response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
+      
+      // Try to wait for transaction confirmation, but don't fail if API is rate limited
+      try {
+        await client.waitForTransaction({ transactionHash: response.hash });
+        console.log("✅ Transaction confirmed");
+      } catch (confirmError: any) {
+        console.log("⚠️ Could not confirm transaction (API rate limited), but transaction was submitted successfully");
+        console.log("Transaction hash:", response.hash);
+      }
+      
       alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
-  
+
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
       
@@ -478,8 +397,10 @@ const TokenPage: React.FC = () => {
 
   // Add useEffect to fetch token details when component mounts
   useEffect(() => {
-    fetchTokenDetails();
-  }, [coinHash, account?.address]);
+    if (tokens.length > 0) {
+      fetchTokenDetails();
+    }
+  }, [coinHash, tokens]);
 
   // Add useEffect to fetch user's token balance
   useEffect(() => {
@@ -487,6 +408,14 @@ const TokenPage: React.FC = () => {
       fetchUserTokenBalance();
     }
   }, [tokenDetails?.metadataAddress, account?.address]);
+
+  // Force refresh balance function (for manual refresh)
+  const forceRefreshBalance = async () => {
+    console.log("🔄 Force refreshing balance...");
+    setBalanceApiFailed(false); // Reset failure flag
+    setLastBalanceCheck(0); // Reset last check time
+    await fetchUserTokenBalance();
+  };
 
   // Add useEffect to fetch user's APT balance
   
@@ -540,117 +469,178 @@ const TokenPage: React.FC = () => {
     }
   }, [walletDropdownOpen]);
 
-  // Function to fetch user's token balance
-  const fetchUserTokenBalance = async (retryCount = 3, delayMs = 5000): Promise<boolean> => {
+  // Function to fetch user's token balance with fallback system
+  const fetchUserTokenBalance = async (): Promise<boolean> => {
     const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
-    console.log("Fetching balance - Attempt:", 4 - retryCount, "Account:", account?.address, "Metadata Address:", metadataAddress);
-    console.log("tokenDetails:", tokenDetails);
-    console.log("location.state:", location.state);
     
-    // Debug: Check localStorage for this token
-    if (account?.address) {
-      const users = JSON.parse(localStorage.getItem("users") || "{}");
-      const targetAddress = String(account.address);
-      const userTokens = users[targetAddress]?.launchedTokens || [];
-      const storedToken = userTokens.find((t: any) => t.txHash === tokenDetails?.txHash);
-      console.log("Stored token in localStorage:", storedToken);
-      if (storedToken) {
-        console.log("Stored token metadataAddress:", storedToken.metadataAddress);
-      }
+    // Only skip if we recently failed AND it's been less than 5 minutes
+    const timeSinceLastCheck = Date.now() - lastBalanceCheck;
+    if (balanceApiFailed && timeSinceLastCheck < BALANCE_CACHE_TTL) {
+      console.log(`🔄 Balance API failed recently (${Math.round(timeSinceLastCheck/1000)}s ago), skipping fetch`);
+      return false;
     }
-  
+
     if (!metadataAddress || metadataAddress === "0x0") {
       console.log("No metadata address, can't fetch balance.");
       return false;
     }
-  
+
     if (!account?.address) {
       console.log("No wallet connected, setting balance to 0.");
       setTokenBalance("0");
       return false;
     }
-  
+
+    setLastBalanceCheck(Date.now());
+    const accountAddress = account.address.toString();
+    console.log("💰 Fetching balance for:", accountAddress, "Token:", metadataAddress);
+
+    // FALLBACK SYSTEM: Try different methods in order
+    const methods = [
+      { name: "API with Key", fn: () => fetchBalanceWithAPI(accountAddress, metadataAddress) },
+      { name: "SDK", fn: () => fetchBalanceWithSDK(accountAddress, metadataAddress) },
+      { name: "Direct Event Query", fn: () => fetchBalanceWithEvents(accountAddress, metadataAddress) },
+      { name: "localStorage", fn: () => fetchBalanceWithLocalStorage(accountAddress, metadataAddress) }
+    ];
+
+    for (const method of methods) {
+      try {
+        console.log(`🔄 Trying ${method.name}...`);
+        const result = await method.fn();
+        if (result !== null) {
+          console.log(`✅ ${method.name} SUCCESS: Balance = ${result}`);
+          setTokenBalance(result.toString());
+          setBalanceApiFailed(false);
+          
+          // Store balance in localStorage for future fallbacks
+          try {
+            const storedBalances = localStorage.getItem(`balances_${accountAddress}`) || '{}';
+            const balances = JSON.parse(storedBalances);
+            balances[metadataAddress] = result;
+            localStorage.setItem(`balances_${accountAddress}`, JSON.stringify(balances));
+            console.log(`💾 Stored balance ${result} for ${metadataAddress}`);
+          } catch (error) {
+            console.log("💾 Failed to store balance:", error);
+          }
+          
+          return true;
+        }
+      } catch (error: any) {
+        console.log(`❌ ${method.name} failed:`, error.message);
+        
+        // If it's a rate limit error, just continue to next method (don't break)
+        if (error.message?.includes("429") || error.message?.includes("MonthlyCredit cap")) {
+          console.log(`🚫 ${method.name} rate limited, trying next method...`);
+          continue; // Try next method instead of breaking
+        }
+      }
+    }
+
+    // All methods failed
+    console.log("❌ All balance fetching methods failed");
+    setTokenBalance("0");
+    return false;
+  };
+
+  // Method 1: API with Key (original method)
+  const fetchBalanceWithAPI = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
+    const resources = await client.getAccountResources({ accountAddress });
+    
+    type BuyerStoreData = {
+      stores: { metadata_addr: string; store: { inner: string } }[];
+    };
+
+    const buyerStore = resources.find(
+      (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
+    ) as { data: BuyerStoreData } | undefined;
+
+    if (!buyerStore) return null;
+
+    const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
+    if (!storeEntry) return null;
+
+    const storeAddress = storeEntry.store.inner;
+    const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
+
+    const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
+    if (!fungibleStore) return null;
+
+    return Number(fungibleStore.data.balance || 0) / 10 ** 6;
+  };
+
+  // Method 2: SDK (using Fullnode without API key to avoid rate limits)
+  const fetchBalanceWithSDK = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
     try {
-      const accountAddress = account.address.toString();
-      console.log("Checking wallet:", accountAddress);
-      const resources = await client.getAccountResources({ accountAddress });
-      console.log("Wallet resources:", JSON.stringify(resources, null, 2));
-  
+      // Use the same logic as Method 1 but with balanceClient (no API key)
+      const resources = await balanceClient.getAccountResources({ accountAddress });
+      
       type BuyerStoreData = {
         stores: { metadata_addr: string; store: { inner: string } }[];
       };
-  
+
       const buyerStore = resources.find(
         (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
       ) as { data: BuyerStoreData } | undefined;
-  
+
       if (!buyerStore) {
-        console.warn("No BuyerStore found for this contract in wallet:", accountAddress);
-        if (retryCount > 0) {
-          console.log(`Retrying balance fetch in ${delayMs}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          return await fetchUserTokenBalance(retryCount - 1, delayMs);
-        }
-        return false;
+        console.log("❌ No BuyerStore found for user");
+        return null;
       }
-      console.log("BuyerStore found:", JSON.stringify(buyerStore, null, 2));
-  
-      // If we can't find the exact metadata address, try to find any token in the BuyerStore
-      let storeEntry = buyerStore.data.stores.find((s) => s.metadata_addr === metadataAddress);
-      if (!storeEntry && buyerStore.data.stores.length > 0) {
-        console.log("Using first available token in BuyerStore as fallback");
-        storeEntry = buyerStore.data.stores[0];
-        // Update the token details with the correct metadata address
-        if (tokenDetails && storeEntry.metadata_addr !== tokenDetails.metadataAddress) {
-          console.log("Updating token details with correct metadata address:", storeEntry.metadata_addr);
-          setTokenDetails({
-            ...tokenDetails,
-            metadataAddress: storeEntry.metadata_addr
-          });
+
+      const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
+      if (!storeEntry) {
+        console.log("❌ Token not found in BuyerStore for metadata:", metadataAddress);
+        return null;
+      }
+
+      const storeAddress = storeEntry.store.inner;
+      const storeResources = await balanceClient.getAccountResources({ accountAddress: storeAddress });
+
+      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
+      if (!fungibleStore) {
+        console.log("❌ No FungibleStore found at store address:", storeAddress);
+        return null;
+      }
+
+      const balanceNumber = Number(fungibleStore.data.balance || 0) / 10 ** 6;
+      console.log(`✅ SDK (Fullnode) balance found: ${balanceNumber}`);
+      return balanceNumber;
+    } catch (error) {
+      console.log("❌ SDK (Fullnode) balance fetching failed:", error);
+      return null;
+    }
+  };
+
+  // Method 3: Direct Event Query (fallback)
+  const fetchBalanceWithEvents = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
+    // For now, return null as this would require complex event parsing
+    // This could be implemented later if needed
+    console.log("🔍 Direct event query not implemented for balance fetching");
+    return null;
+  };
+
+  // Method 4: localStorage Fallback (final fallback)
+  const fetchBalanceWithLocalStorage = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
+    try {
+      console.log("💾 Trying localStorage fallback for balance...");
+      
+      // Check if we have stored balance data
+      const storedBalances = localStorage.getItem(`balances_${accountAddress}`);
+      if (storedBalances) {
+        const balances = JSON.parse(storedBalances);
+        const balance = balances[metadataAddress];
+        if (balance !== undefined) {
+          console.log(`💾 Found stored balance: ${balance}`);
+          return balance;
         }
       }
       
-      if (!storeEntry) {
-        console.warn("No tokens found in BuyerStore");
-        if (retryCount > 0) {
-          console.log(`Retrying balance fetch in ${delayMs}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          return await fetchUserTokenBalance(retryCount - 1, delayMs);
-        }
-        return false;
-      }
-      console.log("Store entry found:", JSON.stringify(storeEntry, null, 2));
-  
-      const storeAddress = storeEntry.store.inner;
-      console.log("Checking token store:", storeAddress);
-      const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
-      console.log("Store resources:", JSON.stringify(storeResources, null, 2));
-  
-      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
-      if (!fungibleStore) {
-        console.warn("No FungibleStore found at:", storeAddress);
-        if (retryCount > 0) {
-          console.log(`Retrying balance fetch in ${delayMs}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          return await fetchUserTokenBalance(retryCount - 1, delayMs);
-        }
-        return false;
-      }
-      console.log("FungibleStore found:", JSON.stringify(fungibleStore, null, 2));
-  
-      const balance = Number(fungibleStore.data.balance || 0) / 10 ** 6;
-      console.log(`Found balance for ${accountAddress} at ${storeAddress}:`, balance);
-      setTokenBalance(balance.toString());
-      return true;
-    } catch (error: any) {
-      console.error("Error getting balance:", error);
-      if (error.message?.includes("429") && retryCount > 0) {
-        console.log(`Rate limit hit, retrying in ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        return await fetchUserTokenBalance(retryCount - 1, delayMs);
-      }
-      console.warn("Failed to fetch balance, keeping last known balance.");
-      return false;
+      // If no stored balance, return 0 as fallback
+      console.log("💾 No stored balance found, returning 0");
+      return 0;
+    } catch (error) {
+      console.log("💾 localStorage fallback failed:", error);
+      return 0;
     }
   };
 

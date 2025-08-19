@@ -63,6 +63,9 @@ const App: React.FC = () => {
           <Route path="/marketplace" element={
             <Marketplace />
           } />
+          <Route path="/marketplace/:metadataAddress" element={
+            <Marketplace />
+          } />
           <Route path="/boost" element={
             <Boost />
           } />

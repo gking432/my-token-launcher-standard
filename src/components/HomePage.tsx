@@ -3,14 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
+import { useTokenData } from '../hooks/useTokenData';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
   const navigate = useNavigate();
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol'>('newest');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  
+  // Use the shared token data hook
+  const { tokens: rawTokens, loading, error, refetch } = useTokenData();
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
@@ -35,76 +37,38 @@ const HomePage: React.FC = () => {
     change24h?: number;
   }
 
-  // Fetch tokens using the working logic from LandingPage
-  const fetchTokens = async () => {
-    try {
-      setLoading(true);
-      console.log("Starting token fetch...");
-      
-      // Use the working localStorage approach from LandingPage
-      const users = JSON.parse(localStorage.getItem("users") || "{}");
-      const fetchedTokens: Token[] = [];
-      
-      Object.keys(users).forEach(wallet => {
-        const userTokens = users[wallet].launchedTokens || [];
-        userTokens.forEach((token: Token) => {
-          // Calculate real price data (you can implement real price fetching later)
-          const price = Math.random() * 0.01 + 0.0001;
-          const marketCap = price * token.supply;
-          const volume = Math.random() * 1000000 + 10000;
-          const change24h = (Math.random() - 0.5) * 100;
+  // Sort tokens based on sortOrder
+  const tokens = useMemo(() => {
+    const sortedTokens = [...rawTokens];
+    sortedTokens.sort((a, b) => {
+      switch (sortOrder) {
+        case 'newest':
+          return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
+        case 'oldest':
+          return new Date(a.launchDate).getTime() - new Date(b.launchDate).getTime();
+        case 'highest_mc':
+          return (b.marketCap || 0) - (a.marketCap || 0);
+        case 'lowest_mc':
+          return (a.marketCap || 0) - (b.marketCap || 0);
+        case 'highest_vol':
+          return (b.volume || 0) - (a.volume || 0);
+        case 'lowest_vol':
+          return (a.volume || 0) - (b.volume || 0);
+        default:
+          return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
+      }
+    });
+    return sortedTokens;
+  }, [rawTokens, sortOrder]);
 
-          fetchedTokens.push({ 
-            ...token, 
-            creator: wallet,
-            price,
-            marketCap,
-            volume,
-            change24h,
-          });
-        });
-      });
-
-      // Sort tokens based on sortOrder
-      fetchedTokens.sort((a, b) => {
-        switch (sortOrder) {
-          case 'newest':
-            return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
-          case 'oldest':
-            return new Date(a.launchDate).getTime() - new Date(b.launchDate).getTime();
-          case 'highest_mc':
-            return (b.marketCap || 0) - (a.marketCap || 0);
-          case 'lowest_mc':
-            return (a.marketCap || 0) - (b.marketCap || 0);
-          case 'highest_vol':
-            return (b.volume || 0) - (a.volume || 0);
-          case 'lowest_vol':
-            return (a.volume || 0) - (b.volume || 0);
-          default:
-            return new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime();
-        }
-      });
-
-      console.log("Final token list:", fetchedTokens);
-      setTokens(fetchedTokens);
-    } catch (error) {
-      console.error('Error fetching tokens:', error);
-      setTokens([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Poll for new tokens every minute
   useEffect(() => {
-    fetchTokens();
-    
-    // Poll for new tokens every minute
     const interval = setInterval(() => {
-      fetchTokens();
+      refetch();
     }, 60000); // 60 seconds
     
     return () => clearInterval(interval);
-  }, [sortOrder]);
+  }, [refetch]);
 
   // Helper functions from LandingPage
   const truncateAddress = (address: string) => {
