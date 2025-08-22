@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { getTokenLauncherTokens } from '../utils/aptosIndexer';
 import { MODULE_ADDRESS } from '../config';
 
@@ -29,6 +30,7 @@ export const useTokenData = (): UseTokenDataReturn => {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Helper function to convert hex string to readable string
   const hexToString = (hex: string) => {
@@ -57,6 +59,9 @@ export const useTokenData = (): UseTokenDataReturn => {
       const tokenEvents = await getTokenLauncherTokens(MODULE_ADDRESS);
       
       console.log("📊 useTokenData: Raw token events:", tokenEvents);
+      
+      // Reset retry count on success
+      setRetryCount(0);
       
       // Convert events to Token objects
       const fetchedTokens: Token[] = tokenEvents.map((event, index) => {
@@ -97,7 +102,32 @@ export const useTokenData = (): UseTokenDataReturn => {
       
     } catch (err) {
       console.error("❌ useTokenData: Error fetching tokens:", err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch tokens');
+      
+      // Distinguish between different types of errors
+      let errorMessage = 'Failed to fetch tokens';
+      if (err instanceof Error) {
+        if (err.message.includes('rate limit') || err.message.includes('429')) {
+          errorMessage = 'Rate limited by Aptos network - please try again in a few moments';
+          
+          // Auto-retry rate limit errors with exponential backoff
+          if (retryCount < 3) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Max 10 seconds
+            console.log(`🔄 Auto-retrying in ${delay}ms (attempt ${retryCount + 1}/3)...`);
+            setRetryCount(prev => prev + 1);
+            
+            setTimeout(() => {
+              fetchTokens();
+            }, delay);
+            return; // Don't set error state yet
+          }
+        } else if (err.message.includes('All methods failed')) {
+          errorMessage = 'All data sources are currently unavailable - please try again later';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
       setTokens([]);
     } finally {
       setLoading(false);

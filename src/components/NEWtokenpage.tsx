@@ -7,6 +7,7 @@ import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
 import GlobalSidebar from './GlobalSidebar';
 import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
+import { useBalanceContext } from '../contexts/BalanceContext';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -27,12 +28,9 @@ const TokenPage: React.FC = () => {
   const [timeframe, setTimeframe] = useState<string>("1m");
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
-  const [tokenBalance, setTokenBalance] = useState<string | null>(null);
-
-  // Track if balance API is failing to avoid unnecessary retries
-  const [balanceApiFailed, setBalanceApiFailed] = useState(false);
-  const [lastBalanceCheck, setLastBalanceCheck] = useState(0);
-  const BALANCE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  
+  // Use global balance context instead of local balance fetching
+  const { balances, loading: balanceLoading, getTokenBalance, refreshBalances } = useBalanceContext();
 
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -79,10 +77,7 @@ const TokenPage: React.FC = () => {
   }), []);
   const client = useMemo(() => new Aptos(config), [config]);
   
-  // Create a separate client without API key for balance fetching (to avoid rate limits)
-  const balanceClient = useMemo(() => new Aptos(new AptosConfig({ 
-    network: Network.DEVNET
-  })), []);
+
   const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
 
   // Transplant the working interfaces from TokenPage
@@ -307,6 +302,9 @@ const TokenPage: React.FC = () => {
 
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
+      
+      // Refresh balances after successful trade (force fresh data)
+      await refreshBalances(true);
     } catch (error: any) {
       console.error("Buy error:", error);
       
@@ -330,7 +328,8 @@ const TokenPage: React.FC = () => {
     }
 
     // Check if user has enough tokens to sell
-    const currentTokenBalance = parseFloat(tokenBalance || '0');
+    const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
+    const currentTokenBalance = parseFloat(getTokenBalance(metadataAddress));
     if (amount > currentTokenBalance) {
       alert(`Insufficient token balance. You have ${currentTokenBalance.toFixed(6)} tokens, but trying to sell ${amount.toFixed(6)} tokens.`);
       return;
@@ -376,8 +375,8 @@ const TokenPage: React.FC = () => {
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
       
-      // Refresh balances after successful trade
-      await fetchUserTokenBalance();
+      // Refresh balances after successful trade (force fresh data)
+      await refreshBalances(true);
 
     } catch (error: any) {
       console.error("Sell failed:", error);
@@ -405,16 +404,14 @@ const TokenPage: React.FC = () => {
   // Add useEffect to fetch user's token balance
   useEffect(() => {
     if (tokenDetails?.metadataAddress && account?.address) {
-      fetchUserTokenBalance();
+      refreshBalances();
     }
   }, [tokenDetails?.metadataAddress, account?.address]);
 
   // Force refresh balance function (for manual refresh)
   const forceRefreshBalance = async () => {
     console.log("🔄 Force refreshing balance...");
-    setBalanceApiFailed(false); // Reset failure flag
-    setLastBalanceCheck(0); // Reset last check time
-    await fetchUserTokenBalance();
+    await refreshBalances();
   };
 
   // Add useEffect to fetch user's APT balance
@@ -469,180 +466,11 @@ const TokenPage: React.FC = () => {
     }
   }, [walletDropdownOpen]);
 
-  // Function to fetch user's token balance with fallback system
-  const fetchUserTokenBalance = async (): Promise<boolean> => {
-    const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
-    
-    // Only skip if we recently failed AND it's been less than 5 minutes
-    const timeSinceLastCheck = Date.now() - lastBalanceCheck;
-    if (balanceApiFailed && timeSinceLastCheck < BALANCE_CACHE_TTL) {
-      console.log(`🔄 Balance API failed recently (${Math.round(timeSinceLastCheck/1000)}s ago), skipping fetch`);
-      return false;
-    }
+  // Balance fetching is now handled by BalanceContext - no local logic needed
 
-    if (!metadataAddress || metadataAddress === "0x0") {
-      console.log("No metadata address, can't fetch balance.");
-      return false;
-    }
 
-    if (!account?.address) {
-      console.log("No wallet connected, setting balance to 0.");
-      setTokenBalance("0");
-      return false;
-    }
 
-    setLastBalanceCheck(Date.now());
-    const accountAddress = account.address.toString();
-    console.log("💰 Fetching balance for:", accountAddress, "Token:", metadataAddress);
 
-    // FALLBACK SYSTEM: Try different methods in order
-    const methods = [
-      { name: "API with Key", fn: () => fetchBalanceWithAPI(accountAddress, metadataAddress) },
-      { name: "SDK", fn: () => fetchBalanceWithSDK(accountAddress, metadataAddress) },
-      { name: "Direct Event Query", fn: () => fetchBalanceWithEvents(accountAddress, metadataAddress) },
-      { name: "localStorage", fn: () => fetchBalanceWithLocalStorage(accountAddress, metadataAddress) }
-    ];
-
-    for (const method of methods) {
-      try {
-        console.log(`🔄 Trying ${method.name}...`);
-        const result = await method.fn();
-        if (result !== null) {
-          console.log(`✅ ${method.name} SUCCESS: Balance = ${result}`);
-          setTokenBalance(result.toString());
-          setBalanceApiFailed(false);
-          
-          // Store balance in localStorage for future fallbacks
-          try {
-            const storedBalances = localStorage.getItem(`balances_${accountAddress}`) || '{}';
-            const balances = JSON.parse(storedBalances);
-            balances[metadataAddress] = result;
-            localStorage.setItem(`balances_${accountAddress}`, JSON.stringify(balances));
-            console.log(`💾 Stored balance ${result} for ${metadataAddress}`);
-          } catch (error) {
-            console.log("💾 Failed to store balance:", error);
-          }
-          
-          return true;
-        }
-      } catch (error: any) {
-        console.log(`❌ ${method.name} failed:`, error.message);
-        
-        // If it's a rate limit error, just continue to next method (don't break)
-        if (error.message?.includes("429") || error.message?.includes("MonthlyCredit cap")) {
-          console.log(`🚫 ${method.name} rate limited, trying next method...`);
-          continue; // Try next method instead of breaking
-        }
-      }
-    }
-
-    // All methods failed
-    console.log("❌ All balance fetching methods failed");
-    setTokenBalance("0");
-    return false;
-  };
-
-  // Method 1: API with Key (original method)
-  const fetchBalanceWithAPI = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
-    const resources = await client.getAccountResources({ accountAddress });
-    
-    type BuyerStoreData = {
-      stores: { metadata_addr: string; store: { inner: string } }[];
-    };
-
-    const buyerStore = resources.find(
-      (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
-    ) as { data: BuyerStoreData } | undefined;
-
-    if (!buyerStore) return null;
-
-    const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
-    if (!storeEntry) return null;
-
-    const storeAddress = storeEntry.store.inner;
-    const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
-
-    const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
-    if (!fungibleStore) return null;
-
-    return Number(fungibleStore.data.balance || 0) / 10 ** 6;
-  };
-
-  // Method 2: SDK (using Fullnode without API key to avoid rate limits)
-  const fetchBalanceWithSDK = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
-    try {
-      // Use the same logic as Method 1 but with balanceClient (no API key)
-      const resources = await balanceClient.getAccountResources({ accountAddress });
-      
-      type BuyerStoreData = {
-        stores: { metadata_addr: string; store: { inner: string } }[];
-      };
-
-      const buyerStore = resources.find(
-        (r: any) => r.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
-      ) as { data: BuyerStoreData } | undefined;
-
-      if (!buyerStore) {
-        console.log("❌ No BuyerStore found for user");
-        return null;
-      }
-
-      const storeEntry = buyerStore.data.stores?.find((s) => s.metadata_addr === metadataAddress);
-      if (!storeEntry) {
-        console.log("❌ Token not found in BuyerStore for metadata:", metadataAddress);
-        return null;
-      }
-
-      const storeAddress = storeEntry.store.inner;
-      const storeResources = await balanceClient.getAccountResources({ accountAddress: storeAddress });
-
-      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
-      if (!fungibleStore) {
-        console.log("❌ No FungibleStore found at store address:", storeAddress);
-        return null;
-      }
-
-      const balanceNumber = Number(fungibleStore.data.balance || 0) / 10 ** 6;
-      console.log(`✅ SDK (Fullnode) balance found: ${balanceNumber}`);
-      return balanceNumber;
-    } catch (error) {
-      console.log("❌ SDK (Fullnode) balance fetching failed:", error);
-      return null;
-    }
-  };
-
-  // Method 3: Direct Event Query (fallback)
-  const fetchBalanceWithEvents = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
-    // For now, return null as this would require complex event parsing
-    // This could be implemented later if needed
-    console.log("🔍 Direct event query not implemented for balance fetching");
-    return null;
-  };
-
-  // Method 4: localStorage Fallback (final fallback)
-  const fetchBalanceWithLocalStorage = async (accountAddress: string, metadataAddress: string): Promise<number | null> => {
-    try {
-      console.log("💾 Trying localStorage fallback for balance...");
-      
-      // Check if we have stored balance data
-      const storedBalances = localStorage.getItem(`balances_${accountAddress}`);
-      if (storedBalances) {
-        const balances = JSON.parse(storedBalances);
-        const balance = balances[metadataAddress];
-        if (balance !== undefined) {
-          console.log(`💾 Found stored balance: ${balance}`);
-          return balance;
-        }
-      }
-      
-      // If no stored balance, return 0 as fallback
-      console.log("💾 No stored balance found, returning 0");
-      return 0;
-    } catch (error) {
-      console.log("💾 localStorage fallback failed:", error);
-      return 0;
-    }
-  };
 
   // Function to calculate total cost/return based on amount and current price
   const calculateTotal = (amount: number) => {
@@ -1794,7 +1622,7 @@ const TokenPage: React.FC = () => {
                     fontWeight: '700',
                     color: '#00d4aa'
                   }}>
-                    {tokenBalance || '0.000'}
+                    {tokenDetails?.metadataAddress ? getTokenBalance(tokenDetails.metadataAddress) : '0.000'}
                   </div>
                 </div>
 

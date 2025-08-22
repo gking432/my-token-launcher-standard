@@ -4,6 +4,8 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
+import { useAptPrice } from '../hooks/useAptPrice';
+import { calculateCurrentPrice, calculateMarketCap, formatPrice, formatMarketCap } from '../utils/priceCalculator';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
@@ -13,6 +15,7 @@ const HomePage: React.FC = () => {
   
   // Use the shared token data hook
   const { tokens: rawTokens, loading, error, refetch } = useTokenData();
+  const { aptPrice, loading: aptLoading, error: aptError } = useAptPrice();
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
@@ -871,6 +874,80 @@ const HomePage: React.FC = () => {
               <span>●</span>
             </div>
           </div>
+
+          {/* APT Price Display */}
+          <div style={{ 
+            background: '#f8f9fa', 
+            padding: '15px 20px', 
+            borderRadius: '12px', 
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '15px',
+            border: '1px solid #e6e8ea'
+          }}>
+            <span style={{ fontWeight: 'bold', color: '#00d4aa', fontSize: '16px' }}>APT Price:</span>
+            {aptLoading ? (
+              <span style={{ color: '#666' }}>Loading...</span>
+            ) : aptError ? (
+              <span style={{ color: '#dc3545' }}>Error: {aptError}</span>
+            ) : aptPrice ? (
+              <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '18px' }}>
+                ${aptPrice.toFixed(4)}
+              </span>
+            ) : (
+              <span style={{ color: '#666' }}>No data</span>
+            )}
+          </div>
+
+                            {/* Bonding Curve Test - Commented out for now, can re-enable if needed for debugging */}
+                  {/* {aptPrice && (
+                    <div style={{
+                      background: '#e8f5e8',
+                      padding: '15px 20px',
+                      borderRadius: '12px',
+                      marginBottom: '20px',
+                      border: '1px solid #4caf50'
+                    }}>
+                      <h3 style={{ margin: '0 0 10px 0', color: '#2e7d32' }}>Bonding Curve Test:</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>0 tokens sold:</strong><br/>
+                          APT: {calculateCurrentPrice(0).toFixed(10)} APT/token<br/>
+                          USD: {formatPrice(calculateCurrentPrice(0) * aptPrice)}<br/>
+                          <small>Expected: 0.00000085692</small>
+                        </div>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>100M tokens sold:</strong><br/>
+                          APT: {calculateCurrentPrice(100000000).toFixed(10)} APT/token<br/>
+                          USD: {formatPrice(calculateCurrentPrice(100000000) * aptPrice)}<br/>
+                          <small>Expected: 0.00000096330</small>
+                        </div>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>400M tokens sold:</strong><br/>
+                          APT: {calculateCurrentPrice(400000000).toFixed(10)} APT/token<br/>
+                          USD: {formatPrice(calculateCurrentPrice(400000000) * aptPrice)}<br/>
+                          <small>Expected: 0.00000126987</small>
+                        </div>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>700M tokens sold:</strong><br/>
+                          APT: {calculateCurrentPrice(700000000).toFixed(10)} APT/token<br/>
+                          USD: {formatPrice(calculateCurrentPrice(700000000) * aptPrice)}<br/>
+                          <small>Expected: 0.00000263315</small>
+                        </div>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>Graduation (792,260,950):</strong><br/>
+                          APT: {calculateCurrentPrice(792260950).toFixed(10)} APT/token<br/>
+                          USD: {formatPrice(calculateCurrentPrice(792260950) * aptPrice)}<br/>
+                          <small>Expected: 0.00002520570</small>
+                        </div>
+                        <div style={{ background: '#f0f8f0', padding: '10px', borderRadius: '8px' }}>
+                          <strong>Market Cap (0 sold):</strong><br/>
+                          {formatMarketCap(calculateMarketCap(0, aptPrice))}
+                        </div>
+                      </div>
+                    </div>
+                  )} */}
 
           <div className="search-container">
             <input type="text" className="search-input" placeholder="Search for a meme coin..." />

@@ -16,6 +16,7 @@ import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
+import { BalanceProvider } from "./contexts/BalanceContext";
 import "./styles/Landing.css";
 
 // Placeholder components for missing routes
@@ -49,9 +50,10 @@ const App: React.FC = () => {
       onError={(error: Error) => {
         console.log('Wallet Connection Error:', error);
       }}>
-      <GraduationListener />
-      <Router>
-        <Routes>
+      <BalanceProvider>
+        <GraduationListener />
+        <Router>
+          <Routes>
           <Route path="/" element={
             <Layout>
               <LandingPage />
@@ -114,10 +116,11 @@ const App: React.FC = () => {
               <div>404 - Page Not Found</div>
             </Layout>
           } />
-        </Routes>
-      </Router>
-    </AptosWalletAdapterProvider>
-  );
-};
+                  </Routes>
+        </Router>
+        </BalanceProvider>
+      </AptosWalletAdapterProvider>
+    );
+  };
 
 export default App;

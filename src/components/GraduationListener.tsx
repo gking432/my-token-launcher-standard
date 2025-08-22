@@ -17,7 +17,7 @@ export const GraduationListener: React.FC = () => {
     if (!account) return;
     
     const client = new AptosClient("https://fullnode.devnet.aptoslabs.com");
-    const API_KEY = "aptoslabs_AZymB2JNfK3_JdAe5j8VCk3w8YCojaUTrxZGyBdsFZ7Wa";
+    const API_KEY = "aptoslabs_X7pogeAv3Za_M35uoXPYzbEC8bJwNKAt36hzZagRmJHPE";
     
     const checkForGraduationEvents = async () => {
       try {
