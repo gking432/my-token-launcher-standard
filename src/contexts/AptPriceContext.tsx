@@ -1,17 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-interface AptPriceData {
+interface AptPriceContextType {
   aptPrice: number | null;
   loading: boolean;
   error: string | null;
   lastUpdated: number | null;
+  refetch: () => void;
+}
+
+const AptPriceContext = createContext<AptPriceContextType | undefined>(undefined);
+
+export const useAptPrice = () => {
+  const context = useContext(AptPriceContext);
+  if (!context) {
+    throw new Error('useAptPrice must be used within an AptPriceProvider');
+  }
+  return context;
+};
+
+interface AptPriceProviderProps {
+  children: ReactNode;
 }
 
 const CACHE_DURATION = 60000; // 60 seconds (increased to reduce API calls)
 // Use a different CORS proxy that doesn't have rate limits
 const COINGECKO_API_URL = 'https://corsproxy.io/?' + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd');
 
-export const useAptPrice = () => {
+export const AptPriceProvider: React.FC<AptPriceProviderProps> = ({ children }) => {
   const [aptPrice, setAptPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +52,7 @@ export const useAptPrice = () => {
       }
 
       const data = await response.json();
+      console.log('🔍 Raw API response:', data);
       
       // Check for rate limit errors
       if (data.status && data.status.error_code === 429) {
@@ -44,6 +60,7 @@ export const useAptPrice = () => {
       }
       
       if (!data.aptos || !data.aptos.usd) {
+        console.error('❌ Invalid response format:', data);
         throw new Error('Invalid response format from CoinGecko API');
       }
 
@@ -86,11 +103,17 @@ export const useAptPrice = () => {
     fetchAptPrice(true);
   }, [fetchAptPrice]);
 
-  return {
+  const value: AptPriceContextType = {
     aptPrice,
     loading,
     error,
     lastUpdated,
     refetch
   };
-}; 
+
+  return (
+    <AptPriceContext.Provider value={value}>
+      {children}
+    </AptPriceContext.Provider>
+  );
+};

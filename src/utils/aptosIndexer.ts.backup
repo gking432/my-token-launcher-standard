@@ -3,30 +3,6 @@
 
 import { Aptos, AptosConfig, ClientConfig, Network } from "@aptos-labs/ts-sdk";
 
-// Helper function for bonding curve calculation
-function calculateBondingCurvePrice(tokensSold: number): number {
-  const PRICE_NUMERATOR = 19029514756; // 19,029,514,756
-  const PRICE_CONSTANT = 61.9053276; // 61.9053276 Octas
-  const MAX_TOKENS = 800000000; // 800,000,000 total supply
-  
-  const denominator = MAX_TOKENS - tokensSold;
-  
-  if (denominator <= 0) {
-    throw new Error("All tokens have been sold");
-  }
-  
-  // Calculate hyperbolic term: numerator / denominator (floating point division)
-  const hyperbolicTerm = PRICE_NUMERATOR / denominator;
-  
-  // Add constant term (61.9053276 Octas)
-  const constantTerm = PRICE_CONSTANT;
-  
-  // Total price in Octas (smallest APT unit)
-  const priceInOctas = hyperbolicTerm + constantTerm;
-  
-  // Convert to APT (divide by 10^8)
-  return priceInOctas / 100_000_000;
-}
 // API key to avoid rate limiting
 const API_KEY = 'aptoslabs_X7pogeAv3Za_M35uoXPYzbEC8bJwNKAt36hzZagRmJHPE';
 
@@ -187,37 +163,7 @@ async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: strin
 
     console.log(`🚀 COMPREHENSIVE SUCCESS: ${tokenEvents.length} tokens, ${graduationEvents.length} graduations, ${tokenDatas.length} metadata, ${fungibleAssets.length} assets, ${balances.length} balances`);
 
-    // Calculate USD prices and market caps
-    const usdPrices = new Map<string, number>();
-    const marketCaps = new Map<string, number>();
-
-    if (aptPrice > 0) {
-      events.forEach((event: any) => {
-        if (event.data && event.data.metadata_address) {
-          const metadataAddress = event.data.metadata_address;
-          const tokensSold = event.data.tokens_sold || 0;
-          const totalSupply = event.data.total_supply || 1000000;
-          
-          // Calculate price using bonding curve
-          const priceAPT = calculateBondingCurvePrice(tokensSold);
-          
-          // Convert to USD
-          const priceUSD = priceAPT * aptPrice;
-          usdPrices.set(metadataAddress, priceUSD);
-          
-          // Calculate market cap (price × total supply)
-          const marketCap = priceUSD * totalSupply;
-          marketCaps.set(metadataAddress, marketCap);
-        }
-      });
-      
-      console.log(`✅ USD calculations: ${usdPrices.size} prices, ${marketCaps.size} market caps`);
-    } else {
-      console.log(`ℹ️ No APT price provided, skipping USD calculations`);
-    }
     return {
-      usdPrices,
-      marketCaps,
       tokenEvents,
       graduationEvents,
       tokenDatas,

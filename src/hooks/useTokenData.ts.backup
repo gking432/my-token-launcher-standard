@@ -3,8 +3,9 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { getTokenLauncherTokens } from '../utils/aptosIndexer';
 import { MODULE_ADDRESS } from '../config';
 import { useAptPrice } from '../contexts/AptPriceContext';
-
 interface Token {
+  priceUSD?: number;
+  marketCapUSD?: number;
   name: string;
   symbol: string;
   supply: number;
@@ -18,9 +19,6 @@ interface Token {
   volume?: number;
   change24h?: number;
   creatorAddress?: string;
-  // Add USD fields
-  priceUSD?: number;
-  marketCapUSD?: number;
 }
 
 interface UseTokenDataReturn {
@@ -53,6 +51,7 @@ export const useTokenData = (): UseTokenDataReturn => {
     }
   };
 
+  const fetchTokens = async () => {
   // Helper function for bonding curve calculation
   const calculateBondingCurvePrice = (tokensSold: number): number => {
     const PRICE_NUMERATOR = 19029514756; // 19,029,514,756
@@ -76,10 +75,7 @@ export const useTokenData = (): UseTokenDataReturn => {
     
     // Convert to APT (divide by 10^8)
     return priceInOctas / 100_000_000;
-  };
-
-  const fetchTokens = async () => {
-    try {
+  };    try {
       setLoading(true);
       setError(null);
       
@@ -103,17 +99,9 @@ export const useTokenData = (): UseTokenDataReturn => {
         
         // Parse supply data
         const totalSupply = parseInt(eventData?.total_supply || '1000000');
-        const tokensSold = parseInt(eventData?.tokens_sold || '0');
-        
-        // Calculate APT price using bonding curve
-        const priceAPT = calculateBondingCurvePrice(tokensSold);
-        
-        // Calculate USD price if APT price is available
-        const priceUSD = aptPrice ? priceAPT * aptPrice : undefined;
-        const marketCapUSD = priceUSD ? priceUSD * totalSupply : undefined;
         
         // Generate mock data for demonstration (you can replace with real price feeds later)
-        const price = priceAPT; // Use real APT price instead of random
+        const price = Math.random() * 0.01 + 0.0001;
         const marketCap = price * totalSupply;
         const volume = Math.random() * 1000000 + 10000;
         const change24h = (Math.random() - 0.5) * 100;
@@ -132,9 +120,6 @@ export const useTokenData = (): UseTokenDataReturn => {
           marketCap,
           volume,
           change24h,
-          // Add USD fields
-          priceUSD,
-          marketCapUSD
         };
       });
 
@@ -175,10 +160,10 @@ export const useTokenData = (): UseTokenDataReturn => {
     }
   };
 
-  // Fetch tokens on mount and when APT price changes
+  // Fetch tokens on mount
   useEffect(() => {
     fetchTokens();
-  }, [aptPrice]); // Re-fetch when APT price changes
+  }, []);
 
   // Return the hook interface
   return {
@@ -187,4 +172,4 @@ export const useTokenData = (): UseTokenDataReturn => {
     error,
     refetch: fetchTokens
   };
-};
+}; 

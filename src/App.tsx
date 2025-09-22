@@ -17,6 +17,7 @@ import Boost from "./components/Boost";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
+import { AptPriceProvider } from "./contexts/AptPriceContext";
 import "./styles/Landing.css";
 
 // Placeholder components for missing routes
@@ -50,75 +51,77 @@ const App: React.FC = () => {
       onError={(error: Error) => {
         console.log('Wallet Connection Error:', error);
       }}>
-      <BalanceProvider>
-        <GraduationListener />
-        <Router>
-          <Routes>
-          <Route path="/" element={
-            <Layout>
-              <LandingPage />
-            </Layout>
-          } />
-          <Route path="/homepage" element={
-            <HomePage />
-          } />
-          <Route path="/marketplace" element={
-            <Marketplace />
-          } />
-          <Route path="/marketplace/:metadataAddress" element={
-            <Marketplace />
-          } />
-          <Route path="/boost" element={
-            <Boost />
-          } />
-          <Route path="/trending" element={
-            <Trending />
-          } />
-          <Route path="/communities" element={
-            <Communities />
-          } />
-          <Route path="/about" element={
-            <About />
-          } />
-          <Route path="/tokenpage" element={
-            <TokenPage />
-          } />
-          <Route path="/launchpage" element={
-            <NEWLaunch />
-          } />
-          <Route path="/profile" element={
-            <Layout>
-              <Profile />
-            </Layout>
-          } />
-          <Route path="/profile/:address" element={
-            <Layout>
-              <Profile />
-            </Layout>
-          } />
-          <Route path="/launch" element={
-            <NEWLaunch />
-          } />
-          <Route path="/token/:coinHash" element={
-            <Layout>
+      <AptPriceProvider>
+        <BalanceProvider>
+          <GraduationListener />
+          <Router>
+            <Routes>
+            <Route path="/" element={
+              <Layout>
+                <LandingPage />
+              </Layout>
+            } />
+            <Route path="/homepage" element={
+              <HomePage />
+            } />
+            <Route path="/marketplace" element={
+              <Marketplace />
+            } />
+            <Route path="/marketplace/:metadataAddress" element={
+              <Marketplace />
+            } />
+            <Route path="/boost" element={
+              <Boost />
+            } />
+            <Route path="/trending" element={
+              <Trending />
+            } />
+            <Route path="/communities" element={
+              <Communities />
+            } />
+            <Route path="/about" element={
+              <About />
+            } />
+            <Route path="/tokenpage" element={
+              <TokenPage />
+            } />
+            <Route path="/launchpage" element={
+              <NEWLaunch />
+            } />
+            <Route path="/profile" element={
+              <Layout>
+                <Profile />
+              </Layout>
+            } />
+            <Route path="/profile/:address" element={
+              <Layout>
+                <Profile />
+              </Layout>
+            } />
+            <Route path="/launch" element={
+              <NEWLaunch />
+            } />
+            <Route path="/token/:coinHash" element={
+              <Layout>
+                <ErrorBoundary>
+                  <TokenPage />
+                </ErrorBoundary>
+              </Layout>
+            } />
+            <Route path="/newtoken/:coinHash" element={
               <ErrorBoundary>
-                <TokenPage />
+                <NEWtokenpage />
               </ErrorBoundary>
-            </Layout>
-          } />
-          <Route path="/newtoken/:coinHash" element={
-            <ErrorBoundary>
-              <NEWtokenpage />
-            </ErrorBoundary>
-          } />
-          <Route path="*" element={
-            <Layout>
-              <div>404 - Page Not Found</div>
-            </Layout>
-          } />
-                  </Routes>
-        </Router>
-        </BalanceProvider>
+            } />
+            <Route path="*" element={
+              <Layout>
+                <div>404 - Page Not Found</div>
+              </Layout>
+            } />
+                    </Routes>
+          </Router>
+          </BalanceProvider>
+        </AptPriceProvider>
       </AptosWalletAdapterProvider>
     );
   };
