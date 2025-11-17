@@ -26,7 +26,7 @@ const CACHE_DURATION = 60000; // 60 seconds (increased to reduce API calls)
 // Use a different CORS proxy that doesn't have rate limits
 const COINGECKO_API_URL = 'https://corsproxy.io/?' + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd');
 
-export const AptPriceProvider: React.FC<AptPriceProviderProps> = ({ children }) => {
+export const AptPriceProvider = ({ children }: AptPriceProviderProps): JSX.Element => {
   const [aptPrice, setAptPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

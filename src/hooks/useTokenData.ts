@@ -97,13 +97,27 @@ export const useTokenData = (): UseTokenDataReturn => {
       const fetchedTokens: Token[] = tokenEvents.map((event, index) => {
         const eventData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         
+        // Debug: Log the actual event data structure
+        console.log(`🔍 Event ${index} data:`, eventData);
+        console.log(`🔍 Event ${index} full structure:`, event);
+        console.log(`🔍 Event ${index} metadata_addr:`, eventData?.metadata_addr, 'type:', typeof eventData?.metadata_addr);
+        console.log(`🔍 Event ${index} all keys:`, Object.keys(eventData || {}));
+        
+        // Get metadata address - try both snake_case and camelCase
+        const metadataAddr = eventData?.metadata_addr || eventData?.metadataAddress || eventData?.metadata_address;
+        console.log(`🔍 Event ${index} resolved metadataAddr:`, metadataAddr);
+        
         // Convert hex ticker to readable string
         const tickerHex = eventData?.ticker || '';
         const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
         
-        // Parse supply data
+        // Parse supply data - use correct field names from TokenCreatedEvent
         const totalSupply = parseInt(eventData?.total_supply || '1000000');
-        const tokensSold = parseInt(eventData?.tokens_sold || '0');
+        const mintedSupply = parseInt(eventData?.minted_supply || '0');
+        const remainingSupply = parseInt(eventData?.remaining_supply || '1000000');
+        
+        // Calculate tokens sold as total - remaining
+        const tokensSold = totalSupply - remainingSupply;
         
         // Calculate APT price using bonding curve
         const priceAPT = calculateBondingCurvePrice(tokensSold);
@@ -118,16 +132,23 @@ export const useTokenData = (): UseTokenDataReturn => {
         const volume = Math.random() * 1000000 + 10000;
         const change24h = (Math.random() - 0.5) * 100;
         
+        // Ensure metadataAddr is a string and not truncated
+        const fullMetadataAddr = metadataAddr && typeof metadataAddr === 'string' 
+          ? metadataAddr 
+          : (metadataAddr?.toString() || 'Unknown');
+        
+        console.log(`✅ Event ${index} final metadataAddr:`, fullMetadataAddr, 'length:', fullMetadataAddr?.length);
+        
         return {
           name: symbol || `Token ${index + 1}`,
           symbol: symbol || `TKN${index + 1}`,
           supply: totalSupply,
-          txHash: eventData?.metadata_addr || `0x${Math.random().toString(16).substr(2, 64)}`,
+          txHash: fullMetadataAddr !== 'Unknown' ? fullMetadataAddr : `0x${Math.random().toString(16).substr(2, 64)}`,
           image: null,
-          launchDate: new Date().toISOString(),
+          launchDate: new Date(parseInt(eventData?.timestamp || '0') / 1000).toISOString(),
           creator: eventData?.creator || 'Unknown',
           creatorAddress: eventData?.creator || 'Unknown',
-          metadataAddress: eventData?.metadata_addr || 'Unknown',
+          metadataAddress: fullMetadataAddr,
           price,
           marketCap,
           volume,

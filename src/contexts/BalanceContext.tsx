@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
+import { MODULE_ADDRESS } from '../config';
 
 interface BalanceContextType {
   balances: Map<string, string>;
@@ -24,7 +25,7 @@ interface BalanceProviderProps {
   children: ReactNode;
 }
 
-export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) => {
+export const BalanceProvider = ({ children }: BalanceProviderProps): JSX.Element => {
   const { account } = useWallet();
   const [balances, setBalances] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -41,6 +42,16 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
   // Force refresh trigger - ensures all components update when balances change
   const [forceRefreshTrigger, setForceRefreshTrigger] = useState(0);
 
+  // Helper function to normalize addresses (lowercase, ensure 0x prefix, pad to 64 hex chars)
+  const normalizeAddress = (address: string | undefined | null): string => {
+    if (!address) return '';
+    // Remove 0x if present, lowercase, pad to 64 hex characters, then add 0x back
+    let cleaned = address.replace(/^0x/i, '').toLowerCase();
+    // Pad with leading zeros to ensure 64 hex characters (32 bytes)
+    cleaned = cleaned.padStart(64, '0');
+    return cleaned ? `0x${cleaned}` : '';
+  };
+
   // Direct blockchain balance fetching using BuyerStore (like NEWtokenpage)
   const fetchBalancesFromBlockchain = async (): Promise<Map<string, string>> => {
     if (!account) {
@@ -55,7 +66,8 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
       
       // Create Aptos client for direct blockchain queries (using same config as NEWtokenpage)
       const config = new AptosConfig({
-        network: Network.DEVNET
+        network: Network.TESTNET,
+        fullnode: "https://fullnode.testnet.aptoslabs.com/v1"
       });
       const aptos = new Aptos(config);
 
@@ -71,7 +83,7 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
 
       // Find the BuyerStore resource (this is what NEWtokenpage uses successfully)
       const buyerStore = response.find((resource: any) =>
-        resource.type === "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher::BuyerStore"
+        resource.type === `${MODULE_ADDRESS}::token_launcher::BuyerStore`
       );
       
       const balanceMap = new Map<string, string>();
@@ -95,8 +107,12 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
               
               if (fungibleStore && (fungibleStore.data as any).balance) {
                 const amount = Number((fungibleStore.data as any).balance) / Math.pow(10, 6);
-                balanceMap.set(store.metadata_addr, amount.toString());
-                console.log(`✅ Balance: ${store.metadata_addr} = ${amount}`);
+                // Normalize address before storing to ensure consistent lookups
+                const normalizedAddr = normalizeAddress(store.metadata_addr);
+                if (normalizedAddr) {
+                  balanceMap.set(normalizedAddr, amount.toString());
+                  console.log(`✅ Balance: ${normalizedAddr} = ${amount}`);
+                }
               }
             } catch (storeError) {
               console.warn(`⚠️ Failed to get balance for store ${store.metadata_addr}:`, storeError);
@@ -119,12 +135,12 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
     }
   };
 
-  // Refresh balances function with robust deduplication and caching
-  const refreshBalances = async (force: boolean = false) => {
+  // Refresh balances function with robust deduplication, caching, and retry logic
+  const refreshBalances = async (force: boolean = false, retryCount: number = 0, maxRetries: number = 3) => {
     if (!account) return;
     
     // Check cache first (unless force refresh is requested)
-    if (!force && balanceCacheRef.current) {
+    if (!force && balanceCacheRef.current && retryCount === 0) {
       const { data, timestamp } = balanceCacheRef.current;
       const now = Date.now();
       if (now - timestamp < CACHE_TTL) {
@@ -155,7 +171,7 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
     
     // Start new request
     try {
-      console.log("🔄 Starting new balance fetch...");
+      console.log(`🔄 Starting new balance fetch${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}...`);
       fetchingRef.current = true;
       const requestPromise = fetchBalancesFromBlockchain();
       pendingRequestRef.current = requestPromise;
@@ -177,7 +193,19 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
       setForceRefreshTrigger(prev => prev + 1);
       console.log("🔄 Force refresh triggered for all components");
     } catch (err) {
-      console.error("Failed to refresh balances:", err);
+      console.error(`Failed to refresh balances${retryCount > 0 ? ` (attempt ${retryCount}/${maxRetries})` : ''}:`, err);
+      
+      // Retry logic: if force refresh and we haven't exceeded max retries, retry with delay
+      if (force && retryCount < maxRetries) {
+        const delayMs = 2000 * (retryCount + 1); // Exponential backoff: 2s, 4s, 6s
+        console.log(`⏳ Retrying balance fetch in ${delayMs}ms...`);
+        fetchingRef.current = false;
+        pendingRequestRef.current = null;
+        
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return refreshBalances(force, retryCount + 1, maxRetries);
+      }
+      
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       fetchingRef.current = false;
@@ -185,9 +213,18 @@ export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) =>
     }
   };
 
-  // Get balance for a specific token
+  // Get balance for a specific token (with address normalization)
   const getTokenBalance = (metadataAddress: string): string => {
-    return balances.get(metadataAddress) || "0.000";
+    if (!metadataAddress) return "0.000";
+    // Normalize address before lookup to ensure we find it
+    const normalizedAddr = normalizeAddress(metadataAddress);
+    const balance = balances.get(normalizedAddr);
+    if (balance !== undefined) {
+      console.log(`💰 Balance lookup: ${normalizedAddr} = ${balance}`);
+      return balance;
+    }
+    console.log(`⚠️ Balance not found for: ${normalizedAddr} (available keys: ${Array.from(balances.keys()).join(', ')})`);
+    return "0.000";
   };
 
   // Fetch balances when wallet connects/disconnects/changes

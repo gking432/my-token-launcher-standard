@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { PetraWallet } from "petra-plugin-wallet-adapter";
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
-import { AvailableWallets } from "@aptos-labs/wallet-adapter-core";
 import Layout from "./components/Layout";
 import LandingPage from "./components/LandingPage";
 import HomePage from "./components/HomePage";
@@ -46,8 +45,8 @@ const App: React.FC = () => {
   return (
     <AptosWalletAdapterProvider 
       autoConnect={true}
-      dappConfig={{ network: Network.DEVNET }}
-      optInWallets={["Petra", "Fewcha", "Rise"] as AvailableWallets[]}
+      dappConfig={{ network: Network.TESTNET }}
+      optInWallets={["Petra"]}
       onError={(error: Error) => {
         console.log('Wallet Connection Error:', error);
       }}>

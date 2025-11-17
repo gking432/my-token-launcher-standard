@@ -1,0 +1,265 @@
+.live-trade-feed {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #333;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.trade-feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #333;
+}
+
+.trade-feed-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.feed-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle-btn {
+  background: #333;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: #444;
+}
+
+.toggle-btn.active {
+  background: #00d4aa;
+  color: #000;
+}
+
+.trade-count {
+  color: #888;
+  font-size: 12px;
+}
+
+.trades-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.trades-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.trades-container::-webkit-scrollbar-track {
+  background: #222;
+  border-radius: 3px;
+}
+
+.trades-container::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+
+.trades-container::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+.no-trades {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #888;
+  text-align: center;
+}
+
+.no-trades p {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.no-trades small {
+  font-size: 12px;
+  color: #666;
+}
+
+.trade-item {
+  background: #222;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-left: 3px solid #333;
+  transition: all 0.3s ease;
+  animation: slideIn 0.5s ease-out;
+}
+
+.trade-item.buy {
+  border-left-color: #00d4aa;
+  background: linear-gradient(90deg, rgba(0, 212, 170, 0.05) 0%, transparent 100%);
+}
+
+.trade-item.sell {
+  border-left-color: #ff6b6b;
+  background: linear-gradient(90deg, rgba(255, 107, 107, 0.05) 0%, transparent 100%);
+}
+
+.trade-item:hover {
+  background: #2a2a2a;
+  transform: translateX(4px);
+}
+
+.trade-item.animate-in {
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.trade-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.trade-type {
+  flex-shrink: 0;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.type-badge.buy {
+  background: rgba(0, 212, 170, 0.2);
+  color: #00d4aa;
+  border: 1px solid rgba(0, 212, 170, 0.3);
+}
+
+.type-badge.sell {
+  background: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.trade-details {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.token-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-symbol {
+  font-weight: 600;
+  color: #fff;
+  font-size: 14px;
+}
+
+.trade-amount {
+  color: #888;
+  font-size: 12px;
+}
+
+.price-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.price-usd {
+  font-weight: 600;
+  color: #fff;
+  font-size: 14px;
+}
+
+.price-apt {
+  color: #888;
+  font-size: 11px;
+}
+
+.trade-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #666;
+  padding-top: 8px;
+  border-top: 1px solid #333;
+}
+
+.trade-time {
+  font-weight: 500;
+}
+
+.trader {
+  font-family: 'Courier New', monospace;
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .live-trade-feed {
+    height: 300px;
+    padding: 12px;
+  }
+  
+  .trade-feed-header h3 {
+    font-size: 16px;
+  }
+  
+  .trade-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .price-info {
+    align-items: flex-start;
+  }
+  
+  .trade-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

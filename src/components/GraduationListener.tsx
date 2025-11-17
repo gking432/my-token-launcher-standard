@@ -16,7 +16,7 @@ export const GraduationListener: React.FC = () => {
   useEffect(() => {
     if (!account) return;
     
-    const client = new AptosClient("https://fullnode.devnet.aptoslabs.com");
+    const client = new AptosClient("https://fullnode.testnet.aptoslabs.com");
     const API_KEY = "aptoslabs_X7pogeAv3Za_M35uoXPYzbEC8bJwNKAt36hzZagRmJHPE";
     
     const checkForGraduationEvents = async () => {
@@ -24,7 +24,7 @@ export const GraduationListener: React.FC = () => {
         console.log('Checking for graduation events...');
         
         // Use direct REST API with API key to avoid rate limiting
-        const url = `https://fullnode.devnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::ModuleState/graduation_events?start=${lastCheckedRef.current}&limit=10`;
+        const url = `https://fullnode.testnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::ModuleState/graduation_events?start=${lastCheckedRef.current}&limit=10`;
         
         const response = await fetch(url, {
           headers: { "x-api-key": API_KEY },

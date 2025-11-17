@@ -19,8 +19,8 @@ const HomePage: React.FC = () => {
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
-    network: Network.DEVNET,
-    fullnode: "https://fullnode.devnet.aptoslabs.com/v1",
+    network: Network.TESTNET,
+    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
   }), []);
   const client = useMemo(() => new Aptos(config), [config]);
   const tokenLauncherAddress = MODULE_ADDRESS;
@@ -129,13 +129,15 @@ const HomePage: React.FC = () => {
   };
 
   const handleTradeClick = (token: Token) => {
-    navigate(`/newtoken/${token.txHash}`, {
+    // Use metadataAddress for the URL, fallback to txHash if metadataAddress is missing
+    const addressForUrl = token.metadataAddress || token.txHash;
+    navigate(`/newtoken/${addressForUrl}`, {
       state: {
         name: token.name,
         symbol: token.symbol,
         supply: token.supply,
         txHash: token.txHash,
-        metadataAddress: token.metadataAddress,
+        metadataAddress: token.metadataAddress || token.txHash,
         creatorAddress: token.creator,
         creationDate: new Date(token.launchDate).getTime() / 1000,
       },
@@ -970,7 +972,7 @@ const HomePage: React.FC = () => {
               <div className={`sort-dropdown ${activeDropdown === 'marketCap' ? 'active' : ''}`}>
                 <div 
                   className="sort-dropdown-header"
-                  onClick={(e) => handleDropdownClick('marketCap', e)}
+                  onClick={(e: React.MouseEvent) => handleDropdownClick('marketCap', e)}
                 >
                   <span>Market Cap</span>
                   <span className="dropdown-arrow">▼</span>
@@ -999,7 +1001,7 @@ const HomePage: React.FC = () => {
               <div className={`sort-dropdown ${activeDropdown === 'volume' ? 'active' : ''}`}>
                 <div 
                   className="sort-dropdown-header"
-                  onClick={(e) => handleDropdownClick('volume', e)}
+                  onClick={(e: React.MouseEvent) => handleDropdownClick('volume', e)}
                 >
                   <span>Volume</span>
                   <span className="dropdown-arrow">▼</span>
@@ -1028,7 +1030,7 @@ const HomePage: React.FC = () => {
               <div className={`sort-dropdown ${activeDropdown === 'age' ? 'active' : ''}`}>
                 <div 
                   className="sort-dropdown-header"
-                  onClick={(e) => handleDropdownClick('age', e)}
+                  onClick={(e: React.MouseEvent) => handleDropdownClick('age', e)}
                 >
                   <span>Age</span>
                   <span className="dropdown-arrow">▼</span>

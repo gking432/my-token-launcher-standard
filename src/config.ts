@@ -1,3 +1,14 @@
-export const MODULE_ADDRESS = "0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b";
-export const RESOURCE_ADDRESS = "0xa9c99dc8aeb5d96a639a2d7d6eb4413a558085443ba6bfce1a634e708e050427"; 
-export const APTOS_API_KEY = process.env.REACT_APP_APTOS_API_KEY; 
+export const MODULE_ADDRESS = "0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d";
+export const RESOURCE_ADDRESS = "0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5"; 
+export const APTOS_API_KEY = process.env.REACT_APP_APTOS_API_KEY;
+
+// Geomi No-Code Indexer GraphQL endpoint
+export const GEOMI_GRAPHQL_ENDPOINT = "https://api.testnet.aptoslabs.com/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql";
+export const GEOMI_API_KEY = process.env.REACT_APP_GEOMI_API_KEY || ""; // Add your API key here or in .env
+
+// Debug: Log API key status (don't log the actual key for security)
+if (GEOMI_API_KEY) {
+  console.log("✅ GEOMI_API_KEY loaded (length:", GEOMI_API_KEY.length, ")");
+} else {
+  console.warn("⚠️ GEOMI_API_KEY not found! Make sure REACT_APP_GEOMI_API_KEY is set in .env.local");
+} 

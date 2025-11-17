@@ -786,7 +786,7 @@ const TokenPage: React.FC = () => {
   
       const buyerStore = resources.find(
         (r: any) => r.type === "0x965f2de54b3037c386d4d28500b0cd5771942b10704a0324c8464348c15ce090::token_launcher::BuyerStore"
-      ) as { data: BuyerStoreData } | undefined;
+      ) as unknown as { data: BuyerStoreData } | undefined;
   
       if (!buyerStore) {
         console.warn("No BuyerStore found for this contract in wallet:", accountAddress);
@@ -816,7 +816,7 @@ const TokenPage: React.FC = () => {
       const storeResources = await client.getAccountResources({ accountAddress: storeAddress });
       console.log("Store resources:", JSON.stringify(storeResources, null, 2));
   
-      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as { data: { balance: string } } | undefined;
+      const fungibleStore = storeResources.find((r: any) => r.type === "0x1::fungible_asset::FungibleStore") as unknown as { data: { balance: string } } | undefined;
       if (!fungibleStore) {
         console.warn("No FungibleStore found at:", storeAddress);
         if (retryCount > 0) {

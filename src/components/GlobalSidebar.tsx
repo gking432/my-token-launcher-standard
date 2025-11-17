@@ -15,12 +15,12 @@ interface GlobalSidebarProps {
   onWatchlistItemClick?: (item: WatchlistItem) => void;
 }
 
-const GlobalSidebar: React.FC<GlobalSidebarProps> = ({ 
+const GlobalSidebar = ({ 
   watchlistData, 
   activeTab,
   onTabChange,
   onWatchlistItemClick 
-}) => {
+}: GlobalSidebarProps): React.ReactElement => {
   const location = useLocation();
 
   const tabs = [

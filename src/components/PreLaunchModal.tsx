@@ -14,13 +14,13 @@ interface PreLaunchModalProps {
     loading: boolean;
 }
 
-const PreLaunchModal: React.FC<PreLaunchModalProps> = ({
+const PreLaunchModal = ({
     isOpen,
     onClose,
     onLaunch,
     tokenDetails,
     loading
-}) => {
+}: PreLaunchModalProps): React.ReactElement | null => {
     const [initialPurchaseAmount, setInitialPurchaseAmount] = useState<string>("");
 
     // Calculate APT display
@@ -70,7 +70,7 @@ const PreLaunchModal: React.FC<PreLaunchModalProps> = ({
                                 <input
                                     type="number"
                                     value={initialPurchaseAmount}
-                                    onChange={(e) => setInitialPurchaseAmount(e.target.value)}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInitialPurchaseAmount(e.target.value)}
                                     className="purchase-input"
                                     placeholder="Amount of tokens to buy"
                                     min="0"

@@ -17,7 +17,7 @@ export const useTokenBalances = () => {
       setError(null);
       
       // Get balances for the connected wallet
-      const response = await fetch(`https://fullnode.devnet.aptoslabs.com/v1/accounts/${account.address}/resources?limit=999`);
+      const response = await fetch(`https://fullnode.testnet.aptoslabs.com/v1/accounts/${account.address}/resources?limit=999`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch balances: ${response.status}`);

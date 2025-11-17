@@ -1,7 +1,7 @@
-// Aptos Indexer GraphQL API integration - OPTIMIZED VERSION
-// Single query approach to minimize API costs
+// Aptos Indexer GraphQL API integration - Using Geomi No-Code Indexer
+// Efficient GraphQL queries to fetch indexed events
 
-import { Aptos, AptosConfig, ClientConfig, Network } from "@aptos-labs/ts-sdk";
+import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY } from "../config";
 
 // Helper function for bonding curve calculation
 function calculateBondingCurvePrice(tokensSold: number): number {
@@ -27,8 +27,6 @@ function calculateBondingCurvePrice(tokensSold: number): number {
   // Convert to APT (divide by 10^8)
   return priceInOctas / 100_000_000;
 }
-// API key to avoid rate limiting
-const API_KEY = 'aptoslabs_X7pogeAv3Za_M35uoXPYzbEC8bJwNKAt36hzZagRmJHPE';
 
 interface TokenCreationEvent {
   type: string;
@@ -90,109 +88,316 @@ const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
 // Request deduplication
 let activeRequest: Promise<TokenCreationEvent[]> | null = null;
 
-// SDK-based approach that gets ALL data in one optimized call
-async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: string, aptPrice: number = 0): Promise<OptimizedTokenData> {
-  console.log('🚀 SDK: Getting ALL token data via SDK...');
-
-  // Use the correct SDK configuration with API key
-  const clientConfig: ClientConfig = {
-    API_KEY: API_KEY
+// GraphQL query helper
+async function graphqlQuery(query: string, variables?: any): Promise<any> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
   };
-  
-  console.log("🔑 Using API key for SDK query:", API_KEY ? "Yes" : "No");
-  
-  const config = new AptosConfig({ 
-    fullnode: "https://fullnode.devnet.aptoslabs.com",
-    clientConfig 
+
+  // Add API key if available
+  if (GEOMI_API_KEY) {
+    // Try Authorization header format (Bearer token)
+    headers["Authorization"] = `Bearer ${GEOMI_API_KEY}`;
+    // Also try x-api-key as fallback
+    headers["x-api-key"] = GEOMI_API_KEY;
+    console.log("🔑 Using API key for GraphQL query (length:", GEOMI_API_KEY.length, ")");
+  } else {
+    console.warn("⚠️ No GEOMI_API_KEY found! Check your .env.local file.");
+  }
+
+  const response = await fetch(GEOMI_GRAPHQL_ENDPOINT, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      query,
+      variables,
+    }),
   });
+
+  if (!response.ok) {
+    throw new Error(`GraphQL query failed: ${response.status} ${response.statusText}`);
+  }
+
+  const result = await response.json();
+
+  if (result.errors) {
+    console.error("GraphQL errors:", result.errors);
+    throw new Error(`GraphQL query errors: ${JSON.stringify(result.errors)}`);
+  }
+
+  return result.data;
+}
+
+// Introspect schema to find correct table names
+async function introspectSchema(): Promise<any> {
+  const query = `
+    query IntrospectQuery {
+      __schema {
+        queryType {
+          fields {
+            name
+            type {
+              name
+            }
+          }
+        }
+      }
+    }
+  `;
   
-  const aptos = new Aptos(config);
+  try {
+    const data = await graphqlQuery(query);
+    console.log("📋 Available GraphQL fields:", data.__schema?.queryType?.fields?.map((f: any) => f.name));
+    return data;
+  } catch (error) {
+    console.warn("⚠️ Schema introspection failed, trying direct queries...");
+    return null;
+  }
+}
+
+// Fetch token creation events from Geomi indexer
+async function fetchTokenCreatedEvents(): Promise<any[]> {
+  // Query the table directly using the exact name from Hasura
+  const tableName = 'token_created_events';
+  console.log(`🔍 Querying ${tableName} table...`);
+  
+  const query = `
+    query GetTokenCreatedEvents {
+      ${tableName}(order_by: {timestamp: desc}) {
+        event_index
+        sequence_number
+        creator
+        metadata_addr
+        ticker
+        total_supply
+        minted_supply
+        remaining_supply
+        decimals_factor
+        premint_amount
+        timestamp
+      }
+    }
+  `;
 
   try {
-    console.log("🔍 Executing comprehensive SDK query...");
-    
+    const data = await graphqlQuery(query);
+    if (data[tableName]) {
+      console.log(`✅ Successfully queried ${tableName}: ${data[tableName].length} events`);
+      return data[tableName] || [];
+    }
+    console.warn(`⚠️ Query succeeded but no data returned for ${tableName}`);
+    return [];
+  } catch (error: any) {
+    console.error(`❌ Failed to query ${tableName}:`, error);
+    throw error;
+  }
+}
+
+// Fetch graduation events from Geomi indexer
+async function fetchGraduationEvents(): Promise<any[]> {
+  const tableName = 'token_graduated_events';
+  console.log(`🔍 Querying ${tableName} table...`);
+  
+  const query = `
+    query GetGraduationEvents {
+      ${tableName}(order_by: {timestamp: desc}) {
+        event_index
+        sequence_number
+        metadata_addr
+        market_cap_at_graduation
+        timestamp
+      }
+    }
+  `;
+
+  try {
+    const data = await graphqlQuery(query);
+    if (data[tableName]) {
+      console.log(`✅ Successfully queried ${tableName}: ${data[tableName].length} events`);
+      return data[tableName] || [];
+    }
+    return [];
+  } catch (error: any) {
+    console.error(`❌ Failed to query ${tableName}:`, error);
+    return []; // Return empty array on error for graduation events
+  }
+}
+
+// Fetch purchase events from Geomi indexer (optional, for trading data)
+async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
+  const tableName = 'token_purchase_events';
+  let query = `
+    query GetPurchaseEvents($limit: Int) {
+      ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
+        event_index
+        sequence_number
+        buyer
+        metadata_addr
+        amount
+        price
+        liquidity_contribution
+        timestamp
+        tokens_sold
+      }
+    }
+  `;
+
+  if (metadataAddr) {
+    query = `
+      query GetPurchaseEvents($metadataAddr: String!, $limit: Int) {
+        ${tableName}(
+          where: {metadata_addr: {_eq: $metadataAddr}}
+          order_by: {timestamp: desc}
+          limit: $limit
+        ) {
+          event_index
+          sequence_number
+          buyer
+          metadata_addr
+          amount
+          price
+          liquidity_contribution
+          timestamp
+          tokens_sold
+        }
+      }
+    `;
+  }
+
+  const variables: any = { limit };
+  if (metadataAddr) {
+    variables.metadataAddr = metadataAddr;
+  }
+
+  try {
+    const data = await graphqlQuery(query, variables);
+    return data[tableName] || [];
+  } catch (error: any) {
+    console.error(`❌ Failed to query ${tableName}:`, error);
+    return [];
+  }
+}
+
+// Fetch sale events from Geomi indexer (optional, for trading data)
+async function fetchSaleEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
+  const tableName = 'token_sale_events';
+  let query = `
+    query GetSaleEvents($limit: Int) {
+      ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
+        event_index
+        sequence_number
+        seller
+        metadata_addr
+        amount
+        price
+        apt_returned
+        timestamp
+        tokens_sold
+      }
+    }
+  `;
+
+  if (metadataAddr) {
+    query = `
+      query GetSaleEvents($metadataAddr: String!, $limit: Int) {
+        ${tableName}(
+          where: {metadata_addr: {_eq: $metadataAddr}}
+          order_by: {timestamp: desc}
+          limit: $limit
+        ) {
+          event_index
+          sequence_number
+          seller
+          metadata_addr
+          amount
+          price
+          apt_returned
+          timestamp
+          tokens_sold
+        }
+      }
+    `;
+  }
+
+  const variables: any = { limit };
+  if (metadataAddr) {
+    variables.metadataAddr = metadataAddr;
+  }
+
+  try {
+    const data = await graphqlQuery(query, variables);
+    return data[tableName] || [];
+  } catch (error: any) {
+    console.error(`❌ Failed to query ${tableName}:`, error);
+    return [];
+  }
+}
+
+// Main function to get optimized token data via GraphQL
+async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: string, aptPrice: number = 0): Promise<OptimizedTokenData> {
+  console.log('🚀 GraphQL: Getting ALL token data via Geomi indexer...');
+
+  try {
     // 1. Get token creation events
-    const events = await aptos.getModuleEventsByEventType({
-      eventType: `${moduleAddress}::token_launcher::TokenCreatedEvent`,
-      options: {
-        limit: 100,
-        orderBy: [{ transaction_version: "desc" }]
-      }
-    });
-
-    console.log(`✅ Token events: ${events.length}`);
-
-    // 2. Get graduation events
-    const graduationEventsRaw = await aptos.getModuleEventsByEventType({
-      eventType: `${moduleAddress}::token_launcher::GraduationEvent`,
-      options: {
-        limit: 50,
-        orderBy: [{ transaction_version: "desc" }]
-      }
-    });
+    console.log("🔍 Fetching TokenCreatedEvents from indexer...");
+    const createdEvents = await fetchTokenCreatedEvents();
+    console.log(`✅ Token events: ${createdEvents.length}`);
 
     // Convert to expected format
-    const graduationEvents = graduationEventsRaw.map((event: any) => ({
-      ...event,
-      __typename: 'GraduationEvent'
-    }));
-
-    console.log(`✅ Graduation events: ${graduationEvents.length}`);
-
-    // 3. Get token metadata for all tokens (simplified for now)
-    const tokenDatas: any[] = [];
-    console.log(`✅ Token metadata: ${tokenDatas.length} (placeholder)`);
-
-    // 4. Get fungible asset info for all tokens (simplified for now)
-    const fungibleAssets: any[] = [];
-    console.log(`✅ Fungible assets: ${fungibleAssets.length} (placeholder)`);
-
-    // 5. Get balances if ownerAddress is provided
-    let balances: any[] = [];
-    if (ownerAddress) {
-      try {
-        console.log(`🔍 Fetching balances for: ${ownerAddress}`);
-        
-        // Get current fungible asset balances for the user
-        const balanceData = await aptos.getCurrentFungibleAssetBalances({
-          options: {
-            limit: 100
-          }
-        });
-        
-        // Filter balances to only include tokens from our module
-        const relevantBalances = balanceData.filter((balance: any) => {
-          // Check if this balance is for a token created by our module
-          return events.some((event: any) => 
-            event.data.asset_type === balance.asset_type
-          );
-        });
-        
-        balances = relevantBalances;
-        console.log(`✅ Balances: ${balances.length} relevant balances found`);
-      } catch (error) {
-        console.warn(`Failed to get balances for ${ownerAddress}:`, error);
-      }
-    } else {
-      console.log(`ℹ️ No owner address provided, skipping balance fetch`);
-    }
-
-    // Convert SDK events to our format
-    const tokenEvents = events.map((event: any) => ({
+    const tokenEvents: TokenCreationEvent[] = createdEvents.map((event: any) => ({
       type: 'TokenCreatedEvent',
-      sequence_number: event.sequence_number.toString(),
-      data: event.data,
+      sequence_number: event.sequence_number?.toString() || event.event_index?.toString() || '',
+      data: {
+        creator: event.creator,
+        metadata_address: event.metadata_addr,
+        ticker: event.ticker,
+        total_supply: event.total_supply,
+        tokens_sold: event.minted_supply || 0, // Use minted_supply as tokens_sold
+        remaining_supply: event.remaining_supply,
+        decimals_factor: event.decimals_factor,
+        premint_amount: event.premint_amount,
+        timestamp: event.timestamp,
+      },
       __typename: 'TokenCreatedEvent'
     }));
 
-    console.log(`🚀 COMPREHENSIVE SUCCESS: ${tokenEvents.length} tokens, ${graduationEvents.length} graduations, ${tokenDatas.length} metadata, ${fungibleAssets.length} assets, ${balances.length} balances`);
+    // 2. Get graduation events
+    console.log("🔍 Fetching TokenGraduatedEvents from indexer...");
+    const graduationEventsRaw = await fetchGraduationEvents();
+    const graduationEvents: GraduationEvent[] = graduationEventsRaw.map((event: any) => ({
+      transaction_version: event.sequence_number?.toString() || '',
+      event_index: event.event_index?.toString() || '',
+      data: {
+        metadata_address: event.metadata_addr,
+        market_cap_at_graduation: event.market_cap_at_graduation,
+        timestamp: event.timestamp,
+      },
+      __typename: 'GraduationEvent'
+    }));
+    console.log(`✅ Graduation events: ${graduationEvents.length}`);
+
+    // 3. Placeholder for token metadata (can be enhanced later)
+    const tokenDatas: TokenData[] = [];
+    console.log(`✅ Token metadata: ${tokenDatas.length} (placeholder)`);
+
+    // 4. Placeholder for fungible assets (can be enhanced later)
+    const fungibleAssets: FungibleAsset[] = [];
+    console.log(`✅ Fungible assets: ${fungibleAssets.length} (placeholder)`);
+
+    // 5. Placeholder for balances (can be enhanced with SDK if needed)
+    const balances: TokenBalance[] = [];
+    if (ownerAddress) {
+      console.log(`ℹ️ Balance fetching not yet implemented via GraphQL`);
+    }
+
+    console.log(`🚀 COMPREHENSIVE SUCCESS: ${tokenEvents.length} tokens, ${graduationEvents.length} graduations`);
 
     // Calculate USD prices and market caps
     const usdPrices = new Map<string, number>();
     const marketCaps = new Map<string, number>();
 
     if (aptPrice > 0) {
-      events.forEach((event: any) => {
+      tokenEvents.forEach((event) => {
         if (event.data && event.data.metadata_address) {
           const metadataAddress = event.data.metadata_address;
           const tokensSold = event.data.tokens_sold || 0;
@@ -215,6 +420,7 @@ async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: strin
     } else {
       console.log(`ℹ️ No APT price provided, skipping USD calculations`);
     }
+
     return {
       usdPrices,
       marketCaps,
@@ -226,7 +432,7 @@ async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: strin
     };
     
   } catch (error) {
-    console.error("❌ Comprehensive SDK query failed:", error);
+    console.error("❌ GraphQL query failed:", error);
     throw error;
   }
 }
@@ -286,6 +492,15 @@ export function clearTokenCache(): void {
   console.log("🗑️ Token cache cleared");
 }
 
+// Export functions for fetching purchase/sale events
+export async function getPurchaseEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
+  return fetchPurchaseEvents(metadataAddr, limit);
+}
+
+export async function getSaleEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
+  return fetchSaleEvents(metadataAddr, limit);
+}
+
 // Legacy functions for backward compatibility - these now use the optimized data
 export async function getFungibleAssetInfo(assetTypes: string[], offset: number = 0): Promise<any[]> {
   console.log("🔄 Using optimized data for getFungibleAssetInfo");
@@ -316,4 +531,3 @@ export async function getTokenMetadataForLeaderboard(tokenName: string, collecti
   console.log("⚠️ No cached data available, returning empty array");
   return [];
 }
-

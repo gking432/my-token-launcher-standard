@@ -34,8 +34,8 @@ const Marketplace: React.FC = () => {
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
-    network: Network.DEVNET,
-    fullnode: "https://fullnode.devnet.aptoslabs.com/v1",
+    network: Network.TESTNET,
+    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
   }), []);
   const client = useMemo(() => new Aptos(config), [config]);
   const tokenLauncherAddress = MODULE_ADDRESS;

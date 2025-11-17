@@ -24,7 +24,7 @@ interface TokenMetadata {
 
 const CONTRACT_ADDRESSES: Record<string, string> = {
     devnet: MODULE_ADDRESS,
-    testnet: "",
+    testnet: MODULE_ADDRESS,
     mainnet: "",
 };
 
@@ -37,11 +37,11 @@ function stringToHex(str: string): string {
 }
 
 const config = new AptosConfig({
-    network: Network.DEVNET,
-    fullnode: "https://fullnode.devnet.aptoslabs.com/v1",
+    network: Network.TESTNET,
+    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
 });
 const client = new Aptos(config);
-const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
+const tokenLauncherAddress = CONTRACT_ADDRESSES['testnet'];
 
 const Launch: React.FC = () => {
   const { account, signAndSubmitTransaction, network } = useWallet();
@@ -219,8 +219,10 @@ const Launch: React.FC = () => {
                 const tokenInfo = tokenMetadata.entries.find((t: TokenMetadataEntry) => {
         const tickerHex = Array.isArray(t.ticker) ? Buffer.from(t.ticker).toString("hex") : t.ticker;
         const symbolHex = Buffer.from(symbolBytes).toString("hex");
+        // Strip 0x prefix from ticker for comparison
+        const cleanTickerHex = tickerHex.startsWith("0x") ? tickerHex.slice(2) : tickerHex;
         console.log(`Attempt ${attempt} - Comparing ticker: ${tickerHex} with symbol: ${symbolHex}`);
-        return tickerHex === symbolHex;
+        return cleanTickerHex === symbolHex;
       });
   
           if (tokenInfo) {

@@ -19,6 +19,7 @@ interface LaunchSuccessModalProps {
 
 const tokenLauncherAddresses = {
     devnet: MODULE_ADDRESS,
+    testnet: MODULE_ADDRESS,
 };
 
 const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose, tokenDetails }) => {
@@ -26,9 +27,9 @@ const LaunchSuccessModal: React.FC<LaunchSuccessModalProps> = ({ isOpen, onClose
     const [loading, setLoading] = useState(false);
     const { account, signAndSubmitTransaction } = useWallet();
     const navigate = useNavigate();
-    const config = new AptosConfig({ network: Network.DEVNET });
+    const config = new AptosConfig({ network: Network.TESTNET, fullnode: "https://fullnode.testnet.aptoslabs.com/v1" });
     const client = new Aptos(config);
-    const tokenLauncherAddress = tokenLauncherAddresses['devnet'];
+    const tokenLauncherAddress = tokenLauncherAddresses['testnet'];
 
     const handlePurchase = async () => {
         if (!account || !amount || parseFloat(amount) <= 0) {

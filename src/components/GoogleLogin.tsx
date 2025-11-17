@@ -3,7 +3,7 @@ import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { GoogleLogin as GoogleLoginButton } from '@react-oauth/google';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 
-const config = new AptosConfig({ network: Network.DEVNET });
+const config = new AptosConfig({ network: Network.TESTNET, fullnode: "https://fullnode.testnet.aptoslabs.com/v1" });
 const client = new Aptos(config);
 
 const GoogleLogin: React.FC = () => {

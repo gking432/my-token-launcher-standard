@@ -1,4 +1,4 @@
-module 0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b::token_launcher {
+module 0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d::token_launcher {
     use std::signer;
     use std::option;
     use aptos_framework::fungible_asset::{Self, Metadata};
@@ -22,8 +22,8 @@ struct DebugState has copy, drop, store {
     diff: u64,             // Match vault subtraction result
 }
     const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
-    const MODULE_ADDRESS: address = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
-    const RESOURCE_ADDRESS: address = @0x926a808d1985f2936a4a8c37efe9cbe5fc264beb893f2bf4ea3fc7c875e6902b;
+    const MODULE_ADDRESS: address = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
+    const RESOURCE_ADDRESS: address = @0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5;
     const E_PREMINT_FAILED: u64 = 110; // Choose a unique number not used by other error codes
     const E_TICKER_EXISTS: u64 = 1001;
     const E_INSUFFICIENT_SUPPLY: u64 = 1002;
@@ -214,41 +214,50 @@ struct DebugEvent has drop, store {
         key
     }
 
+    // Get or create a token store for the owner, tracked in BuyerStore
+    // Uses address_to_object fix to ensure proper validation when retrieving from storage
     fun get_or_create_token_store(
         owner: &signer,
         metadata: Object<Metadata>
     ): Object<fungible_asset::FungibleStore> acquires BuyerStore {
         let owner_addr = signer::address_of(owner);
         let metadata_addr = object::object_address(&metadata);
-        if (exists<BuyerStore>(owner_addr)) {
-            let buyer_store = borrow_global_mut<BuyerStore>(owner_addr);
-            let i = 0;
-            let len = vector::length(&buyer_store.stores);
-            while (i < len) {
-                let entry = vector::borrow(&buyer_store.stores, i);
-                if (entry.metadata_addr == metadata_addr) {
-                    return entry.store
-                };
-                i = i + 1;
+        
+        // If BuyerStore doesn't exist, create it with a new store
+        if (!exists<BuyerStore>(owner_addr)) {
+            let store_constructor = object::create_object(owner_addr);
+            let new_store = fungible_asset::create_store(&store_constructor, metadata);
+            move_to(owner, BuyerStore {
+                stores: vector[TokenStoreEntry {
+                    metadata_addr,
+                    store: new_store
+                }]
+            });
+            return new_store
+        };
+
+        // BuyerStore exists - search for existing store
+        let buyer_store = borrow_global_mut<BuyerStore>(owner_addr);
+        let len = vector::length(&buyer_store.stores);
+        let i = 0;
+        while (i < len) {
+            let entry = vector::borrow(&buyer_store.stores, i);
+            if (entry.metadata_addr == metadata_addr) {
+                // CRITICAL FIX: Reconstruct Object<T> from address to ensure validation
+                let store_addr = object::object_address(&entry.store);
+                return object::address_to_object<fungible_asset::FungibleStore>(store_addr)
             };
-            let store_constructor = object::create_object(owner_addr);
-            let new_store = fungible_asset::create_store(&store_constructor, metadata);
-            vector::push_back(&mut buyer_store.stores, TokenStoreEntry {
-                metadata_addr,
-                store: new_store
-            });
-            new_store
-        } else {
-            let store_constructor = object::create_object(owner_addr);
-            let new_store = fungible_asset::create_store(&store_constructor, metadata);
-            let stores = vector::empty<TokenStoreEntry>();
-            vector::push_back(&mut stores, TokenStoreEntry {
-                metadata_addr,
-                store: new_store
-            });
-            move_to(owner, BuyerStore { stores });
-            new_store
-        }
+            i = i + 1;
+        };
+
+        // Store not found - create new one and add to BuyerStore
+        let store_constructor = object::create_object(owner_addr);
+        let new_store = fungible_asset::create_store(&store_constructor, metadata);
+        vector::push_back(&mut buyer_store.stores, TokenStoreEntry {
+            metadata_addr,
+            store: new_store
+        });
+        new_store
     }
 
     fun pow(base: u64, exp: u64): u64 {
@@ -269,7 +278,7 @@ struct DebugEvent has drop, store {
     }
 
 public entry fun register_resource_account(admin: &signer) {
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let resource_addr = account::create_resource_address(&module_addr, b"token_launcher");
     if (!coin::is_account_registered<AptosCoin>(resource_addr)) {
         coin::register<AptosCoin>(admin); // Admin registers it
@@ -279,7 +288,7 @@ public entry fun register_resource_account(admin: &signer) {
 
 
 public entry fun initialize(admin: &signer) {
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     if (!exists<ModuleState>(module_addr)) {
         let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"token_launcher");
         let resource_addr = signer::address_of(&resource_signer);
@@ -308,8 +317,8 @@ public entry fun initialize(admin: &signer) {
         new_contribution_bps: u64
     ) acquires ModuleState {
         let admin_addr = signer::address_of(admin);
-        assert!(admin_addr == @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b, E_NOT_ADMIN);
-        let module_state = borrow_global_mut<ModuleState>(@0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b);
+        assert!(admin_addr == @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d, E_NOT_ADMIN);
+        let module_state = borrow_global_mut<ModuleState>(@0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d);
         assert!(new_contribution_bps <= 3000, E_CONTRIBUTION_TOO_HIGH);
         module_state.liquidity_contribution_bps = new_contribution_bps;
     }
@@ -333,7 +342,7 @@ public entry fun initialize(admin: &signer) {
     // Transfer launch fee to platform treasury
     coin::transfer<AptosCoin>(creator, PLATFORM_TREASURY_ADDRESS, LAUNCH_FEE_APT);
     
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let state = borrow_global_mut<ModuleState>(module_addr);
     let counter = borrow_global_mut<TokenCounter>(module_addr);
     counter.count = counter.count + 1;
@@ -444,9 +453,9 @@ public entry fun buy_tokens(
     max_slippage_bps: u64
 ) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let buyer_addr = signer::address_of(buyer);
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = @0x926a808d1985f2936a4a8c37efe9cbe5fc264beb893f2bf4ea3fc7c875e6902b;
+    let resource_addr = @0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     event::emit(DebugEvent { msg: b"Metadata Addr Used", value: 0 });
@@ -552,10 +561,7 @@ public entry fun buy_tokens(
         vault.price_per_token 
     };
 
-    // Mint tokens and update buyer store
-    if (!exists<BuyerStore>(buyer_addr)) {
-        move_to(buyer, BuyerStore { stores: vector::empty() });
-    };
+    // Mint tokens to buyer's store (tracked in BuyerStore)
     let buyer_store = get_or_create_token_store(buyer, vault.metadata);
     fungible_asset::mint_to(&vault.mint_ref, buyer_store, tokens_bought * vault.decimals_factor);
 
@@ -589,36 +595,18 @@ public entry fun buy_tokens(
         
         // Allocate tokens during graduation
         {
-            let creator_has_store = false;
             let creator_tokens = 20_000_000 * vault.decimals_factor;
             let total_supply = 1_000_000_000 * vault.decimals_factor;
             let bonding_curve_supply = 800_000_000 * vault.decimals_factor;
             let tokens_sold = bonding_curve_supply - vault.remaining_supply;
             let pool_tokens = total_supply - tokens_sold - creator_tokens;
             let pool_store = get_or_create_token_store(&resource_signer, vault.metadata);
+            
+            // Mint creator tokens to pool store (creator can claim later via separate transaction)
+            // Note: Can't create store for creator without their signer
+            fungible_asset::mint_to(&vault.mint_ref, pool_store, creator_tokens);
 
-            if (exists<BuyerStore>(creator_addr)) {
-                let buyer_store = borrow_global<BuyerStore>(creator_addr);
-                let i = 0;
-                let len = vector::length(&buyer_store.stores);
-                while (i < len) {
-                    let entry = vector::borrow(&buyer_store.stores, i);
-                    if (entry.metadata_addr == metadata_addr) {
-                        let creator_store = entry.store;
-                        fungible_asset::mint_to(&vault.mint_ref, creator_store, creator_tokens);
-                        creator_has_store = true;
-                        break;
-                    };
-                    i = i + 1;
-                };
-            };
-
-            if (!creator_has_store) {
-                let treasury_store = get_or_create_token_store(&resource_signer, vault.metadata);
-                fungible_asset::mint_to(&vault.mint_ref, treasury_store, creator_tokens);
-            };
-
-            // Always mint pool tokens
+            // Mint pool tokens to resource store
             fungible_asset::mint_to(&vault.mint_ref, pool_store, pool_tokens);
 
             // Emit graduation event using EventHandle
@@ -639,9 +627,9 @@ public entry fun sell_tokens(
     max_slippage_bps: u64
 ) acquires ModuleState, TokenVault, BuyerStore, VaultState {
     let seller_addr = signer::address_of(seller);
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = @0x926a808d1985f2936a4a8c37efe9cbe5fc264beb893f2bf4ea3fc7c875e6902b;
+    let resource_addr = @0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
@@ -784,7 +772,7 @@ struct TokenGraduatedEvent has drop, store {
 }
 
 public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState {
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let admin_addr = signer::address_of(admin);
     assert!(admin_addr == module_addr, E_NOT_ADMIN);
     let state = borrow_global_mut<ModuleState>(module_addr);
@@ -805,7 +793,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         token_b_amount: u64
     ) acquires ModuleState, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
 
@@ -813,11 +801,6 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         let token_b_metadata_addr = find_metadata_addr(&token_metadata.entries, token_b_ticker);
         let token_a_metadata = object::address_to_object<Metadata>(token_a_metadata_addr);
         let token_b_metadata = object::address_to_object<Metadata>(token_b_metadata_addr);
-
-        if (!exists<BuyerStore>(creator_addr)) {
-            move_to(creator, BuyerStore { stores: vector::empty<TokenStoreEntry>() });
-        };
-        let _buyer_store = borrow_global_mut<BuyerStore>(creator_addr);
 
         let token_a_store = get_or_create_token_store(creator, token_a_metadata);
         let token_b_store = get_or_create_token_store(creator, token_b_metadata);
@@ -850,7 +833,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         is_token_to_coin: bool
     ) acquires ModuleState, BuyerStore {
         let trader_addr = signer::address_of(trader);
-        let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -952,13 +935,9 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
             }
         };
 
+        // Track store in BuyerStore for backward compatibility
         if (!exists<BuyerStore>(trader_addr)) {
-            let stores = vector::empty<TokenStoreEntry>();
-            vector::push_back(&mut stores, TokenStoreEntry {
-                metadata_addr,
-                store: trader_store
-            });
-            move_to(trader, BuyerStore { stores });
+            move_to(trader, BuyerStore { stores: vector[TokenStoreEntry { metadata_addr, store: trader_store }] });
         } else {
             let buyer_store_ref = borrow_global_mut<BuyerStore>(trader_addr);
             let i = 0;
@@ -974,10 +953,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
                 i = i + 1;
             };
             if (!found) {
-                vector::push_back(&mut buyer_store_ref.stores, TokenStoreEntry {
-                    metadata_addr,
-                    store: trader_store
-                });
+                vector::push_back(&mut buyer_store_ref.stores, TokenStoreEntry { metadata_addr, store: trader_store });
             };
         };
     }
@@ -1007,7 +983,7 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         ticker: vector<u8>
     ) acquires ModuleState, TokenVault, BuyerStore {
         let creator_addr = signer::address_of(creator);
-        let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
         let state = borrow_global_mut<ModuleState>(module_addr);
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
@@ -1068,23 +1044,12 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         abort E_METADATA_NOT_FOUND
     }
 
-    fun find_store(stores: &vector<TokenStoreEntry>, metadata_addr: address): Object<fungible_asset::FungibleStore> {
-        let i = 0;
-        let len = vector::length(stores);
-        while (i < len) {
-            let entry = vector::borrow(stores, i);
-            if (entry.metadata_addr == metadata_addr) {
-                return entry.store
-            };
-            i = i + 1;
-        };
-        abort E_STORE_NOT_FOUND
-    }
+    // find_store removed - using primary_fungible_store instead
 
 
 #[view]
 public fun get_resource_info(): (address, bool) {
-    let resource_addr = account::create_resource_address(&@0x926a808d1985f2936a4a8c37efe9cbe5fc264beb893f2bf4ea3fc7c875e6902b, b"token_launcher");
+    let resource_addr = account::create_resource_address(&@0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5, b"token_launcher");
     (resource_addr, coin::is_account_registered<AptosCoin>(resource_addr))
 }
 
@@ -1095,7 +1060,7 @@ public fun get_price_impact(
     amount: u64,
     is_buy: bool
 ): u128 acquires ModuleState, TokenVault {
-    let module_addr = @0x660bb7df7eaf94ac70403e64698faf8b68e5bffe68f1051a97d130068afc7a6b;
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let state = borrow_global<ModuleState>(module_addr);
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);

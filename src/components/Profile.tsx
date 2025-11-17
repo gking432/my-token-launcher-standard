@@ -16,7 +16,7 @@ interface Token {
     creator: string;
 }
 
-const config = new AptosConfig({ network: Network.DEVNET });
+const config = new AptosConfig({ network: Network.TESTNET, fullnode: "https://fullnode.testnet.aptoslabs.com/v1" });
 const client = new Aptos(config);
 
 const Profile: React.FC = () => {
@@ -178,7 +178,7 @@ const Profile: React.FC = () => {
                                                     </p>
                                                 </div>
                                                 <a 
-                                                    href={`https://explorer.aptoslabs.com/txn/${token.txHash}?network=devnet`} 
+                                                    href={`https://explorer.aptoslabs.com/txn/${token.txHash}?network=testnet`} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer"
                                                     className="explorer-link"

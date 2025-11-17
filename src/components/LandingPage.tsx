@@ -348,7 +348,7 @@ const LandingPage: React.FC = () => {
                                                 </p>
                                             </div>
                                             <a 
-                                                href={`https://explorer.aptoslabs.com/txn/${token.txHash}?network=devnet`} 
+                                                href={`https://explorer.aptoslabs.com/txn/${token.txHash}?network=testnet`} 
                                                 target="_blank" 
                                                 rel="noopener noreferrer"
                                                 className="marketplace-explorer-link"

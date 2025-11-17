@@ -8,12 +8,13 @@ import GlobalSidebar from './GlobalSidebar';
 import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
+import { useAptPrice } from '../hooks/useAptPrice';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
   devnet: MODULE_ADDRESS,
-  testnet: "",
+  testnet: MODULE_ADDRESS,
   mainnet: "",
 };
 
@@ -23,7 +24,8 @@ const TokenPage: React.FC = () => {
   const [tokenDetails, setTokenDetails] = useState<TokenDetails | null>(null);
   
   // Use the shared token data hook
-  const { tokens } = useTokenData();
+  const { tokens, loading: tokensLoading } = useTokenData();
+  const { aptPrice } = useAptPrice();
   const [amount, setAmount] = useState<number>(0);
   const [timeframe, setTimeframe] = useState<string>("1m");
   const [isMounted, setIsMounted] = useState(false);
@@ -68,7 +70,8 @@ const TokenPage: React.FC = () => {
   const maxSlippage = 1000; // 10% max
 
   const config = useMemo(() => new AptosConfig({ 
-    network: Network.DEVNET,
+    network: Network.TESTNET,
+    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
     clientConfig: {
       HEADERS: {
         'Authorization': `Bearer ${process.env.REACT_APP_APTOS_API_KEY}`
@@ -78,7 +81,7 @@ const TokenPage: React.FC = () => {
   const client = useMemo(() => new Aptos(config), [config]);
   
 
-  const tokenLauncherAddress = CONTRACT_ADDRESSES['devnet'];
+  const tokenLauncherAddress = CONTRACT_ADDRESSES['testnet'];
 
   // Transplant the working interfaces from TokenPage
   interface Token {
@@ -216,36 +219,83 @@ const TokenPage: React.FC = () => {
     { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
   ];
 
-  // Load token details from our shared hook using metadata address
+  // Load token details - first try location.state (passed from HomePage), then search tokens
   const fetchTokenDetails = async () => {
     if (!coinHash) return;
 
     try {
+      // First, try to use location.state (data passed from HomePage/Marketplace navigation)
+      if (location.state) {
+        console.log("✅ Using token data from location.state:", location.state);
+        const stateData = location.state as any;
+        const tokenDetailsData: TokenDetails = {
+          name: stateData.name || 'Unknown',
+          symbol: stateData.symbol || 'UNK',
+          supply: stateData.supply || 0,
+          txHash: stateData.txHash || coinHash,
+          metadataAddress: stateData.metadataAddress || stateData.txHash || coinHash,
+          creatorAddress: stateData.creatorAddress || stateData.creator || '',
+          creationDate: stateData.creationDate || Math.floor(Date.now() / 1000),
+          twitterLink: stateData.twitterLink || null,
+          websiteLink: stateData.websiteLink || null,
+        };
+        console.log("🎯 Setting token details from state:", tokenDetailsData);
+        setTokenDetails(tokenDetailsData);
+        return;
+      }
+
+      // Fallback: Search in tokens array
+      console.log("🔍 No location.state, searching in tokens array...");
       console.log("🔍 Looking for token with metadata address:", coinHash);
       console.log("📊 Available tokens:", tokens);
       
-      // Find token by metadata address
-      const token = tokens.find(t => t.metadataAddress === coinHash);
+      // Normalize the coinHash (lowercase, ensure 0x prefix)
+      const normalizedCoinHash = coinHash.toLowerCase().startsWith('0x') 
+        ? coinHash.toLowerCase() 
+        : `0x${coinHash.toLowerCase()}`;
+      
+      // Remove 0x prefix for comparison
+      const coinHashNoPrefix = normalizedCoinHash.replace('0x', '');
+      
+      // Find token by metadata address - try multiple matching strategies
+      let token = tokens.find(t => {
+        const tokenAddr = (t.metadataAddress || t.txHash || '').toLowerCase();
+        const tokenAddrNoPrefix = tokenAddr.replace('0x', '');
+        
+        // Exact match
+        if (tokenAddr === normalizedCoinHash) return true;
+        // Match without 0x prefix
+        if (tokenAddrNoPrefix === coinHashNoPrefix) return true;
+        // Match if coinHash is a prefix of the full address (handles truncated URLs)
+        if (tokenAddrNoPrefix.startsWith(coinHashNoPrefix) || coinHashNoPrefix.startsWith(tokenAddrNoPrefix)) return true;
+        return false;
+      });
       
       if (token) {
-        console.log("✅ Found token:", token);
+        console.log("✅ Found token in array:", token);
         
         const tokenDetailsData: TokenDetails = {
           name: token.name,
           symbol: token.symbol,
           supply: token.supply,
           txHash: token.txHash,
-          metadataAddress: token.metadataAddress || '',
-          creatorAddress: token.creatorAddress || '',
+          metadataAddress: token.metadataAddress || token.txHash || '',
+          creatorAddress: token.creatorAddress || token.creator || '',
           creationDate: new Date(token.launchDate).getTime() / 1000,
           twitterLink: null,
           websiteLink: null,
         };
         
-        console.log("🎯 Setting token details:", tokenDetailsData);
+        console.log("🎯 Setting token details from array:", tokenDetailsData);
         setTokenDetails(tokenDetailsData);
       } else {
         console.error("❌ Token not found for metadata address:", coinHash);
+        console.error("📋 Available tokens:", tokens.map(t => ({
+          metadataAddress: t.metadataAddress,
+          txHash: t.txHash,
+          symbol: t.symbol,
+          name: t.name
+        })));
       }
     } catch (error) {
       console.error("Error loading token details:", error);
@@ -260,19 +310,25 @@ const TokenPage: React.FC = () => {
       return;
     }
 
-
+    // Validate that we're buying at least 1 whole token (contract doesn't support fractional tokens)
+    const tokenAmount = Math.floor(amount);
+    if (tokenAmount < 1) {
+      alert(`⚠️ Cannot buy fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to buy.`);
+      return;
+    }
   
     try {
-      const tokenAmount = Math.floor(amount);
       const tickerBytes = stringToBytes(tokenDetails.symbol);
   
-      console.log("Buying tokens with params:", {
+      console.log("💰 Buying tokens with params:", {
         creatorAddress: tokenDetails.creatorAddress,
         ticker: tickerBytes,
         tokenAmount: tokenAmount,
         maxSlippageBps: slippage
       });
   
+      // Build transaction using the same format that worked on devnet
+      // Use simple format without options - let wallet handle gas estimation
       const buyTransaction: InputTransactionData = {
         data: {
           function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
@@ -286,7 +342,7 @@ const TokenPage: React.FC = () => {
         },
       };
   
-            const response = await signAndSubmitTransaction(buyTransaction);
+      const response = await signAndSubmitTransaction(buyTransaction);
       console.log("Buy response:", response);
       
       // Try to wait for transaction confirmation, but don't fail if API is rate limited
@@ -303,20 +359,50 @@ const TokenPage: React.FC = () => {
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
       
-      // Refresh balances after successful trade (force fresh data)
+      // Wait a bit for blockchain state to propagate before refreshing balances
+      // This ensures BuyerStore is updated on-chain before we query it
+      console.log("⏳ Waiting 3 seconds for blockchain state to propagate...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Refresh balances after successful trade (force fresh data with retries)
+      console.log("🔄 Refreshing balances after buy...");
       await refreshBalances(true);
     } catch (error: any) {
       console.error("Buy error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        errorCode: error.errorCode,
+        error: error.error,
+        fullError: error
+      });
       
-      // Enhanced error handling for slippage protection
-      if (error.errorCode === '1012' || error.message?.includes('1012')) {
+      // Enhanced error handling
+      if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
+        // User rejected the transaction - likely due to wallet simulation error
+        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
+              `This is often caused by wallet simulation errors with fungible assets, especially for larger amounts.\n\n` +
+              `If you're trying to buy more than 1 token, try:\n` +
+              `1. Approving the transaction despite the simulation warning\n` +
+              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
+              `3. Refreshing the page and reconnecting your wallet\n` +
+              `4. Using a different wallet if available\n\n` +
+              `The transaction may work even if the simulation shows an error.`);
+      } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
+        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
+        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset transactions during simulation.\n\n` +
+              `If you're trying to buy more than 1 token, try:\n` +
+              `1. Approving the transaction despite the simulation warning\n` +
+              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
+              `3. Refreshing the page\n\n` +
+              `The transaction may still work - check the transaction hash in the console.`);
+      } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
         alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
         alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
       } else {
-        alert("Failed to buy tokens. Check console.");
+        alert(`Failed to buy tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
       }
     }
   };
@@ -330,20 +416,36 @@ const TokenPage: React.FC = () => {
     // Check if user has enough tokens to sell
     const metadataAddress = tokenDetails?.metadataAddress || location.state?.metadataAddress || "0x0";
     const currentTokenBalance = parseFloat(getTokenBalance(metadataAddress));
+    console.log("🔍 Sell balance check:", {
+      metadataAddress,
+      currentTokenBalance,
+      amountToSell: amount,
+      hasEnough: amount <= currentTokenBalance
+    });
+    
     if (amount > currentTokenBalance) {
       alert(`Insufficient token balance. You have ${currentTokenBalance.toFixed(6)} tokens, but trying to sell ${amount.toFixed(6)} tokens.`);
       return;
     }
+
+    // Validate that we're selling at least 1 whole token (contract doesn't support fractional tokens)
+    const tokenAmount = Math.floor(amount);
+    if (tokenAmount < 1) {
+      alert(`⚠️ Cannot sell fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to sell.`);
+      return;
+    }
   
     try {
-      const tokenAmount = Math.floor(amount);
+      // The contract expects amount in tokens (not scaled), it will multiply by decimals_factor internally
       const tickerBytes = stringToBytes(tokenDetails.symbol);
   
-      console.log("Selling tokens with params:", {
+      console.log("💰 Selling tokens with params:", {
         creatorAddress: tokenDetails.creatorAddress,
         ticker: tickerBytes,
         tokenAmount: tokenAmount,
-        maxSlippageBps: slippage
+        maxSlippageBps: slippage,
+        metadataAddress: metadataAddress,
+        userBalance: currentTokenBalance
       });
   
       const sellTransaction: InputTransactionData = {
@@ -375,31 +477,70 @@ const TokenPage: React.FC = () => {
       // Refresh token balance and chart
       setRefreshChart((prev) => prev + 1);
       
-      // Refresh balances after successful trade (force fresh data)
+      // Wait a bit for blockchain state to propagate before refreshing balances
+      console.log("⏳ Waiting 3 seconds for blockchain state to propagate...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Refresh balances after successful trade (force fresh data with retries)
+      console.log("🔄 Refreshing balances after sell...");
       await refreshBalances(true);
 
     } catch (error: any) {
       console.error("Sell failed:", error);
+      console.error("Error details:", {
+        message: error.message,
+        errorCode: error.errorCode,
+        error: error.error,
+        fullError: error
+      });
       
-      // Enhanced error handling for slippage protection
-      if (error.errorCode === '1012' || error.message?.includes('1012')) {
+      // Enhanced error handling
+      if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
+        // User rejected the transaction - likely due to wallet simulation error
+        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
+              `This is often caused by wallet simulation errors with fungible assets.\n\n` +
+              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
+              `If you're sure you have enough tokens, try:\n` +
+              `1. Approving the transaction despite the simulation warning\n` +
+              `2. Refreshing the page and reconnecting your wallet\n` +
+              `3. Using a different wallet if available\n\n` +
+              `The transaction may work even if the simulation shows an error.`);
+      } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
+        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
+        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset balances during simulation.\n\n` +
+              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
+              `If you're sure you have enough tokens, try:\n` +
+              `1. Approving the transaction despite the simulation warning\n` +
+              `2. Refreshing the page\n` +
+              `3. Disconnecting and reconnecting your wallet\n\n` +
+              `The transaction may still work - check the transaction hash in the console.`);
+      } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
         alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
         alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
       } else {
-        alert("Failed to sell tokens. Check console.");
+        alert(`Failed to sell tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
       }
     }
   };
 
   // Add useEffect to fetch token details when component mounts
   useEffect(() => {
-    if (tokens.length > 0) {
+    // If location.state is available, use it immediately (no need to wait for tokens)
+    if (location.state) {
       fetchTokenDetails();
+      return;
     }
-  }, [coinHash, tokens]);
+    
+    // Otherwise, wait for tokens to finish loading before trying to find the token
+    if (!tokensLoading && tokens.length > 0) {
+      fetchTokenDetails();
+    } else if (!tokensLoading && tokens.length === 0) {
+      console.warn("⚠️ No tokens loaded, cannot find token for:", coinHash);
+    }
+  }, [coinHash, tokens, tokensLoading, location.state]);
 
   // Add useEffect to fetch user's token balance
   useEffect(() => {
@@ -590,6 +731,44 @@ const TokenPage: React.FC = () => {
   // Add truncateAddress function from the transplanted engine
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Helper to find token from tokens array using metadataAddress
+  const tokenData = useMemo(() => {
+    if (!tokenDetails?.metadataAddress || tokens.length === 0) return null;
+    return tokens.find(t => 
+      t.metadataAddress?.toLowerCase() === tokenDetails.metadataAddress?.toLowerCase() ||
+      t.txHash?.toLowerCase() === tokenDetails.metadataAddress?.toLowerCase() ||
+      t.metadataAddress?.toLowerCase() === coinHash?.toLowerCase() ||
+      t.txHash?.toLowerCase() === coinHash?.toLowerCase()
+    );
+  }, [tokenDetails?.metadataAddress, tokens, coinHash]);
+
+  // Format currency
+  const formatCurrency = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return 'Loading...';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6
+    }).format(value);
+  };
+
+  // Format large numbers (market cap, volume)
+  const formatLargeNumber = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return 'Loading...';
+    if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+  };
+
+  // Format percentage
+  const formatPercentage = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return '0%';
+    const sign = value >= 0 ? '+' : '';
+    return `${sign}${value.toFixed(2)}%`;
   };
 
   return (
@@ -798,7 +977,7 @@ const TokenPage: React.FC = () => {
                 type="text"
                 placeholder="Search"
                 value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
                 style={{
                   width: '400px',
                   padding: '8px 12px',
@@ -962,10 +1141,10 @@ const TokenPage: React.FC = () => {
                   lineHeight: '1',
                   padding: '0 0px'
                 }}>
-                  {tokenDetails ? '$0.00142' : 'Loading...'}
+                  {tokenData?.priceUSD !== undefined ? formatCurrency(tokenData.priceUSD) : 'Loading...'}
                 </div>
                 <div style={{
-                  color: tokenDetails ? getPercentageColor('+12.5%') : '#5b616e',
+                  color: tokenData?.change24h !== undefined ? getPercentageColor(formatPercentage(tokenData.change24h)) : '#5b616e',
                   display: 'flex',
                   alignItems: 'center',
                   marginBottom: '20px',
@@ -973,7 +1152,7 @@ const TokenPage: React.FC = () => {
                   fontWeight: '600',
                   fontSize: '18px'
                 }}>
-                  {tokenDetails ? '-8.3%' : 'Loading token details...'}
+                  {tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : 'Loading token details...'}
                 </div>
 
                 <div style={{
@@ -1352,7 +1531,7 @@ const TokenPage: React.FC = () => {
                             lineHeight: '1',
                             marginBottom: '10px'
                           }}>
-                            $67,856
+                            {tokenData?.marketCapUSD !== undefined ? formatLargeNumber(tokenData.marketCapUSD) : 'Loading...'}
                           </div>
                           <div style={{
                             fontSize: '16px',
@@ -1373,7 +1552,7 @@ const TokenPage: React.FC = () => {
                             lineHeight: '1',
                             marginBottom: '10px'
                           }}>
-                            $24,656
+                            {tokenData?.volume !== undefined ? formatLargeNumber(tokenData.volume) : 'Loading...'}
                           </div>
                           <div style={{
                             fontSize: '16px',
@@ -1398,8 +1577,8 @@ const TokenPage: React.FC = () => {
                             gap: '4px',
                             marginBottom: '10px'
                           }}>
-                            <span style={{ fontSize: '16px' }}>↑</span>
-                            <span>+12.5%</span>
+                            <span style={{ fontSize: '16px' }}>{tokenData?.change24h && tokenData.change24h >= 0 ? '↑' : '↓'}</span>
+                            <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : '0%'}</span>
                           </div>
                           <div style={{
                             fontSize: '16px',
@@ -1681,7 +1860,7 @@ const TokenPage: React.FC = () => {
                   <input
                     type="text"
                     value={amountString}
-                    onChange={(e) => setAmountString(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmountString(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
