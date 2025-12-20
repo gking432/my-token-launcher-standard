@@ -4,8 +4,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
-import { useAptPrice } from '../hooks/useAptPrice';
-import { calculateCurrentPrice, calculateMarketCap, formatPrice, formatMarketCap } from '../utils/priceCalculator';
+import GlobalHeaderBar from './GlobalHeaderBar';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
@@ -14,8 +13,10 @@ const HomePage: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   
   // Use the shared token data hook
+  // Fetches tokens once on mount - no continuous polling
+  // Static data (name, ticker, creator) doesn't change
+  // Price is calculated client-side from tokensSold (only changes on trades)
   const { tokens: rawTokens, loading, error, refetch } = useTokenData();
-  const { aptPrice, loading: aptLoading, error: aptError } = useAptPrice();
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 
@@ -64,14 +65,10 @@ const HomePage: React.FC = () => {
     return sortedTokens;
   }, [rawTokens, sortOrder]);
 
-  // Poll for new tokens every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch();
-    }, 60000); // 60 seconds
-    
-    return () => clearInterval(interval);
-  }, [refetch]);
+  // No continuous polling - tokens are fetched once on mount
+  // Use manual refresh button if user wants to update data
+  // Note: Static data (name, ticker, creator) doesn't change
+  // Price is calculated client-side from tokensSold, which only changes on trades
 
   // Helper functions from LandingPage
   const truncateAddress = (address: string) => {
@@ -195,6 +192,25 @@ const HomePage: React.FC = () => {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 24px;
+          }
+
+          .nav-search {
+            flex: 1;
+            max-width: 400px;
+          }
+
+          .nav-search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #d8dce0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #f7f8fa;
+          }
+
+          .nav-search-input::placeholder {
+            color: #8a92a5;
           }
 
           .logo {
@@ -238,11 +254,6 @@ const HomePage: React.FC = () => {
             gap: 16px;
           }
 
-          .settings-icon {
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-          }
 
           .sign-in {
             color: #0a0b0d;
@@ -265,8 +276,7 @@ const HomePage: React.FC = () => {
           }
 
           .main-container {
-            max-width: 1200px;
-            margin: 0 auto;
+            width: 100%;
             padding: 32px 24px;
             display: flex;
             gap: 32px;
@@ -288,37 +298,6 @@ const HomePage: React.FC = () => {
             color: #0a0b0d;
           }
 
-          .index-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #5b616e;
-            font-size: 16px;
-            margin-bottom: 32px;
-          }
-
-          .index-change {
-            color: #00d4aa;
-            font-weight: 600;
-          }
-
-          .search-container {
-            margin-bottom: 32px;
-          }
-
-          .search-input {
-            width: 100%;
-            max-width: 400px;
-            padding: 12px 16px;
-            border: 1px solid #d8dce0;
-            border-radius: 8px;
-            font-size: 16px;
-            background: #f7f8fa;
-          }
-
-          .search-input::placeholder {
-            color: #8a92a5;
-          }
 
           .section-header {
             margin-bottom: 24px;
@@ -838,9 +817,8 @@ const HomePage: React.FC = () => {
         `}
       </style>
 
-      <div className="promo-banner">
-        Get 25 APT and 50 MILLION tokens in rewards when you manage a project to graduation! 🚀
-      </div>
+      {/* Global Header Bar */}
+      <GlobalHeaderBar />
 
       <header className="header">
         <div className="nav-container">
@@ -848,18 +826,16 @@ const HomePage: React.FC = () => {
             MoveMint
             <div className="logo-dot"></div>
           </div>
+          <div className="nav-search">
+            <input type="text" className="nav-search-input" placeholder="Search for a meme coin..." />
+          </div>
           <nav>
             <ul className="nav-links">
               <li><Link to="/marketplace">Marketplace</Link></li>
-              <li><Link to="/boost">Boost</Link></li>
-              <li><Link to="/trending">Trending</Link></li>
-              <li><Link to="/communities">Communities</Link></li>
               <li><Link to="/learn">Learn</Link></li>
-              <li><Link to="/docs">Docs</Link></li>
             </ul>
           </nav>
           <div className="auth-section">
-            <div className="settings-icon">⚙️</div>
             <Link to="/launch" className="sign-in">Launch</Link>
             <Link to="/connect" className="sign-up">Connect Wallet</Link>
           </div>
@@ -870,36 +846,6 @@ const HomePage: React.FC = () => {
         <main className="content">
           <div className="page-header">
             <h1 className="page-title">Explore meme coins</h1>
-            <div className="index-info">
-              <span>MoveMint Meme Index is up</span>
-              <span className="index-change">⬆ 12.34% (24hrs)</span>
-              <span>●</span>
-            </div>
-          </div>
-
-          {/* APT Price Display */}
-          <div style={{ 
-            background: '#f8f9fa', 
-            padding: '15px 20px', 
-            borderRadius: '12px', 
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '15px',
-            border: '1px solid #e6e8ea'
-          }}>
-            <span style={{ fontWeight: 'bold', color: '#00d4aa', fontSize: '16px' }}>APT Price:</span>
-            {aptLoading ? (
-              <span style={{ color: '#666' }}>Loading...</span>
-            ) : aptError ? (
-              <span style={{ color: '#dc3545' }}>Error: {aptError}</span>
-            ) : aptPrice ? (
-              <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '18px' }}>
-                ${aptPrice.toFixed(4)}
-              </span>
-            ) : (
-              <span style={{ color: '#666' }}>No data</span>
-            )}
           </div>
 
                             {/* Bonding Curve Test - Commented out for now, can re-enable if needed for debugging */}
@@ -950,10 +896,6 @@ const HomePage: React.FC = () => {
                       </div>
                     </div>
                   )} */}
-
-          <div className="search-container">
-            <input type="text" className="search-input" placeholder="Search for a meme coin..." />
-          </div>
 
           <section>
             <div className="section-header">

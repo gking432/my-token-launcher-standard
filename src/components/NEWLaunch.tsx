@@ -7,6 +7,7 @@ import { Buffer } from "buffer";
 import { MODULE_ADDRESS } from "../config";
 import PreLaunchModal from './PreLaunchModal';
 import GlobalSidebar from './GlobalSidebar';
+import GlobalHeaderBar from './GlobalHeaderBar';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -292,13 +293,6 @@ const Launch: React.FC = () => {
     }
   };
 
-  // Watchlist data for the sidebar
-  const watchlistData = [
-    { name: 'Bitcoin', symbol: 'BTC', icon: '₿', iconBg: '#f7931a' },
-    { name: 'Ethereum', symbol: 'ETH', icon: 'Ξ', iconBg: '#627eea' },
-    { name: 'Tether', symbol: 'USDT', icon: '₮', iconBg: '#50af95' },
-    { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
-  ];
 
   if (!account) {
     return (
@@ -357,6 +351,9 @@ const Launch: React.FC = () => {
       padding: 0,
       overflow: 'hidden'
     }}>
+      {/* Global Header Bar */}
+      <GlobalHeaderBar />
+      
       {/* Main Layout */}
       <div style={{
         display: 'flex',
@@ -366,7 +363,6 @@ const Launch: React.FC = () => {
       }}>
         {/* Sidebar */}
         <GlobalSidebar 
-          watchlistData={watchlistData}
           activeTab="launch"
         />
 

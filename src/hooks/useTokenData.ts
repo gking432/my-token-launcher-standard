@@ -3,6 +3,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { getTokenLauncherTokens } from '../utils/aptosIndexer';
 import { MODULE_ADDRESS } from '../config';
 import { useAptPrice } from '../contexts/AptPriceContext';
+import { usePageVisibility } from './usePageVisibility';
 
 interface Token {
   name: string;
@@ -36,6 +37,7 @@ export const useTokenData = (): UseTokenDataReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const isVisible = usePageVisibility();
 
   // Helper function to convert hex string to readable string
   const hexToString = (hex: string) => {
@@ -122,8 +124,10 @@ export const useTokenData = (): UseTokenDataReturn => {
         // Calculate APT price using bonding curve
         const priceAPT = calculateBondingCurvePrice(tokensSold);
         
-        // Calculate USD price if APT price is available
-        const priceUSD = aptPrice ? priceAPT * aptPrice : undefined;
+        // Calculate USD price if APT price is available (use current aptPrice from context)
+        // Note: We'll recalculate USD prices when aptPrice updates, but won't refetch tokens
+        const currentAptPrice = aptPrice;
+        const priceUSD = currentAptPrice ? priceAPT * currentAptPrice : undefined;
         const marketCapUSD = priceUSD ? priceUSD * totalSupply : undefined;
         
         // Generate mock data for demonstration (you can replace with real price feeds later)
@@ -160,7 +164,20 @@ export const useTokenData = (): UseTokenDataReturn => {
       });
 
       console.log("✅ useTokenData: Processed tokens:", fetchedTokens);
-      setTokens(fetchedTokens);
+      
+      // Update USD prices with current APT price if available
+      const tokensWithUSD = fetchedTokens.map(token => {
+        if (aptPrice && token.price) {
+          return {
+            ...token,
+            priceUSD: token.price * aptPrice,
+            marketCapUSD: token.price * aptPrice * token.supply
+          };
+        }
+        return token;
+      });
+      
+      setTokens(tokensWithUSD);
       
     } catch (err) {
       console.error("❌ useTokenData: Error fetching tokens:", err);
@@ -196,10 +213,31 @@ export const useTokenData = (): UseTokenDataReturn => {
     }
   };
 
-  // Fetch tokens on mount and when APT price changes
+  // Fetch tokens on mount only if page is visible (not when APT price changes to avoid excessive API calls)
   useEffect(() => {
-    fetchTokens();
-  }, [aptPrice]); // Re-fetch when APT price changes
+    if (isVisible) {
+      fetchTokens();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]); // Only fetch when page becomes visible (fetchTokens is stable enough)
+
+  // Update USD prices when APT price changes (without refetching tokens from API)
+  useEffect(() => {
+    if (aptPrice && tokens.length > 0) {
+      setTokens(prevTokens => {
+        return prevTokens.map(token => {
+          if (token.price) {
+            return {
+              ...token,
+              priceUSD: token.price * aptPrice,
+              marketCapUSD: token.price * aptPrice * token.supply
+            };
+          }
+          return token;
+        });
+      });
+    }
+  }, [aptPrice]); // Only update USD prices when APT price changes, don't refetch from API
 
   // Return the hook interface
   return {

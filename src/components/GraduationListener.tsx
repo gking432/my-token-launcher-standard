@@ -2,16 +2,15 @@ import { useEffect, useRef } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { AptosClient } from "aptos";
 import { useGraduationHandler } from '../hooks/useGraduation';
-import { useGraduationRetry } from '../hooks/useGraduationRetry';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import { GraduationReadyEvent } from '../types/graduation';
 import { MODULE_ADDRESS, RESOURCE_ADDRESS } from '../config';
 
 export const GraduationListener: React.FC = () => {
   const { account } = useWallet();
   const { handleGraduation } = useGraduationHandler();
-  const { retryGraduation } = useGraduationRetry();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastCheckedRef = useRef<number>(0);
+  const isVisible = usePageVisibility();
   
   useEffect(() => {
     if (!account) return;
@@ -64,18 +63,18 @@ export const GraduationListener: React.FC = () => {
       }
     };
     
-    // Check immediately
-    checkForGraduationEvents();
+    // Check once on mount if visible - no continuous polling
+    // Graduation events are rare, so continuous polling is wasteful
+    // Consider using gRPC streaming or WebSocket for real-time graduation events
+    if (isVisible) {
+      console.log('▶️ GraduationListener: Checking for graduation events (one-time)');
+      checkForGraduationEvents();
+    } else {
+      console.log('⏸️ GraduationListener: Paused (tab hidden)');
+    }
     
-    // Then check every 30 seconds
-    intervalRef.current = setInterval(checkForGraduationEvents, 30000);
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [account, handleGraduation]);
+    // No cleanup needed since we're not using intervals anymore
+  }, [account, handleGraduation, isVisible]);
   
   // This component doesn't render anything
   return null;

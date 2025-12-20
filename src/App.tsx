@@ -4,12 +4,12 @@ import { PetraWallet } from "petra-plugin-wallet-adapter";
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
 import Layout from "./components/Layout";
-import LandingPage from "./components/LandingPage";
+
 import HomePage from "./components/HomePage";
 import Marketplace from "./components/Marketplace";
 import Profile from "./components/Profile";
 import Launch from "./components/Launch";
-import TokenPage from "./components/TokenPage";
+
 import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
@@ -17,6 +17,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
 import { AptPriceProvider } from "./contexts/AptPriceContext";
+import { WatchlistProvider } from "./contexts/WatchlistContext";
 import "./styles/Landing.css";
 
 // Placeholder components for missing routes
@@ -52,13 +53,12 @@ const App: React.FC = () => {
       }}>
       <AptPriceProvider>
         <BalanceProvider>
-          <GraduationListener />
-          <Router>
+          <WatchlistProvider>
+            <GraduationListener />
+            <Router>
             <Routes>
             <Route path="/" element={
-              <Layout>
-                <LandingPage />
-              </Layout>
+              <HomePage />
             } />
             <Route path="/homepage" element={
               <HomePage />
@@ -82,7 +82,7 @@ const App: React.FC = () => {
               <About />
             } />
             <Route path="/tokenpage" element={
-              <TokenPage />
+              <NEWtokenpage />
             } />
             <Route path="/launchpage" element={
               <NEWLaunch />
@@ -101,11 +101,9 @@ const App: React.FC = () => {
               <NEWLaunch />
             } />
             <Route path="/token/:coinHash" element={
-              <Layout>
-                <ErrorBoundary>
-                  <TokenPage />
-                </ErrorBoundary>
-              </Layout>
+              <ErrorBoundary>
+                <NEWtokenpage />
+              </ErrorBoundary>
             } />
             <Route path="/newtoken/:coinHash" element={
               <ErrorBoundary>
@@ -119,6 +117,7 @@ const App: React.FC = () => {
             } />
                     </Routes>
           </Router>
+          </WatchlistProvider>
           </BalanceProvider>
         </AptPriceProvider>
       </AptosWalletAdapterProvider>

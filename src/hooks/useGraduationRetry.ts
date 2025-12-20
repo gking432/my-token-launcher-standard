@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { getPendingGraduations, updateGraduationAttempt, clearGraduationAttempt } from '../utils/graduationStorage';
 import { useGraduationHandler } from './useGraduation';
+import { usePageVisibility } from './usePageVisibility';
 
 export const useGraduationRetry = () => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { handleGraduation } = useGraduationHandler();
+  const isVisible = usePageVisibility();
   
   const retryGraduation = async (metadata_addr: string) => {
     const pending = getPendingGraduations();
@@ -49,22 +51,10 @@ export const useGraduationRetry = () => {
     }
   };
   
-  useEffect(() => {
-    // Check for retry candidates every minute
-    intervalRef.current = setInterval(() => {
-      const pending = getPendingGraduations();
-      
-      Object.keys(pending).forEach(metadata_addr => {
-        retryGraduation(metadata_addr);
-      });
-    }, 60000); // Check every minute
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
+  // No continuous polling - only retry when explicitly called
+  // Graduation retries should be triggered by user actions or specific events
+  // Continuous polling is wasteful since graduations are rare events
+  // Remove this useEffect - retryGraduation can be called manually when needed
   
   return { retryGraduation };
 }; 

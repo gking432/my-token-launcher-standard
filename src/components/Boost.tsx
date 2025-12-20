@@ -124,13 +124,6 @@ const Boost: React.FC = () => {
 
   const topSpotToken = tokens[0]; // MoonDoge is the top spot
 
-  // Watchlist data for the sidebar
-  const watchlistData = [
-    { name: 'Bitcoin', symbol: 'BTC', icon: '₿', iconBg: '#f7931a' },
-    { name: 'Ethereum', symbol: 'ETH', icon: 'Ξ', iconBg: '#627eea' },
-    { name: 'Tether', symbol: 'USDT', icon: '₮', iconBg: '#50af95' },
-    { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
-  ];
 
   return (
     <div style={{
@@ -152,7 +145,6 @@ const Boost: React.FC = () => {
       }}>
         {/* Sidebar */}
         <GlobalSidebar 
-          watchlistData={watchlistData}
           activeTab="boost"
         />
 

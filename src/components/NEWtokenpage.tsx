@@ -9,6 +9,7 @@ import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useAptPrice } from '../hooks/useAptPrice';
+import { useWatchlist } from '../contexts/WatchlistContext';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -33,6 +34,9 @@ const TokenPage: React.FC = () => {
   
   // Use global balance context instead of local balance fetching
   const { balances, loading: balanceLoading, getTokenBalance, refreshBalances } = useBalanceContext();
+  
+  // Use watchlist context
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
 
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -211,13 +215,40 @@ const TokenPage: React.FC = () => {
     }
   };
 
-  // Watchlist data for the sidebar
-  const watchlistData = [
-    { name: 'Bitcoin', symbol: 'BTC', icon: '₿', iconBg: '#f7931a' },
-    { name: 'Ethereum', symbol: 'ETH', icon: 'Ξ', iconBg: '#627eea' },
-    { name: 'Tether', symbol: 'USDT', icon: '₮', iconBg: '#50af95' },
-    { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
-  ];
+  // Check if current token is in watchlist
+  const currentTokenInWatchlist = tokenDetails?.metadataAddress 
+    ? isInWatchlist(tokenDetails.metadataAddress) 
+    : false;
+  
+  // Generate a consistent color based on token symbol
+  const generateColorFromString = (str: string): string => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = hash % 360;
+    return `hsl(${hue}, 70%, 50%)`;
+  };
+  
+  // Handle star button click
+  const handleStarClick = () => {
+    if (!tokenDetails) return;
+    
+    // Generate icon and color based on token symbol
+    const firstLetter = tokenDetails.symbol.charAt(0).toUpperCase();
+    const iconBg = generateColorFromString(tokenDetails.symbol);
+    
+    const watchlistItem = {
+      name: tokenDetails.name.replace('$', ''),
+      symbol: tokenDetails.symbol,
+      icon: firstLetter,
+      iconBg: iconBg,
+      metadataAddress: tokenDetails.metadataAddress || tokenDetails.txHash,
+      creatorAddress: tokenDetails.creatorAddress
+    };
+    
+    toggleWatchlist(watchlistItem);
+  };
 
   // Load token details - first try location.state (passed from HomePage), then search tokens
   const fetchTokenDetails = async () => {
@@ -775,15 +806,16 @@ const TokenPage: React.FC = () => {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
+      minHeight: '100vh',
       width: '100vw',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       margin: 0,
       padding: 0,
-      overflow: 'hidden'
+      overflow: 'visible'
     }}>
       {/* Header */}
-      <div style={{
+      {/* Token Leaderboard - Commented out for future CTA */}
+      {/* <div style={{
         background: '#ffffff',
         borderBottom: '1px solid #e7ebee',
         padding: headerMinimized ? '4px 24px' : '8px 24px',
@@ -906,7 +938,7 @@ const TokenPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Toggle Button */}
+        Toggle Button
         <button
           onClick={handleHeaderToggle}
           style={{
@@ -926,6 +958,16 @@ const TokenPage: React.FC = () => {
         >
           {headerMinimized ? 'View Token Leaderboard' : '__'}
         </button>
+      </div> */}
+      
+      {/* Blank white bar - placeholder for future CTA */}
+      <div style={{
+        background: '#ffffff',
+        width: '100%',
+        height: '40px',
+        borderBottom: '1px solid #e7ebee',
+        flexShrink: 0
+      }}>
       </div>
 
       {/* Main Layout */}
@@ -933,13 +975,21 @@ const TokenPage: React.FC = () => {
         display: 'flex',
         flex: 1,
         width: '100%',
-        overflow: 'hidden'
+        overflow: 'visible',
+        alignSelf: 'stretch',
+        minHeight: '100%',
+        position: 'relative'
       }}>
         {/* Sidebar */}
-        <GlobalSidebar 
-          watchlistData={watchlistData}
-          activeTab="trade"
-        />
+        <div style={{
+          position: 'relative',
+          alignSelf: 'stretch',
+          minHeight: '100%'
+        }}>
+          <GlobalSidebar 
+            activeTab="trade"
+          />
+        </div>
 
         {/* Main Content */}
         <div style={{
@@ -952,7 +1002,6 @@ const TokenPage: React.FC = () => {
           {/* Token Title Bar */}
           <div style={{
             background: 'white',
-            borderBottom: '1px solid #e7ebee',
             padding: '18px 24px',
             display: 'flex',
             alignItems: 'center',
@@ -965,29 +1014,6 @@ const TokenPage: React.FC = () => {
               flexShrink: 0
             }}>
                               {tokenDetails ? tokenDetails.name.replace('$', '') : 'Token Page'}
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              margin: '0 20px'
-            }}>
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
-                style={{
-                  width: '400px',
-                  padding: '8px 12px',
-                  border: '1px solid #d3d3d3',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  background: '#f8f9fa',
-                  color: '#050f19'
-                }}
-              />
             </div>
             <div style={{
               display: 'flex',
@@ -1113,14 +1139,15 @@ const TokenPage: React.FC = () => {
             display: 'flex',
             flex: 1,
             minHeight: 0,
-            width: '100%'
+            width: '100%',
+            overflowY: 'auto',
+            position: 'relative'
           }}>
             {/* Content Left */}
             <div style={{
               flex: 1,
               padding: '20px',
               background: '#ffffff',
-              overflowY: 'auto',
               minWidth: 0
             }}>
               {/* Token Header */}
@@ -1192,19 +1219,24 @@ const TokenPage: React.FC = () => {
                     gap: '10px',
                     padding: '0 20px'
                   }}>
-                    <button style={{
-                      background: '#fff',
-                      border: '1px solid #e6e8ea',
-                      color: '#666',
-                      cursor: 'pointer',
-                      fontSize: '24px',
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      height: '36px',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}>
-                      ☆
+                    <button 
+                      onClick={handleStarClick}
+                      style={{
+                        background: '#fff',
+                        border: '1px solid #e6e8ea',
+                        color: currentTokenInWatchlist ? '#FFD700' : '#666',
+                        cursor: 'pointer',
+                        fontSize: '24px',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        height: '36px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                    >
+                      {currentTokenInWatchlist ? '★' : '☆'}
                     </button>
                     <button style={{
                       padding: '8px 16px',
@@ -1217,9 +1249,9 @@ const TokenPage: React.FC = () => {
                       cursor: 'pointer',
                       transition: 'all 0.2s'
                     }}>
-                      Verify Community
+                      Share
                     </button>
-                    <button style={{
+                    {/* <button style={{
                       padding: '8px 16px',
                       background: 'linear-gradient(135deg, #FF6B35, #FF8C42)',
                       color: '#ffffff',
@@ -1234,7 +1266,7 @@ const TokenPage: React.FC = () => {
                       overflow: 'hidden'
                     }}>
                       Boost Token
-                    </button>
+                    </button> */}
                   </div>
                 </div>
               </div>
@@ -1776,9 +1808,13 @@ const TokenPage: React.FC = () => {
             <div style={{
               width: '400px',
               background: '#ffffff',
-              borderLeft: '1px solid #d3d3d3',
               padding: '20px',
-              flexShrink: 0
+              flexShrink: 0,
+              position: 'sticky',
+              top: 0,
+              alignSelf: 'flex-start',
+              maxHeight: '100vh',
+              overflowY: 'auto'
             }}>
               <div style={{
                 background: '#f8f9fa',

@@ -1,37 +1,33 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-
-interface WatchlistItem {
-  name: string;
-  symbol: string;
-  icon: string;
-  iconBg: string;
-}
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useWatchlist } from '../contexts/WatchlistContext';
 
 interface GlobalSidebarProps {
-  watchlistData: WatchlistItem[];
   activeTab?: string;
   onTabChange?: (tab: string) => void;
-  onWatchlistItemClick?: (item: WatchlistItem) => void;
 }
 
 const GlobalSidebar = ({ 
-  watchlistData, 
   activeTab,
-  onTabChange,
-  onWatchlistItemClick 
+  onTabChange
 }: GlobalSidebarProps): React.ReactElement => {
+  const { watchlist } = useWatchlist();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const tabs = [
-    { id: 'launch', label: 'Launch', path: '/launch' },
+    { id: 'home', label: 'Home', path: '/homepage' },
     { id: 'trade', label: 'Trade', path: '/marketplace' },
-    { id: 'boost', label: 'Boost', path: '/boost' },
     { id: 'learn', label: 'Learn', path: '/about' }
   ];
+  
+  const launchTab = { id: 'launch', label: 'Launch', path: '/launch' };
 
   // Determine active tab based on current location or prop
-  const currentActiveTab = activeTab || tabs.find(tab => tab.path === location.pathname)?.id || 'marketplace';
+  const currentActiveTab = activeTab || 
+    tabs.find(tab => tab.path === location.pathname)?.id || 
+    (location.pathname === launchTab.path ? launchTab.id : null) || 
+    'marketplace';
 
   const handleTabClick = (tabId: string) => {
     onTabChange?.(tabId);
@@ -48,9 +44,23 @@ const GlobalSidebar = ({
             border-right: 1px solid #d3d3d3;
             padding: 0;
             height: 100%;
+            min-height: 100%;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            align-self: stretch;
+            position: relative;
+          }
+          
+          .sidebar::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: -9999px;
+            width: 1px;
+            background: #d3d3d3;
+            pointer-events: none;
           }
           
           .nav-tabs {
@@ -78,6 +88,37 @@ const GlobalSidebar = ({
           .nav-tab.active {
             background: #f0f8ff;
             color: #00d4aa;
+          }
+          
+          .launch-tab-container {
+            margin-top: 0px;
+            padding-top: 20px;
+            border-top: 0px solid #e6e8ea;
+          }
+          
+          .launch-tab {
+            display: flex;
+            align-items: left;
+            padding: 8px 0px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            background: #00d4aa;
+            border-radius: 6px;
+            margin: 0 12px;
+            justify-content: center;
+          }
+          
+          .launch-tab:hover {
+            background: #00b894;
+            color: #ffffff;
+          }
+          
+          .launch-tab.active {
+            background: #00b894;
+            color: #ffffff;
           }
           
           .watchlist-section {
@@ -178,28 +219,55 @@ const GlobalSidebar = ({
               {tab.label}
             </Link>
           ))}
+          
+          <div className="launch-tab-container">
+            <Link
+              to={launchTab.path}
+              className={`launch-tab ${currentActiveTab === launchTab.id ? 'active' : ''}`}
+              onClick={() => handleTabClick(launchTab.id)}
+            >
+              {launchTab.label}
+            </Link>
+          </div>
         </div>
         
         <div className="watchlist-section">
           <div className="section-title2">Watchlist</div>
-          {watchlistData.map((item, index) => (
-            <div 
-              key={index}
-              className="meme-item"
-              onClick={() => onWatchlistItemClick?.(item)}
-            >
+          {watchlist.length > 0 ? (
+            watchlist.map((item, index) => (
               <div 
-                className="meme-icon" 
-                style={{ background: item.iconBg }}
+                key={item.metadataAddress || index}
+                className="meme-item"
+                onClick={() => {
+                  if (item.metadataAddress) {
+                    navigate(`/newtoken/${item.metadataAddress}`);
+                  }
+                }}
               >
-                {item.icon}
+                <div 
+                  className="meme-icon" 
+                  style={{ background: item.iconBg }}
+                >
+                  {item.icon}
+                </div>
+                <div className="meme-info">
+                  <div className="meme-name">{item.name}</div>
+                  <div className="meme-symbol">{item.symbol}</div>
+                </div>
               </div>
-              <div className="meme-info">
-                <div className="meme-name">{item.name}</div>
-                <div className="meme-symbol">{item.symbol}</div>
-              </div>
+            ))
+          ) : (
+            <div style={{
+              padding: '20px',
+              textAlign: 'center',
+              color: '#8a9ba8',
+              fontSize: '13px',
+              lineHeight: '1.5'
+            }}>
+              Your watchlist is empty.<br />
+              Add tokens to track them here.
             </div>
-          ))}
+          )}
         </div>
       </div>
     </>

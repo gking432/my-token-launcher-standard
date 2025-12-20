@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { usePageVisibility } from './usePageVisibility';
 
 interface AptPriceData {
   aptPrice: number | null;
@@ -16,6 +17,7 @@ export const useAptPrice = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const isVisible = usePageVisibility();
 
   const fetchAptPrice = useCallback(async (force = false) => {
     // Check if we have cached data and it's still valid
@@ -68,19 +70,16 @@ export const useAptPrice = () => {
     }
   }, [aptPrice, lastUpdated]);
 
-  // Initial fetch
+  // Initial fetch - only if page is visible
   useEffect(() => {
-    fetchAptPrice();
-  }, [fetchAptPrice]);
-
-  // Set up polling every 60 seconds (reduced frequency)
-  useEffect(() => {
-    const interval = setInterval(() => {
+    if (isVisible) {
       fetchAptPrice();
-    }, CACHE_DURATION);
+    }
+  }, [fetchAptPrice, isVisible]);
 
-    return () => clearInterval(interval);
-  }, [fetchAptPrice]);
+  // No continuous polling - APT price fetched once on mount
+  // APT price doesn't change frequently enough to warrant continuous polling
+  // Use refetch() manually if needed
 
   const refetch = useCallback(() => {
     fetchAptPrice(true);

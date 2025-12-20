@@ -4,6 +4,7 @@ import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import GlobalSidebar from './GlobalSidebar';
+import GlobalHeaderBar from './GlobalHeaderBar';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
@@ -403,13 +404,6 @@ const Marketplace: React.FC = () => {
     setHeaderMinimized(!headerMinimized);
   };
 
-  // Watchlist data for the sidebar
-  const watchlistData = [
-    { name: 'Bitcoin', symbol: 'BTC', icon: '₿', iconBg: '#f7931a' },
-    { name: 'Ethereum', symbol: 'ETH', icon: 'Ξ', iconBg: '#627eea' },
-    { name: 'Tether', symbol: 'USDT', icon: '₮', iconBg: '#50af95' },
-    { name: 'BNB', symbol: 'BNB', icon: '◉', iconBg: '#f0b90b' }
-  ];
 
   return (
     <>
@@ -528,7 +522,8 @@ const Marketplace: React.FC = () => {
           overflow: 'hidden'
         }}>
                             {/* Header */}
-        <div style={{
+        {/* Token Leaderboard - Commented out for future CTA */}
+        {/* <div style={{
           background: '#ffffff',
           borderBottom: '1px solid #e7ebee',
           padding: headerMinimized ? '4px 24px' : '8px 24px',
@@ -646,7 +641,10 @@ const Marketplace: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
+        
+        {/* Global Header Bar */}
+        <GlobalHeaderBar />
 
         <div style={{
           display: 'flex',
@@ -656,7 +654,6 @@ const Marketplace: React.FC = () => {
         }}>
           {/* Sidebar */}
           <GlobalSidebar 
-            watchlistData={watchlistData}
             activeTab="marketplace"
           />
 
