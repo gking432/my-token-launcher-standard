@@ -224,7 +224,7 @@ async function fetchGraduationEvents(): Promise<any[]> {
 }
 
 // Fetch purchase events from Geomi indexer (optional, for trading data)
-async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
+export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
   const tableName = 'token_purchase_events';
   let query = `
     query GetPurchaseEvents($limit: Int) {

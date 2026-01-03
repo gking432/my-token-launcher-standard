@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { getTokenLauncherTokens } from '../utils/aptosIndexer';
+import { getTokenLauncherTokens, fetchPurchaseEvents } from '../utils/aptosIndexer';
 import { MODULE_ADDRESS } from '../config';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { usePageVisibility } from './usePageVisibility';
@@ -22,6 +22,7 @@ interface Token {
   // Add USD fields
   priceUSD?: number;
   marketCapUSD?: number;
+  tokensSold?: number; // For internal calculation
 }
 
 interface UseTokenDataReturn {
@@ -80,6 +81,139 @@ export const useTokenData = (): UseTokenDataReturn => {
     return priceInOctas / 100_000_000;
   };
 
+  // Calculate 24h volume by summing purchase events from last 24 hours
+  const calculate24hVolume = async (metadataAddr: string): Promise<number> => {
+    try {
+      // Fetch purchase events for this token
+      const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
+      
+      if (!purchaseEvents || purchaseEvents.length === 0) {
+        return 0;
+      }
+
+      // Get timestamp 24 hours ago
+      const now = Date.now();
+      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+      
+      // Filter events from the last 24 hours
+      const eventsLast24h = purchaseEvents.filter((event: any) => {
+        const eventTimestamp = parseInt(event.timestamp || '0');
+        return eventTimestamp >= twentyFourHoursAgo && eventTimestamp <= now;
+      });
+
+      if (eventsLast24h.length === 0) {
+        return 0;
+      }
+
+      // Calculate total volume in USD
+      // For each purchase, calculate the cost using the bonding curve
+      // tokens_sold in event is AFTER purchase, so tokens_sold_before = tokens_sold - amount
+      let totalVolumeUSD = 0;
+      
+      for (const event of eventsLast24h) {
+        const amount = parseFloat(event.amount || '0');
+        const tokensSoldAfter = parseFloat(event.tokens_sold || '0');
+        const tokensSoldBefore = Math.max(0, tokensSoldAfter - amount);
+        
+        if (amount > 0 && aptPrice) {
+          // Calculate price before and after purchase
+          const priceBefore = calculateBondingCurvePrice(tokensSoldBefore);
+          const priceAfter = calculateBondingCurvePrice(tokensSoldAfter);
+          
+          // Use average price for the purchase
+          const avgPrice = (priceBefore + priceAfter) / 2;
+          
+          // Volume = amount * average_price * aptPrice
+          const eventVolumeUSD = amount * avgPrice * aptPrice;
+          totalVolumeUSD += eventVolumeUSD;
+        }
+      }
+
+      return totalVolumeUSD;
+      
+    } catch (error) {
+      console.error(`Error calculating 24h volume for ${metadataAddr}:`, error);
+      return 0; // Return 0 on error
+    }
+  };
+
+  // Calculate 24h price change by fetching purchase events
+  const calculate24hPriceChange = async (metadataAddr: string, currentTokensSold: number, currentPrice: number): Promise<number> => {
+    try {
+      // Fetch purchase events for this token
+      const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
+      
+      if (!purchaseEvents || purchaseEvents.length === 0) {
+        // No purchase events, price hasn't changed (or token just launched)
+        return 0;
+      }
+
+      // Get timestamp 24 hours ago
+      const now = Date.now();
+      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+      
+      // Filter events from the last 24 hours and sort by timestamp (oldest first)
+      const eventsLast24h = purchaseEvents
+        .filter((event: any) => {
+          const eventTimestamp = parseInt(event.timestamp || '0');
+          return eventTimestamp >= twentyFourHoursAgo && eventTimestamp <= now;
+        })
+        .sort((a: any, b: any) => {
+          const timestampA = parseInt(a.timestamp || '0');
+          const timestampB = parseInt(b.timestamp || '0');
+          return timestampA - timestampB; // Oldest first
+        });
+
+      if (eventsLast24h.length === 0) {
+        // No events in last 24h
+        // If token has any events, find the oldest to check launch time
+        if (purchaseEvents.length > 0) {
+          const oldestEvent = purchaseEvents.sort((a: any, b: any) => {
+            const timestampA = parseInt(a.timestamp || '0');
+            const timestampB = parseInt(b.timestamp || '0');
+            return timestampA - timestampB;
+          })[0];
+          
+          const oldestTimestamp = parseInt(oldestEvent.timestamp || '0');
+          if (oldestTimestamp < twentyFourHoursAgo) {
+            // Token existed 24h ago but no trades in last 24h, price unchanged
+            return 0;
+          } else {
+            // Token launched less than 24h ago, calculate change from launch
+            // tokens_sold at launch would be 0 (or premint amount, but we'll use 0 for simplicity)
+            const launchPrice = calculateBondingCurvePrice(0);
+            if (launchPrice === 0) return 0;
+            return ((currentPrice - launchPrice) / launchPrice) * 100;
+          }
+        }
+        // No purchase events at all - token just launched, no change
+        return 0;
+      }
+
+      // Get tokens_sold from the earliest event in the last 24 hours
+      // tokens_sold in the event is AFTER the purchase, so we need to subtract the amount
+      const earliestEvent = eventsLast24h[0];
+      const tokensSoldAfterPurchase = parseInt(earliestEvent.tokens_sold || '0');
+      const amountPurchased = parseInt(earliestEvent.amount || '0');
+      const tokensSold24hAgo = Math.max(0, tokensSoldAfterPurchase - amountPurchased);
+      
+      // Calculate price 24h ago
+      const price24hAgo = calculateBondingCurvePrice(tokensSold24hAgo);
+      
+      // Calculate percentage change
+      if (price24hAgo === 0) {
+        return 0;
+      }
+      
+      const changePercent = ((currentPrice - price24hAgo) / price24hAgo) * 100;
+      return changePercent;
+      
+    } catch (error) {
+      console.error(`Error calculating 24h price change for ${metadataAddr}:`, error);
+      return 0; // Return 0 on error
+    }
+  };
+
   const fetchTokens = async () => {
     try {
       setLoading(true);
@@ -95,8 +229,8 @@ export const useTokenData = (): UseTokenDataReturn => {
       // Reset retry count on success
       setRetryCount(0);
       
-      // Convert events to Token objects
-      const fetchedTokens: Token[] = tokenEvents.map((event, index) => {
+      // Convert events to Token objects (first pass - get basic data)
+      const tokensBasicData = tokenEvents.map((event, index) => {
         const eventData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         
         // Debug: Log the actual event data structure
@@ -130,12 +264,6 @@ export const useTokenData = (): UseTokenDataReturn => {
         const priceUSD = currentAptPrice ? priceAPT * currentAptPrice : undefined;
         const marketCapUSD = priceUSD ? priceUSD * totalSupply : undefined;
         
-        // Generate mock data for demonstration (you can replace with real price feeds later)
-        const price = priceAPT; // Use real APT price instead of random
-        const marketCap = price * totalSupply;
-        const volume = Math.random() * 1000000 + 10000;
-        const change24h = (Math.random() - 0.5) * 100;
-        
         // Ensure metadataAddr is a string and not truncated
         const fullMetadataAddr = metadataAddr && typeof metadataAddr === 'string' 
           ? metadataAddr 
@@ -153,15 +281,40 @@ export const useTokenData = (): UseTokenDataReturn => {
           creator: eventData?.creator || 'Unknown',
           creatorAddress: eventData?.creator || 'Unknown',
           metadataAddress: fullMetadataAddr,
-          price,
-          marketCap,
-          volume,
-          change24h,
-          // Add USD fields
+          price: priceAPT,
+          marketCap: priceAPT * totalSupply,
+          volume: 0, // Will be calculated below from purchase events
+          change24h: 0, // Will be calculated below
           priceUSD,
-          marketCapUSD
+          marketCapUSD,
+          tokensSold // Store for 24h calculation
         };
       });
+
+      // Calculate 24h price changes and volumes for all tokens in parallel
+      console.log("📊 Calculating 24h price changes and volumes...");
+      const tokensWith24hData = await Promise.all(
+        tokensBasicData.map(async (token) => {
+          if (token.metadataAddress && token.metadataAddress !== 'Unknown') {
+            const [change24h, volume24h] = await Promise.all([
+              calculate24hPriceChange(
+                token.metadataAddress,
+                token.tokensSold,
+                token.price
+              ),
+              calculate24hVolume(token.metadataAddress)
+            ]);
+            return {
+              ...token,
+              change24h,
+              volume: volume24h
+            };
+          }
+          return token;
+        })
+      );
+
+      const fetchedTokens: Token[] = tokensWith24hData;
 
       console.log("✅ useTokenData: Processed tokens:", fetchedTokens);
       

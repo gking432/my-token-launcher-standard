@@ -4,7 +4,6 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
-import GlobalHeaderBar from './GlobalHeaderBar';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
@@ -163,6 +162,13 @@ const HomePage: React.FC = () => {
             box-sizing: border-box;
           }
 
+          html, body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+          }
+
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #ffffff;
@@ -183,21 +189,28 @@ const HomePage: React.FC = () => {
             background: #ffffff;
             border-bottom: 1px solid #e7ebee;
             padding: 16px 0;
+            width: 100vw;
+            max-width: 100vw;
+            margin-left: calc(-50vw + 50%);
+            margin-right: calc(-50vw + 50%);
+            box-sizing: border-box;
           }
 
           .nav-container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 0 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 24px;
+            gap: 48px;
+            width: 100%;
           }
 
           .nav-search {
             flex: 1;
-            max-width: 400px;
+            max-width: 500px;
+            margin: 0 auto;
           }
 
           .nav-search-input {
@@ -231,9 +244,11 @@ const HomePage: React.FC = () => {
 
           .nav-links {
             display: flex;
-            gap: 32px;
+            gap: 48px;
             list-style: none;
             align-items: center;
+            margin: 0;
+            padding: 0;
           }
 
           .nav-links a {
@@ -252,6 +267,7 @@ const HomePage: React.FC = () => {
             display: flex;
             align-items: center;
             gap: 16px;
+            margin-left: auto;
           }
 
 
@@ -276,11 +292,22 @@ const HomePage: React.FC = () => {
           }
 
           .main-container {
+            width: 100vw;
+            max-width: 100vw;
+            margin-left: calc(-50vw + 50%);
+            margin-right: calc(-50vw + 50%);
+            box-sizing: border-box;
+          }
+          
+          .main-container-inner {
+            max-width: 1600px;
             width: 100%;
+            margin: 0 auto;
             padding: 32px 24px;
             display: flex;
             gap: 32px;
             min-height: calc(100vh - 200px);
+            box-sizing: border-box;
           }
 
           .content {
@@ -292,15 +319,18 @@ const HomePage: React.FC = () => {
           }
 
           .page-title {
-            font-size: 48px;
+            font-size: 68px;
             font-weight: 600;
             margin-bottom: 16px;
-            color: #0a0b0d;
+            color:rgb(0, 0, 0);
           }
 
 
           .section-header {
             margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
           }
 
           .section-title {
@@ -580,13 +610,18 @@ const HomePage: React.FC = () => {
           .footer {
             background: #ffffff;
             border-top: 1px solid #e7ebee;
-            width: 100%;
-            padding: 40px 24px;
+            width: 100vw;
+            max-width: 100vw;
+            padding: 40px 0;
+            margin-left: calc(-50vw + 50%);
+            margin-right: calc(-50vw + 50%);
+            box-sizing: border-box;
           }
           
           .footer-container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
+            padding: 0 24px;
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 40px;
@@ -647,14 +682,17 @@ const HomePage: React.FC = () => {
             border-top: 1px solid #e7ebee;
             padding: 20px 0;
             margin-top: 40px;
+            width: 100%;
           }
-          
+
           .footer-bottom-content {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
+            padding: 0 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            width: 100%;
           }
           
           .footer-bottom p {
@@ -678,75 +716,77 @@ const HomePage: React.FC = () => {
             color: #00d4aa;
           }
           
-          @media (max-width: 768px) {
-            .nav-links {
-              display: none;
-            }
-            
-            .main-container {
-              grid-template-columns: 1fr;
-              gap: 24px;
-            }
-            
-            .page-title {
-              font-size: 32px;
-            }
-            
-                      .table-controls {
-            flex-direction: column;
+          .sort-section {
+            background: #f8f9fa;
+            border: 1px solid #e7ebee;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
           }
           
           .sort-header {
-            margin-bottom: 16px;
+            margin: 0;
+            display: flex;
+            align-items: center;
           }
           
           .sort-header p {
             font-size: 14px;
             font-weight: 600;
-            color: #5b616e;
+            color: #0a0b0d;
             margin: 0;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
           }
           
           .marketplace-sort {
             display: flex;
-            gap: 16px;
-            margin-bottom: 24px;
+            gap: 12px;
             flex-wrap: wrap;
+            flex: 1;
           }
           
           .sort-dropdown {
             position: relative;
-            min-width: 120px;
+            min-width: 140px;
           }
           
           .sort-dropdown-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 12px;
+            padding: 10px 16px;
             background: #ffffff;
-            border: 1px solid #e7ebee;
-            border-radius: 6px;
+            border: 1px solid #d8dce0;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
             color: #0a0b0d;
             transition: all 0.2s;
+            min-width: 140px;
           }
           
           .sort-dropdown-header:hover {
             border-color: #00d4aa;
+            background: #f8f9fa;
           }
           
           .sort-dropdown.active .sort-dropdown-header {
             border-color: #00d4aa;
-            box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.1);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+            background: #ffffff;
           }
           
           .dropdown-arrow {
             font-size: 12px;
             color: #5b616e;
             transition: transform 0.2s;
+            margin-left: 8px;
           }
           
           .sort-dropdown.active .dropdown-arrow {
@@ -755,30 +795,34 @@ const HomePage: React.FC = () => {
           
           .sort-dropdown-content {
             position: absolute;
-            top: 100%;
+            top: calc(100% + 4px);
             left: 0;
             right: 0;
             background: #ffffff;
             border: 1px solid #e7ebee;
-            border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
             z-index: 1000;
             opacity: 0;
             visibility: hidden;
             transform: translateY(-8px);
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            margin-top: 4px;
+            min-width: 100%;
+            overflow: hidden;
           }
           
           .sort-dropdown.active .sort-dropdown-content {
             opacity: 1;
             visibility: visible;
             transform: translateY(0);
+            display: block;
           }
           
           .sort-option {
             display: block;
             width: 100%;
-            padding: 8px 12px;
+            padding: 10px 16px;
             background: none;
             border: none;
             text-align: left;
@@ -796,6 +840,49 @@ const HomePage: React.FC = () => {
             background: #00d4aa;
             color: #ffffff;
           }
+          
+          .sort-option.active:hover {
+            background: #00b894;
+          }
+          
+          @media (max-width: 768px) {
+            .nav-links {
+              display: none;
+            }
+            
+            .main-container {
+              grid-template-columns: 1fr;
+              gap: 24px;
+            }
+            
+            .page-title {
+              font-size: 32px;
+            }
+            
+            .table-controls {
+              flex-direction: column;
+            }
+            
+            .sort-section {
+              padding: 16px 20px;
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            
+            .marketplace-sort {
+              gap: 8px;
+              width: 100%;
+            }
+            
+            .sort-dropdown {
+              min-width: 120px;
+              flex: 1;
+            }
+            
+            .sort-dropdown-header {
+              min-width: 120px;
+              padding: 8px 12px;
+            }
             
             .crypto-table {
               font-size: 14px;
@@ -817,9 +904,6 @@ const HomePage: React.FC = () => {
         `}
       </style>
 
-      {/* Global Header Bar */}
-      <GlobalHeaderBar />
-
       <header className="header">
         <div className="nav-container">
           <div className="logo">
@@ -833,19 +917,23 @@ const HomePage: React.FC = () => {
             <ul className="nav-links">
               <li><Link to="/marketplace">Marketplace</Link></li>
               <li><Link to="/learn">Learn</Link></li>
+              <li><Link to="/launch">Launch</Link></li>
             </ul>
           </nav>
           <div className="auth-section">
-            <Link to="/launch" className="sign-in">Launch</Link>
             <Link to="/connect" className="sign-up">Connect Wallet</Link>
           </div>
         </div>
       </header>
 
       <div className="main-container">
+        <div className="main-container-inner">
         <main className="content">
           <div className="page-header">
-            <h1 className="page-title">Explore meme coins</h1>
+            <h1 className="page-title">Smarter. Faster. Better.</h1>
+            <p style={{ fontSize: '20px', color: '#5b616e', marginTop: '16px', maxWidth: '800px', lineHeight: '1.6' }}>
+              Launch in seconds with zero code, instant liquidity, and lightning-fast transactions at minimal fees. See what's possible when token creation meets innovation.
+            </p>
           </div>
 
                             {/* Bonding Curve Test - Commented out for now, can re-enable if needed for debugging */}
@@ -899,103 +987,101 @@ const HomePage: React.FC = () => {
 
           <section>
             <div className="section-header">
-              <h2 className="section-title">Launched Tokens</h2>
-              <span style={{ color: '#5b616e', fontSize: '16px' }}>{tokens.length} tokens launched</span>
-              <p className="section-subtitle">
-                Discover the latest tokens launched on our platform! 🚀 Real tokens created by real users with zero coding required. Join the revolution of decentralized token creation.
-              </p>
-              <Link to="/launch" className="read-more">Launch Your Token</Link>
+              <span style={{ color: '#5b616e', fontSize: '16px' }}>{tokens.length} tokens trading now</span>
+              <Link to="/launch" className="read-more">Launch Your Token Now →</Link>
             </div>
 
-            <div className="sort-header">
-              <p>Sort by:</p>
-            </div>
-            <div className="marketplace-sort">
-              <div className={`sort-dropdown ${activeDropdown === 'marketCap' ? 'active' : ''}`}>
-                <div 
-                  className="sort-dropdown-header"
-                  onClick={(e: React.MouseEvent) => handleDropdownClick('marketCap', e)}
-                >
-                  <span>Market Cap</span>
-                  <span className="dropdown-arrow">▼</span>
-                </div>
-                <div className="sort-dropdown-content">
-                  <button 
-                    className={`sort-option ${sortOrder === 'highest_mc' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('highest_mc');
-                      setActiveDropdown(null);
-                    }}
-                  >
-                    Highest First
-                  </button>
-                  <button 
-                    className={`sort-option ${sortOrder === 'lowest_mc' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('lowest_mc');
-                      setActiveDropdown(null);
-                    }}
-                  >
-                    Lowest First
-                  </button>
-                </div>
+            <div className="sort-section">
+              <div className="sort-header">
+                <p>Sort by:</p>
               </div>
-              <div className={`sort-dropdown ${activeDropdown === 'volume' ? 'active' : ''}`}>
-                <div 
-                  className="sort-dropdown-header"
-                  onClick={(e: React.MouseEvent) => handleDropdownClick('volume', e)}
-                >
-                  <span>Volume</span>
-                  <span className="dropdown-arrow">▼</span>
+              <div className="marketplace-sort">
+                <div className={`sort-dropdown ${activeDropdown === 'marketCap' ? 'active' : ''}`}>
+                  <div 
+                    className="sort-dropdown-header"
+                    onClick={(e: React.MouseEvent) => handleDropdownClick('marketCap', e)}
+                  >
+                    <span>Market Cap</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="sort-dropdown-content">
+                    <button 
+                      className={`sort-option ${sortOrder === 'highest_mc' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('highest_mc');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Highest First
+                    </button>
+                    <button 
+                      className={`sort-option ${sortOrder === 'lowest_mc' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('lowest_mc');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Lowest First
+                    </button>
+                  </div>
                 </div>
-                <div className="sort-dropdown-content">
-                  <button 
-                    className={`sort-option ${sortOrder === 'highest_vol' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('highest_vol');
-                      setActiveDropdown(null);
-                    }}
+                <div className={`sort-dropdown ${activeDropdown === 'volume' ? 'active' : ''}`}>
+                  <div 
+                    className="sort-dropdown-header"
+                    onClick={(e: React.MouseEvent) => handleDropdownClick('volume', e)}
                   >
-                    Highest First
-                  </button>
-                  <button 
-                    className={`sort-option ${sortOrder === 'lowest_vol' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('lowest_vol');
-                      setActiveDropdown(null);
-                    }}
-                  >
-                    Lowest First
-                  </button>
+                    <span>Volume</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="sort-dropdown-content">
+                    <button 
+                      className={`sort-option ${sortOrder === 'highest_vol' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('highest_vol');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Highest First
+                    </button>
+                    <button 
+                      className={`sort-option ${sortOrder === 'lowest_vol' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('lowest_vol');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Lowest First
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className={`sort-dropdown ${activeDropdown === 'age' ? 'active' : ''}`}>
-                <div 
-                  className="sort-dropdown-header"
-                  onClick={(e: React.MouseEvent) => handleDropdownClick('age', e)}
-                >
-                  <span>Age</span>
-                  <span className="dropdown-arrow">▼</span>
-                </div>
-                <div className="sort-dropdown-content">
-                  <button 
-                    className={`sort-option ${sortOrder === 'newest' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('newest');
-                      setActiveDropdown(null);
-                    }}
+                <div className={`sort-dropdown ${activeDropdown === 'age' ? 'active' : ''}`}>
+                  <div 
+                    className="sort-dropdown-header"
+                    onClick={(e: React.MouseEvent) => handleDropdownClick('age', e)}
                   >
-                    Newest First
-                  </button>
-                  <button 
-                    className={`sort-option ${sortOrder === 'oldest' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortOrder('oldest');
-                      setActiveDropdown(null);
-                    }}
-                  >
-                    Oldest First
-                  </button>
+                    <span>Age</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="sort-dropdown-content">
+                    <button 
+                      className={`sort-option ${sortOrder === 'newest' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('newest');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Newest First
+                    </button>
+                    <button 
+                      className={`sort-option ${sortOrder === 'oldest' ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder('oldest');
+                        setActiveDropdown(null);
+                      }}
+                    >
+                      Oldest First
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1061,65 +1147,57 @@ const HomePage: React.FC = () => {
           </div>
 
           <div className="movers-card">
-            <div className="movers-header">
-              <h3 className="movers-title">Top Communities 🔥</h3>
-            </div>
-            <div className="movers-subtitle">Compete with other communities for visibility</div>
-            
-            <div className="mover-item">
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #ff6b6b, #4ecdc4)' }}>🚀</div>
-              <div className="mover-info">
-                <div className="mover-name">MOONSHOT</div>
-                <div className="mover-price">$0.00142</div>
-              </div>
-              <div className="mover-change change-positive">⬆ 420 APT</div>
-            </div>
-
-            <div className="mover-item">
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #a8edea, #fed6e3)' }}>🎭</div>
-              <div className="mover-info">
-                <div className="mover-name">GIGACHAD</div>
-                <div className="mover-price">$0.0891</div>
-              </div>
-              <div className="mover-change change-positive">⬆ 234 APT</div>
-            </div>
-            <div className="mover-item" style={{ marginTop: '1px' }}>
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #443101, #764ba2)' }}>😩</div>
-              <div className="mover-info">
-                <div className="mover-name">SHITFUCK</div>
-                <div style={{ color: '#5b616e', fontSize: '12px' }}>$0.0000287</div>
-              </div>
-              <div className="mover-change change-positive">⬆ 219 APT</div>
-            </div>
-
-            <div className="mover-item">
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #f093fb, #f5576c)' }}>🦄</div>
-              <div className="mover-info">
-                <div className="mover-name">UNICORN</div>
-                <div style={{ color: '#5b616e', fontSize: '12px' }}>$0.0000078</div>
-              </div>
-              <div className="mover-change change-positive">⬆ 169 APT</div>
-            </div>
-
-            <div className="mover-item" style={{ marginTop: '1px' }}>
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #667eea, #764ba2)' }}>🌙</div>
-              <div className="mover-info">
-                <div className="mover-name">MOONCAT</div>
-                <div style={{ color: '#5b616e', fontSize: '12px' }}>$0.000000433</div>
-              </div>
-              <div className="mover-change change-positive">⬆ 146 APT</div>
-            </div>
-
-            <div className="mover-item">
-              <div className="mover-icon" style={{ background: 'linear-gradient(45deg, #2d9734, #f5576c)' }}> 💩</div>
-              <div className="mover-info">
-                <div className="mover-name">FUCKSHIT</div>
-                <div style={{ color: '#5b616e', fontSize: '12px' }}>$0.000457</div>
-              </div>
-              <div className="mover-change change-positive">⬆  138 APT</div>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '40px 20px',
+              minHeight: '400px'
+            }}>
+              <div style={{ 
+                fontSize: '48px', 
+                marginBottom: '20px',
+                opacity: 0.3
+              }}>📢</div>
+              <h3 style={{ 
+                fontSize: '20px', 
+                fontWeight: 600, 
+                color: '#0a0b0d',
+                marginBottom: '12px'
+              }}>
+                Advertise Here
+              </h3>
+              <p style={{ 
+                fontSize: '14px', 
+                color: '#5b616e',
+                lineHeight: '1.6',
+                marginBottom: '24px',
+                maxWidth: '240px'
+              }}>
+                Promote your token to active traders. Get max visibility in our premium ad space.
+              </p>
+              <button style={{
+                background: '#00d4aa',
+                color: 'white',
+                padding: '12px 24px',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#00b894'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#00d4aa'}
+              >
+                Contact Us
+              </button>
             </div>
           </div>
         </aside>
+        </div>
       </div>
       
       {/* Footer */}
