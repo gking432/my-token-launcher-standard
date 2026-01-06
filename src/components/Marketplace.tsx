@@ -8,6 +8,7 @@ import GlobalHeaderBar from './GlobalHeaderBar';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
+import { useWatchlist } from '../contexts/WatchlistContext';
 
 const Marketplace: React.FC = () => {
   const { account, signAndSubmitTransaction } = useWallet();
@@ -26,6 +27,9 @@ const Marketplace: React.FC = () => {
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
   // Use the global balance context
   const { balances: tokenBalanceMap, loading: isLoadingBalances, getTokenBalance, refreshBalances } = useBalanceContext();
+  
+  // Use watchlist context
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
   
   // Local state for current token balance display
   const [tokenBalance, setTokenBalance] = useState<string>('0.000');
@@ -404,6 +408,36 @@ const Marketplace: React.FC = () => {
     setHeaderMinimized(!headerMinimized);
   };
 
+  // Generate a consistent color based on token symbol
+  const generateColorFromString = (str: string): string => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = hash % 360;
+    return `hsl(${hue}, 70%, 50%)`;
+  };
+
+  // Handle star button click for watchlist
+  const handleStarClick = (token: Token, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from triggering
+    
+    // Generate icon and color based on token symbol
+    const firstLetter = token.symbol.charAt(0).toUpperCase();
+    const iconBg = generateColorFromString(token.symbol);
+    
+    const watchlistItem = {
+      name: token.name.replace('$', ''),
+      symbol: token.symbol,
+      icon: firstLetter,
+      iconBg: iconBg,
+      metadataAddress: token.metadataAddress || token.txHash,
+      creatorAddress: token.creatorAddress
+    };
+    
+    toggleWatchlist(watchlistItem);
+  };
+
 
   return (
     <>
@@ -519,7 +553,8 @@ const Marketplace: React.FC = () => {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           margin: 0,
           padding: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
+          background: '#ffffff'
         }}>
                             {/* Header */}
         {/* Token Leaderboard - Commented out for future CTA */}
@@ -813,7 +848,8 @@ const Marketplace: React.FC = () => {
               display: 'flex',
               flex: 1,
               minHeight: 0,
-              width: '100%'
+              width: '100%',
+              background: '#ffffff'
             }}>
               {/* Content Left */}
               <div style={{
@@ -907,7 +943,8 @@ const Marketplace: React.FC = () => {
                           textAlign: 'right',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8'
+                          color: '#8a9ba8',
+                          width: '150px'
                         }}>
                           Price
                         </th>
@@ -932,7 +969,7 @@ const Marketplace: React.FC = () => {
                           padding: '12px 8px',
                           fontWeight: '600',
                           color: '#8a9ba8',
-                          width: '440px'
+                          width: '200px'
                         }}>
                           Actions
                         </th>
@@ -1054,9 +1091,10 @@ const Marketplace: React.FC = () => {
                               textAlign: 'right',
                               padding: '12px 8px',
                               fontWeight: '600',
-                              color: '#050f19'
+                              color: '#050f19',
+                              width: '150px'
                             }}>
-                              {token.price?.toFixed(4)}
+                              {token.price?.toFixed(7)}
                             </td>
                             <td style={{
                               textAlign: 'right',
@@ -1071,12 +1109,12 @@ const Marketplace: React.FC = () => {
                               padding: '12px 8px',
                               color: '#8a9ba8'
                             }}>
-                              {token.marketCap?.toLocaleString()}
+                              {token.marketCap ? token.marketCap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
                             </td>
                             <td style={{
                               textAlign: 'right',
                               padding: '12px 8px',
-                              width: '440px'
+                              width: '200px'
                             }}>
                               <div style={{
                                 display: 'flex',
@@ -1114,7 +1152,8 @@ const Marketplace: React.FC = () => {
                                   }}>
                                   Trade
                                 </button>
-                                <button style={{
+                                {/* Boost button - commented out for future deployment */}
+                                {/* <button style={{
                                   padding: '8px 16px',
                                   background: 'white',
                                   color: '#FF6B35',
@@ -1125,8 +1164,9 @@ const Marketplace: React.FC = () => {
                                   cursor: 'pointer'
                                 }}>
                                   Boost
-                                </button>
-                                <button style={{
+                                </button> */}
+                                {/* Verify button - commented out for future deployment */}
+                                {/* <button style={{
                                   padding: '8px 16px',
                                   background: 'white',
                                   color: '#00BFFF',
@@ -1137,20 +1177,25 @@ const Marketplace: React.FC = () => {
                                   cursor: 'pointer'
                                 }}>
                                   Verify
-                                </button>
-                                <button style={{
-                                  background: '#fff',
-                                  border: '1px solid #e6e8ea',
-                                  color: '#666',
-                                  cursor: 'pointer',
-                                  fontSize: '16px',
-                                  padding: '8px 16px',
-                                  borderRadius: '6px',
-                                  height: '36px',
-                                  display: 'flex',
-                                  alignItems: 'center'
-                                }}>
-                                  ⭐
+                                </button> */}
+                                <button 
+                                  onClick={(e) => handleStarClick(token, e)}
+                                  style={{
+                                    background: '#fff',
+                                    border: '1px solid #e6e8ea',
+                                    color: (token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '#FFD700' : '#666',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    padding: '8px 16px',
+                                    borderRadius: '6px',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  title={(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? 'Remove from watchlist' : 'Add to watchlist'}
+                                >
+                                  {(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '★' : '☆'}
                                 </button>
                               </div>
                             </td>
@@ -1168,7 +1213,10 @@ const Marketplace: React.FC = () => {
                 background: '#ffffff',
                 borderLeft: '1px solid #d3d3d3',
                 padding: '20px',
-                flexShrink: 0
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0
               }}>
                 <div style={{
                   background: '#f8f9fa',
