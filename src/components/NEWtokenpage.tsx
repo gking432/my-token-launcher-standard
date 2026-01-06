@@ -775,7 +775,7 @@ const TokenPage: React.FC = () => {
     );
   }, [tokenDetails?.metadataAddress, tokens, coinHash]);
 
-  // Format currency
+  // Format currency (for USD prices)
   const formatCurrency = (value: number | undefined): string => {
     if (value === undefined || value === null || isNaN(value)) return 'Loading...';
     return new Intl.NumberFormat('en-US', {
@@ -784,6 +784,15 @@ const TokenPage: React.FC = () => {
       minimumFractionDigits: 6,
       maximumFractionDigits: 6
     }).format(value);
+  };
+
+  // Format price (for APT prices) - matches HomePage and Marketplace format
+  const formatPrice = (price: number | undefined): string => {
+    if (price === undefined || price === null || isNaN(price)) return 'Loading...';
+    if (price < 0.0001) return `$${price.toFixed(8)}`;
+    if (price < 0.01) return `$${price.toFixed(6)}`;
+    if (price < 1) return `$${price.toFixed(4)}`;
+    return `$${price.toFixed(2)}`;
   };
 
   // Format large numbers (market cap, volume)
@@ -811,7 +820,8 @@ const TokenPage: React.FC = () => {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       margin: 0,
       padding: 0,
-      overflow: 'visible'
+      overflow: 'visible',
+      background: '#ffffff'
     }}>
       {/* Header */}
       {/* Token Leaderboard - Commented out for future CTA */}
@@ -978,7 +988,8 @@ const TokenPage: React.FC = () => {
         overflow: 'visible',
         alignSelf: 'stretch',
         minHeight: '100%',
-        position: 'relative'
+        position: 'relative',
+        background: '#ffffff'
       }}>
         {/* Sidebar */}
         <div style={{
@@ -997,7 +1008,8 @@ const TokenPage: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          width: '100%'
+          width: '100%',
+          background: '#ffffff'
         }}>
           {/* Token Title Bar */}
           <div style={{
@@ -1168,7 +1180,7 @@ const TokenPage: React.FC = () => {
                   lineHeight: '1',
                   padding: '0 0px'
                 }}>
-                  {tokenData?.priceUSD !== undefined ? formatCurrency(tokenData.priceUSD) : 'Loading...'}
+                  {tokenData?.price !== undefined ? formatPrice(tokenData.price) : 'Loading...'}
                 </div>
                 <div style={{
                   color: tokenData?.change24h !== undefined ? getPercentageColor(formatPercentage(tokenData.change24h)) : '#5b616e',
