@@ -1,3 +1,9 @@
 node_modules/
 .env
+.env.local
+.env.*.local
 wormhole/
+
+# Private keys and credentials
+*.pem
+*.key
