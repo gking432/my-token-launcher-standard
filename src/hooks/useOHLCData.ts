@@ -10,6 +10,14 @@ export interface OHLCCandle {
   volume: number;
 }
 
+export interface RecentTrade {
+  type: 'buy' | 'sell';
+  wallet: string;
+  amount: number;       // tokens
+  aptValue: number;     // APT
+  timestampMs: number;
+}
+
 export type Timeframe = '1m' | '15m' | '1H' | '4H' | '1D' | 'ALL';
 
 const TIMEFRAME_MS: Record<Timeframe, number> = {
@@ -18,7 +26,7 @@ const TIMEFRAME_MS: Record<Timeframe, number> = {
   '1H':  60 * 60 * 1000,
   '4H':  4 * 60 * 60 * 1000,
   '1D':  24 * 60 * 60 * 1000,
-  'ALL': 7 * 24 * 60 * 60 * 1000, // 1-week candles for "ALL"
+  'ALL': 7 * 24 * 60 * 60 * 1000,
 };
 
 function calculateBondingCurvePrice(tokensSold: number): number {
@@ -30,16 +38,24 @@ function calculateBondingCurvePrice(tokensSold: number): number {
   return (PRICE_NUMERATOR / denominator + PRICE_CONSTANT) / 100_000_000;
 }
 
-// Aptos timestamps are in microseconds. Convert to milliseconds.
+function approxAptValue(amount: number, tokensSoldAfter: number): number {
+  const before = Math.max(0, tokensSoldAfter - amount);
+  const p0 = calculateBondingCurvePrice(before);
+  const p1 = calculateBondingCurvePrice(tokensSoldAfter);
+  return ((p0 + p1) / 2) * amount;
+}
+
+// Aptos timestamps are in microseconds → convert to ms.
 function toMs(ts: number): number {
-  if (ts > 1e15) return ts / 1000;      // nanoseconds → ms
-  if (ts > 1e12) return ts / 1000;      // microseconds → ms
-  if (ts > 1e9)  return ts;             // already ms
-  return ts * 1000;                     // seconds → ms
+  if (ts > 1e15) return ts / 1000;
+  if (ts > 1e12) return ts / 1000;
+  if (ts > 1e9)  return ts;
+  return ts * 1000;
 }
 
 interface UseOHLCDataReturn {
   candles: OHLCCandle[];
+  recentTrades: RecentTrade[];
   loading: boolean;
   holderCount: number;
   refetch: () => void;
@@ -51,6 +67,7 @@ export function useOHLCData(
   refreshSignal?: number,
 ): UseOHLCDataReturn {
   const [candles, setCandles] = useState<OHLCCandle[]>([]);
+  const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([]);
   const [loading, setLoading] = useState(false);
   const [holderCount, setHolderCount] = useState(0);
 
@@ -64,83 +81,90 @@ export function useOHLCData(
         getSaleEvents(metadataAddr, 1000),
       ]);
 
-      // Count unique buyers for holder count
+      // Unique buyers → holder count
       const buyers = new Set<string>();
       for (const p of purchases) {
         if (p.buyer) buyers.add(p.buyer.toLowerCase());
       }
       setHolderCount(buyers.size);
 
-      // Combine all trade events
-      type TradeEvent = { timestampMs: number; tokensSold: number; amount: number };
-      const trades: TradeEvent[] = [];
+      // ── Recent trades (for Transactions tab) ──────────────
+      const trades: RecentTrade[] = [];
+      for (const p of purchases) {
+        const ts = parseInt(p.timestamp || '0');
+        const amount = parseInt(p.amount || '0');
+        const tokensSold = parseInt(p.tokens_sold || '0');
+        if (ts > 0 && amount > 0) {
+          const aptValue = parseFloat(p.price || '0') > 0
+            ? parseFloat(p.price) / 1e8
+            : approxAptValue(amount, tokensSold);
+          trades.push({ type: 'buy', wallet: p.buyer || '', amount, aptValue, timestampMs: toMs(ts) });
+        }
+      }
+      for (const s of sales) {
+        const ts = parseInt(s.timestamp || '0');
+        const amount = parseInt(s.amount || '0');
+        const tokensSold = parseInt(s.tokens_sold || '0');
+        if (ts > 0 && amount > 0) {
+          const aptValue = parseFloat(s.apt_returned || '0') > 0
+            ? parseFloat(s.apt_returned) / 1e8
+            : approxAptValue(amount, tokensSold);
+          trades.push({ type: 'sell', wallet: s.seller || '', amount, aptValue, timestampMs: toMs(ts) });
+        }
+      }
+      trades.sort((a, b) => b.timestampMs - a.timestampMs); // newest first
+      setRecentTrades(trades);
+
+      // ── OHLC candles ──────────────────────────────────────
+      type RawTrade = { timestampMs: number; tokensSold: number; amount: number };
+      const raw: RawTrade[] = [];
 
       for (const p of purchases) {
         const ts = parseInt(p.timestamp || '0');
         const tokensSold = parseInt(p.tokens_sold || '0');
         const amount = parseInt(p.amount || '0');
-        if (ts > 0 && amount > 0) {
-          trades.push({ timestampMs: toMs(ts), tokensSold, amount });
-        }
+        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold, amount });
       }
       for (const s of sales) {
         const ts = parseInt(s.timestamp || '0');
         const tokensSold = parseInt(s.tokens_sold || '0');
         const amount = parseInt(s.amount || '0');
-        if (ts > 0 && amount > 0) {
-          trades.push({ timestampMs: toMs(ts), tokensSold, amount });
-        }
+        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold, amount });
       }
 
-      if (trades.length === 0) {
-        setCandles([]);
-        return;
-      }
+      if (raw.length === 0) { setCandles([]); return; }
 
-      // Sort by timestamp ascending
-      trades.sort((a, b) => a.timestampMs - b.timestampMs);
+      raw.sort((a, b) => a.timestampMs - b.timestampMs);
 
       const intervalMs = TIMEFRAME_MS[timeframe];
-
-      // Build OHLC candles
       const candleMap = new Map<number, OHLCCandle>();
 
-      for (const trade of trades) {
-        const bucketMs = Math.floor(trade.timestampMs / intervalMs) * intervalMs;
-        const bucketSec = Math.floor(bucketMs / 1000);
+      for (const trade of raw) {
+        const bucketSec = Math.floor(Math.floor(trade.timestampMs / intervalMs) * intervalMs / 1000);
         const price = calculateBondingCurvePrice(trade.tokensSold);
-
-        const existing = candleMap.get(bucketSec);
-        if (!existing) {
-          candleMap.set(bucketSec, {
-            time: bucketSec,
-            open: price,
-            high: price,
-            low: price,
-            close: price,
-            volume: trade.amount,
-          });
+        const ex = candleMap.get(bucketSec);
+        if (!ex) {
+          candleMap.set(bucketSec, { time: bucketSec, open: price, high: price, low: price, close: price, volume: trade.amount });
         } else {
-          existing.high = Math.max(existing.high, price);
-          existing.low = Math.min(existing.low, price);
-          existing.close = price;
-          existing.volume += trade.amount;
+          ex.high = Math.max(ex.high, price);
+          ex.low  = Math.min(ex.low, price);
+          ex.close = price;
+          ex.volume += trade.amount;
         }
       }
 
-      const sorted = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
-      setCandles(sorted);
+      setCandles(Array.from(candleMap.values()).sort((a, b) => a.time - b.time));
     } catch (err) {
       console.error('useOHLCData error:', err);
       setCandles([]);
+      setRecentTrades([]);
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metadataAddr, timeframe, refreshSignal]);
 
-  useEffect(() => {
-    fetchAndAggregate();
-  }, [fetchAndAggregate]);
+  useEffect(() => { fetchAndAggregate(); }, [fetchAndAggregate]);
 
-  return { candles, loading, holderCount, refetch: fetchAndAggregate };
+  return { candles, recentTrades, loading, holderCount, refetch: fetchAndAggregate };
 }

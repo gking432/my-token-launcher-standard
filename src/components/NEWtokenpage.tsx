@@ -8,9 +8,10 @@ import GlobalSidebar from './GlobalSidebar';
 import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
-import { useAptPrice } from '../hooks/useAptPrice';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAptPrice } from '../contexts/AptPriceContext';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -20,16 +21,21 @@ const CONTRACT_ADDRESSES: Record<string, string> = {
   mainnet: "",
 };
 
+type ChartMode = 'apt' | 'usd' | 'mcap';
+
 const TokenPage: React.FC = () => {
   const { coinHash } = useParams<{ coinHash?: string }>();
   const { account, signAndSubmitTransaction, connect, wallets, disconnect } = useWallet();
   const [tokenDetails, setTokenDetails] = useState<TokenDetails | null>(null);
-  
+  const { isDark, theme: t } = useTheme();
+
   // Use the shared token data hook
   const { tokens, loading: tokensLoading } = useTokenData();
   const { aptPrice } = useAptPrice();
   const [amount, setAmount] = useState<number>(0);
   const [timeframe, setTimeframe] = useState<Timeframe>("15m");
+  const [chartMode, setChartMode] = useState<ChartMode>('usd');
+  const [activeInsightTab, setActiveInsightTab] = useState<'insights' | 'transactions' | 'holders'>('insights');
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
   
@@ -779,12 +785,30 @@ const TokenPage: React.FC = () => {
   // Resolve metadataAddress for chart & holder data
   const resolvedMetadataAddr = tokenDetails?.metadataAddress || coinHash;
 
-  // Fetch OHLC candles and holder count
-  const { candles, loading: chartLoading, holderCount } = useOHLCData(
+  // Fetch OHLC candles, holder count, and raw trades
+  const { candles, recentTrades, loading: chartLoading, holderCount } = useOHLCData(
     resolvedMetadataAddr,
     timeframe,
     refreshChart,
   );
+
+  // Apply chart mode multiplier to candle prices
+  const displayCandles = useMemo(() => {
+    if (!candles.length) return candles;
+    const supply = tokenData?.supply ?? 800_000_000;
+    const apt = aptPrice ?? 0;
+    const mult = chartMode === 'usd'  ? apt
+               : chartMode === 'mcap' ? apt * supply
+               : 1; // 'apt' = no transform
+    if (mult === 1 || mult === 0) return candles;
+    return candles.map(c => ({
+      ...c,
+      open:  c.open  * mult,
+      high:  c.high  * mult,
+      low:   c.low   * mult,
+      close: c.close * mult,
+    }));
+  }, [candles, chartMode, aptPrice, tokenData?.supply]);
 
   // Initialize lightweight-charts once the container is mounted
   useEffect(() => {
@@ -794,16 +818,18 @@ const TokenPage: React.FC = () => {
 
     const chart = createChart(container, {
       layout: {
-        background: { type: ColorType.Solid, color: '#fbfbfb' },
-        textColor: '#5b616e',
+        background: { type: ColorType.Solid, color: t.chartBg },
+        textColor: t.chartText,
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: '#f0f0f0' },
-        horzLines: { color: '#f0f0f0' },
+        vertLines: { color: t.chartGrid },
+        horzLines: { color: t.chartGrid },
       },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: '#e7ebee' },
-      timeScale: { borderColor: '#e7ebee', timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: t.border },
+      timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
       width: container.clientWidth,
       height: container.clientHeight,
     });
@@ -847,33 +873,45 @@ const TokenPage: React.FC = () => {
     };
   }, []); // intentionally run once on mount
 
-  // Update chart data whenever candles or timeframe changes
+  // Update chart colors when theme changes
+  useEffect(() => {
+    if (!chartRef.current) return;
+    chartRef.current.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: t.chartBg },
+        textColor: t.chartText,
+      },
+      grid: {
+        vertLines: { color: t.chartGrid },
+        horzLines: { color: t.chartGrid },
+      },
+      rightPriceScale: { borderColor: t.border },
+      timeScale: { borderColor: t.border },
+    });
+  }, [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update chart data whenever candles or chart mode changes
   useEffect(() => {
     if (!seriesRef.current || !volumeSeriesRef.current) return;
-    if (candles.length === 0) {
+    if (displayCandles.length === 0) {
       seriesRef.current.setData([]);
       volumeSeriesRef.current.setData([]);
       return;
     }
 
-    const candleData = candles.map(c => ({
+    seriesRef.current.setData(displayCandles.map(c => ({
       time: c.time as Time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
+      open: c.open, high: c.high, low: c.low, close: c.close,
+    })));
 
-    const volumeData = candles.map(c => ({
+    volumeSeriesRef.current.setData(displayCandles.map(c => ({
       time: c.time as Time,
       value: c.volume,
       color: c.close >= c.open ? '#00d4aa44' : '#ff475744',
-    }));
+    })));
 
-    seriesRef.current.setData(candleData);
-    volumeSeriesRef.current.setData(volumeData);
     chartRef.current?.timeScale().fitContent();
-  }, [candles]);
+  }, [displayCandles]);
 
   // Format currency (for USD prices)
   const formatCurrency = (value: number | undefined): string => {
@@ -911,17 +949,59 @@ const TokenPage: React.FC = () => {
     return `${sign}${value.toFixed(2)}%`;
   };
 
+  // Format APT value
+  const formatApt = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return 'Loading...';
+    if (value < 0.0001) return `${value.toFixed(8)} APT`;
+    if (value < 0.01)   return `${value.toFixed(6)} APT`;
+    if (value < 1)      return `${value.toFixed(4)} APT`;
+    return `${value.toFixed(3)} APT`;
+  };
+
+  // Format the top-line price display based on current chart mode
+  const formatCurrentPrice = (): string => {
+    if (!tokenData) return 'Loading...';
+    if (chartMode === 'apt')  return formatApt(tokenData.price);
+    if (chartMode === 'mcap') return formatLargeNumber(tokenData.marketCapUSD);
+    return tokenData.priceUSD !== undefined ? formatPrice(tokenData.priceUSD)
+         : tokenData.price !== undefined    ? `${tokenData.price.toFixed(8)} APT`
+         : 'Loading...';
+  };
+
+  // Format time-ago for transactions
+  const timeAgo = (ms: number): string => {
+    const diff = Date.now() - ms;
+    const s = Math.floor(diff / 1000);
+    if (s < 60)  return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60)  return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24)  return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
+
+  // Generate avatar for token with no image
+  const tokenAvatarBg = useMemo(() => {
+    const sym = tokenDetails?.symbol || '';
+    let hash = 0;
+    for (let i = 0; i < sym.length; i++) hash = sym.charCodeAt(i) + ((hash << 5) - hash);
+    const hue = Math.abs(hash) % 360;
+    return `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},70%,55%))`;
+  }, [tokenDetails?.symbol]);
+
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       minHeight: '100vh',
       width: '100vw',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: "'Inter', sans-serif",
       margin: 0,
       padding: 0,
       overflow: 'visible',
-      background: '#ffffff'
+      background: t.bgPrimary,
+      color: t.textPrimary,
+      transition: 'background 0.2s ease, color 0.2s ease',
     }}>
       {/* Header */}
       {/* Token Leaderboard - Commented out for future CTA */}
@@ -1109,21 +1189,23 @@ const TokenPage: React.FC = () => {
           flexDirection: 'column',
           minWidth: 0,
           width: '100%',
-          background: '#ffffff'
+          background: t.bgPrimary,
         }}>
           {/* Token Title Bar */}
           <div style={{
-            background: 'white',
-            padding: '18px 24px',
+            background: t.bgPrimary,
+            borderBottom: `1px solid ${t.border}`,
+            padding: '14px 24px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
           }}>
             <div style={{
-              fontSize: '32px',
-              fontWeight: '600',
-              color: '#050f19',
-              flexShrink: 0
+              fontSize: '22px',
+              fontWeight: 700,
+              color: t.textPrimary,
+              flexShrink: 0,
+              letterSpacing: '-0.3px',
             }}>
                               {tokenDetails ? tokenDetails.name.replace('$', '') : 'Token Page'}
             </div>
@@ -1259,7 +1341,7 @@ const TokenPage: React.FC = () => {
             <div style={{
               flex: 1,
               padding: '20px',
-              background: '#ffffff',
+              background: t.bgPrimary,
               minWidth: 0
             }}>
               {/* Token Header */}
@@ -1268,103 +1350,146 @@ const TokenPage: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 marginBottom: '8px',
-                background: '#ffffff',
+                background: t.bgPrimary,
                 width: '100%',
-                padding: '0px'
               }}>
+                {/* Price */}
                 <div style={{
-                  fontSize: '28px',
-                  fontWeight: '600',
-                  color: '#050f19',
-                  marginBottom: '8px',
-                  lineHeight: '1',
-                  padding: '0 0px'
+                  fontSize: '32px',
+                  fontWeight: 700,
+                  color: t.textPrimary,
+                  marginBottom: '4px',
+                  lineHeight: 1,
+                  letterSpacing: '-0.5px',
                 }}>
-                  {tokenData?.priceUSD !== undefined
-                    ? formatPrice(tokenData.priceUSD)
-                    : tokenData?.price !== undefined
-                      ? `${tokenData.price.toFixed(8)} APT`
-                      : 'Loading...'}
+                  {formatCurrentPrice()}
                 </div>
+                {/* 24h change */}
                 <div style={{
-                  color: tokenData?.change24h !== undefined ? getPercentageColor(formatPercentage(tokenData.change24h)) : '#5b616e',
+                  color: tokenData?.change24h !== undefined
+                    ? (tokenData.change24h >= 0 ? t.positive : t.negative)
+                    : t.textMuted,
                   display: 'flex',
                   alignItems: 'center',
-                  marginBottom: '20px',
-                  padding: '0 0px',
-                  fontWeight: '600',
-                  fontSize: '18px'
+                  marginBottom: '16px',
+                  fontWeight: 600,
+                  fontSize: '15px',
+                  gap: '4px',
                 }}>
-                  {tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : 'Loading token details...'}
+                  <span>{tokenData?.change24h !== undefined ? (tokenData.change24h >= 0 ? '▲' : '▼') : ''}</span>
+                  <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : t.textMuted ? '' : ''}</span>
+                  {tokenData?.change24h === undefined && <span style={{ color: t.textMuted, fontWeight: 400, fontSize: '13px' }}>24h</span>}
                 </div>
 
+                {/* Controls row: timeframe + mode toggle + actions */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '0 0px',
-                  marginBottom: '20px',
-                  width: '100%'
+                  marginBottom: '12px',
+                  width: '100%',
+                  flexWrap: 'wrap',
+                  gap: '8px',
                 }}>
-                  <div style={{
-                    display: 'flex',
-                    gap: '0'
-                  }}>
-                    {(['1m', '15m', '1H', '4H', '1D', 'ALL'] as Timeframe[]).map((time) => (
-                      <button
-                        key={time}
-                        onClick={() => setTimeframe(time)}
-                        style={{
-                          padding: '8px 16px',
-                          border: '0px solid #d3d3d3',
-                          borderRadius: '6px',
-                          background: timeframe === time ? '#d6f0ea' : '#ffffff',
-                          color: timeframe === time ? '#00d4aa' : '#292929',
-                          fontSize: '16px',
-                          fontWeight: '100',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {time}
-                      </button>
-                    ))}
+                  {/* Left: timeframe + chart mode */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    {/* Timeframe buttons */}
+                    <div style={{
+                      display: 'flex',
+                      background: t.bgSecondary,
+                      borderRadius: '8px',
+                      padding: '3px',
+                      gap: '2px',
+                      border: `1px solid ${t.border}`,
+                    }}>
+                      {(['1m', '15m', '1H', '4H', '1D', 'ALL'] as Timeframe[]).map((time) => (
+                        <button
+                          key={time}
+                          onClick={() => setTimeframe(time)}
+                          style={{
+                            padding: '5px 11px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            background: timeframe === time ? t.accent : 'transparent',
+                            color: timeframe === time ? '#fff' : t.textSecondary,
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            fontFamily: "'Inter', sans-serif",
+                          }}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Chart mode toggle: APT / USD / MCap */}
+                    <div style={{
+                      display: 'flex',
+                      background: t.bgSecondary,
+                      borderRadius: '8px',
+                      padding: '3px',
+                      gap: '2px',
+                      border: `1px solid ${t.border}`,
+                    }}>
+                      {(['apt', 'usd', 'mcap'] as ChartMode[]).map((mode) => {
+                        const labels: Record<ChartMode, string> = { apt: 'APT', usd: 'USD', mcap: 'MCap' };
+                        return (
+                          <button
+                            key={mode}
+                            onClick={() => setChartMode(mode)}
+                            style={{
+                              padding: '5px 11px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: chartMode === mode ? t.accentLight : 'transparent',
+                              color: chartMode === mode ? t.accent : t.textSecondary,
+                              fontSize: '13px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                              fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            {labels[mode]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '0 20px'
-                  }}>
-                    <button 
+
+                  {/* Right: star + share */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
                       onClick={handleStarClick}
                       style={{
-                        background: '#fff',
-                        border: '1px solid #e6e8ea',
-                        color: currentTokenInWatchlist ? '#FFD700' : '#666',
+                        background: t.bgSecondary,
+                        border: `1px solid ${t.border}`,
+                        color: currentTokenInWatchlist ? '#FFD700' : t.textSecondary,
                         cursor: 'pointer',
-                        fontSize: '24px',
-                        padding: '5px 12px',
-                        borderRadius: '6px',
-                        height: '36px',
+                        fontSize: '18px',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        height: '34px',
                         display: 'flex',
                         alignItems: 'center',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.15s',
                       }}
                       title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
                     >
                       {currentTokenInWatchlist ? '★' : '☆'}
                     </button>
                     <button style={{
-                      padding: '8px 16px',
-                      background: '#00BFFF',
-                      color: '#ffffff',
-                      border: '1px solid #00BFFF',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      fontWeight: '500',
+                      padding: '6px 16px',
+                      background: t.bgSecondary,
+                      color: t.textSecondary,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'all 0.2s'
+                      height: '34px',
                     }}>
                       Share
                     </button>
@@ -1390,10 +1515,11 @@ const TokenPage: React.FC = () => {
 
               {/* Chart Container */}
               <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                marginBottom: '30px',
-                height: '360px',
+                background: t.bgPrimary,
+                border: `1px solid ${t.border}`,
+                borderRadius: '10px',
+                marginBottom: '24px',
+                height: '340px',
                 position: 'relative',
               }}>
                 {/* lightweight-charts mounts here */}
@@ -1437,76 +1563,79 @@ const TokenPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Balance Section with Tabs */}
-              <div style={{ marginTop: '20px' }}>
+              {/* Tabs: Insights / Transactions / Top Holders */}
+              <div style={{ marginTop: '16px' }}>
                 <div style={{
                   display: 'flex',
-                  borderBottom: '1px solid #d3d3d3',
+                  borderBottom: `1px solid ${t.border}`,
                   justifyContent: 'flex-start',
-                  textAlign: 'left'
                 }}>
-                  {['Insights', 'Transactions', 'Top Holders'].map((tab, index) => (
-                    <div
-                      key={tab}
-                      style={{
-                        padding: '12px 0',
-                        marginRight: '24px',
-                        color: index === 0 ? '#00d4aa' : '#8a9ba8',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        borderBottom: `2px solid ${index === 0 ? '#00d4aa' : 'transparent'}`,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {tab}
-                    </div>
-                  ))}
+                  {(['insights', 'transactions', 'holders'] as const).map((tab) => {
+                    const labels = { insights: 'Insights', transactions: 'Transactions', holders: 'Top Holders' };
+                    const active = activeInsightTab === tab;
+                    return (
+                      <div
+                        key={tab}
+                        onClick={() => setActiveInsightTab(tab)}
+                        style={{
+                          padding: '10px 0',
+                          marginRight: '24px',
+                          color: active ? t.accent : t.textMuted,
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          borderBottom: `2px solid ${active ? t.accent : 'transparent'}`,
+                          transition: 'all 0.15s',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {labels[tab]}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Insights Tab Content */}
+                {/* ── INSIGHTS TAB ───────────────────────────────────── */}
+                {activeInsightTab === 'insights' && (
                 <div style={{
-                  display: 'block',
-                  border: '1px solid #f2f1f1',
+                  border: `1px solid ${t.border}`,
+                  borderTop: 'none',
                   borderBottomLeftRadius: '12px',
                   borderBottomRightRadius: '12px',
-                  borderTop: '0px'
                 }}>
                   {/* Token Info Section */}
                   <div style={{
                     display: 'flex',
-                    marginBottom: '30px',
-                    background: '#f8f9fa',
+                    marginBottom: '0',
+                    background: t.bgSecondary,
                     borderBottomLeftRadius: '12px',
                     borderBottomRightRadius: '12px',
-                    minHeight: '200px'
+                    minHeight: '200px',
                   }}>
+                    {/* Token image / avatar */}
                     <div style={{
-                      width: '300px',
-                      background: '#e0e0e0',
-                      borderBottomLeftRadius: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '14px',
-                      color: '#666',
+                      width: '220px',
                       flexShrink: 0,
-                      textAlign: 'center',
-                      padding: '20px'
+                      borderBottomLeftRadius: '12px',
+                      overflow: 'hidden',
+                      position: 'relative',
                     }}>
                       {tokenDetails?.image ? (
-                        <img 
-                          src={tokenDetails.image} 
+                        <img
+                          src={tokenDetails.image}
                           alt={`${tokenDetails.name} logo`}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            borderRadius: '0 0 0 12px'
-                          }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                         />
                       ) : (
-                        'No image available'
+                        <div style={{
+                          width: '100%', height: '100%', minHeight: '200px',
+                          background: tokenAvatarBg,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span style={{ fontSize: '72px', fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '-2px' }}>
+                            {tokenDetails?.symbol?.charAt(0) ?? '?'}
+                          </span>
+                        </div>
                       )}
                     </div>
                     <div style={{
@@ -1530,13 +1659,13 @@ const TokenPage: React.FC = () => {
                           <div style={{
                             fontSize: '24px',
                             fontWeight: '700',
-                            color: '#050f19'
+                            color: t.textPrimary,
                           }}>
                             {tokenDetails ? tokenDetails.name.replace('$', '') : 'Loading...'}
                           </div>
                           <div style={{
                             fontSize: '16px',
-                            color: '#8a9ba8',
+                            color: t.textMuted,
                             fontWeight: '500'
                           }}>
                             {tokenDetails ? tokenDetails.symbol : 'Loading...'}
@@ -1554,7 +1683,7 @@ const TokenPage: React.FC = () => {
                             fontSize: '14px'
                           }}>
                             <span style={{
-                              color: '#8a9ba8',
+                              color: t.textMuted,
                               fontWeight: '500',
                               fontSize: '12px',
                               textTransform: 'uppercase',
@@ -1563,7 +1692,7 @@ const TokenPage: React.FC = () => {
                               Launched:
                             </span>
                             <span style={{
-                              color: '#050f19',
+                              color: t.textPrimary,
                               fontWeight: '600',
                               fontSize: '14px'
                             }}>
@@ -1578,7 +1707,7 @@ const TokenPage: React.FC = () => {
                             fontSize: '14px'
                           }}>
                             <span style={{
-                              color: '#8a9ba8',
+                              color: t.textMuted,
                               fontWeight: '500',
                               fontSize: '12px',
                               textTransform: 'uppercase',
@@ -1587,7 +1716,7 @@ const TokenPage: React.FC = () => {
                               Holders:
                             </span>
                             <span style={{
-                              color: '#050f19',
+                              color: t.textPrimary,
                               fontWeight: '600',
                               fontSize: '14px'
                             }}>
@@ -1602,7 +1731,7 @@ const TokenPage: React.FC = () => {
                             fontSize: '14px'
                           }}>
                             <span style={{
-                              color: '#8a9ba8',
+                              color: t.textMuted,
                               fontWeight: '500',
                               fontSize: '12px',
                               textTransform: 'uppercase',
@@ -1611,7 +1740,7 @@ const TokenPage: React.FC = () => {
                               Created by:
                             </span>
                             <span style={{
-                              color: '#050f19',
+                              color: t.textPrimary,
                               fontWeight: '600',
                               fontSize: '14px'
                             }}>
@@ -1622,7 +1751,7 @@ const TokenPage: React.FC = () => {
                       </div>
                       <div style={{
                         fontSize: '14px',
-                        color: '#6c757d',
+                        color: t.textSecondary,
                         fontWeight: '400',
                         lineHeight: '1.5',
                         marginTop: '4px',
@@ -1660,7 +1789,7 @@ const TokenPage: React.FC = () => {
                           <div style={{
                             fontSize: '22px',
                             fontWeight: '700',
-                            color: '#050f19',
+                            color: t.textPrimary,
                             lineHeight: '1',
                             marginBottom: '10px'
                           }}>
@@ -1668,7 +1797,7 @@ const TokenPage: React.FC = () => {
                           </div>
                           <div style={{
                             fontSize: '16px',
-                            color: '#8a9ba8',
+                            color: t.textMuted,
                             marginBottom: '20px'
                           }}>
                             Market Cap
@@ -1681,7 +1810,7 @@ const TokenPage: React.FC = () => {
                           <div style={{
                             fontSize: '22px',
                             fontWeight: '700',
-                            color: '#050f19',
+                            color: t.textPrimary,
                             lineHeight: '1',
                             marginBottom: '10px'
                           }}>
@@ -1689,7 +1818,7 @@ const TokenPage: React.FC = () => {
                           </div>
                           <div style={{
                             fontSize: '16px',
-                            color: '#8a9ba8',
+                            color: t.textMuted,
                             marginBottom: '20px'
                           }}>
                             Volume (24h)
@@ -1703,19 +1832,19 @@ const TokenPage: React.FC = () => {
                           <div style={{
                             fontSize: '22px',
                             fontWeight: '700',
-                            color: '#00d4aa',
+                            color: tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? t.positive : t.negative,
                             lineHeight: '1',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
                             marginBottom: '10px'
                           }}>
-                            <span style={{ fontSize: '16px' }}>{tokenData?.change24h && tokenData.change24h >= 0 ? '↑' : '↓'}</span>
+                            <span style={{ fontSize: '16px' }}>{tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? '↑' : '↓'}</span>
                             <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : '0%'}</span>
                           </div>
                           <div style={{
                             fontSize: '16px',
-                            color: '#8a9ba8',
+                            color: t.textMuted,
                             marginBottom: '20px'
                           }}>
                             Change % (24h)
@@ -1746,15 +1875,15 @@ const TokenPage: React.FC = () => {
                               <div style={{
                                 fontSize: '22px',
                                 fontWeight: '700',
-                                color: '#050f19',
+                                color: t.textPrimary,
                                 lineHeight: '1'
                               }}>
                                 {aptRaisedApprox.toFixed(1)} / {GRAD_TARGET_APT} APT
                               </div>
                               <div style={{
                                 fontSize: '14px',
-                                fontWeight: '500',
-                                color: '#8a9ba8',
+                                fontWeight: '600',
+                                color: t.accent,
                                 letterSpacing: '0.5px'
                               }}>
                                 {progressPct.toFixed(1)}% Complete
@@ -1762,28 +1891,30 @@ const TokenPage: React.FC = () => {
                             </div>
                             <div style={{
                               width: '100%',
-                              height: '8px',
-                              background: '#f0f0f0',
-                              borderRadius: '4px',
+                              height: '14px',
+                              background: t.bgSecondary,
+                              borderRadius: '7px',
                               overflow: 'hidden',
-                              marginBottom: '8px'
+                              marginBottom: '8px',
+                              border: `1px solid ${t.border}`,
                             }}>
                               <div style={{
                                 height: '100%',
                                 background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-                                borderRadius: '4px',
+                                borderRadius: '7px',
                                 width: `${progressPct}%`,
-                                transition: 'width 0.5s ease'
+                                transition: 'width 0.5s ease',
+                                boxShadow: progressPct > 85 ? '0 0 10px rgba(0, 212, 170, 0.6)' : 'none',
                               }}></div>
                             </div>
                             <div style={{
-                              fontSize: '14px',
+                              fontSize: '13px',
                               fontWeight: '500',
-                              color: '#8a9ba8',
-                              marginTop: '8px',
-                              letterSpacing: '0.5px'
+                              color: t.textMuted,
+                              marginTop: '6px',
+                              letterSpacing: '0.4px'
                             }}>
-                              Graduation Progress
+                              Graduation Progress — reaches DEX at {GRAD_TARGET_APT} APT raised
                             </div>
                           </div>
                         );
@@ -1795,117 +1926,111 @@ const TokenPage: React.FC = () => {
                       maxWidth: '50%'
                     }}>
                       <div style={{
-                        background: 'white',
+                        background: t.bgPrimary,
                         borderRadius: '12px',
                         padding: '20px',
-                        marginTop: '-20px'
+                        marginTop: '-20px',
+                        border: `1px solid ${t.border}`,
                       }}>
                         <p style={{
                           fontSize: '12px',
                           fontWeight: '600',
-                          color: '#8a9ba8',
+                          color: t.textMuted,
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
-                          paddingBottom: '8px'
+                          paddingBottom: '8px',
+                          margin: 0,
                         }}>
                           Links
                         </p>
                         <div style={{
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '12px'
+                          gap: '10px',
+                          marginTop: '10px',
                         }}>
-                          <div style={{
-                            display: 'flex',
-                            gap: '12px'
-                          }}>
-                            <button 
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
                               onClick={handleCopyCA}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                padding: '12px 16px',
-                                border: '1px solid #e6e8ea',
+                                padding: '10px 14px',
+                                border: `1px solid ${t.border}`,
                                 borderRadius: '8px',
-                                background: 'white',
+                                background: t.bgSecondary,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
                                 fontSize: '13px',
                                 fontWeight: '500',
-                                color: '#050f19',
-                                textAlign: 'left',
+                                color: t.textPrimary,
                                 flex: 1,
-                                minWidth: 0
+                                minWidth: 0,
                               }}
                             >
-                              <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>🔗</span>
+                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🔗</span>
                               <span style={{ flex: 1 }}>{copied ? 'Copied!' : 'Copy CA'}</span>
                             </button>
-                            <button style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              padding: '12px 16px',
-                              border: '1px solid #e6e8ea',
-                              borderRadius: '8px',
-                              background: 'white',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              fontSize: '13px',
-                              fontWeight: '500',
-                              color: '#050f19',
-                              textAlign: 'left',
-                              flex: 1,
-                              minWidth: 0
-                            }}>
-                              <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>🌐</span>
-                              <span style={{ flex: 1 }}>Website</span>
-                            </button>
+                            {tokenDetails?.websiteLink ? (
+                              <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '8px',
+                                  padding: '10px 14px', border: `1px solid ${t.border}`,
+                                  borderRadius: '8px', background: t.bgSecondary,
+                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
+                                  color: t.textPrimary, flex: 1, minWidth: 0,
+                                }}>
+                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
+                                <span>Website</span>
+                              </a>
+                            ) : (
+                              <button disabled style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '10px 14px', border: `1px solid ${t.border}`,
+                                borderRadius: '8px', background: t.bgSecondary,
+                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
+                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
+                              }}>
+                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
+                                <span>Website</span>
+                              </button>
+                            )}
                           </div>
-                          <div style={{
-                            display: 'flex',
-                            gap: '12px'
-                          }}>
-                            <button style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              padding: '12px 16px',
-                              border: '1px solid #e6e8ea',
-                              borderRadius: '8px',
-                              background: 'white',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              fontSize: '13px',
-                              fontWeight: '500',
-                              color: '#050f19',
-                              textAlign: 'left',
-                              flex: 1,
-                              minWidth: 0
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            {tokenDetails?.twitterLink ? (
+                              <a href={tokenDetails.twitterLink} target="_blank" rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '8px',
+                                  padding: '10px 14px', border: `1px solid ${t.border}`,
+                                  borderRadius: '8px', background: t.bgSecondary,
+                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
+                                  color: t.textPrimary, flex: 1, minWidth: 0,
+                                }}>
+                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
+                                <span>Twitter</span>
+                              </a>
+                            ) : (
+                              <button disabled style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '10px 14px', border: `1px solid ${t.border}`,
+                                borderRadius: '8px', background: t.bgSecondary,
+                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
+                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
+                              }}>
+                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
+                                <span>Twitter</span>
+                              </button>
+                            )}
+                            <button disabled style={{
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                              padding: '10px 14px', border: `1px solid ${t.border}`,
+                              borderRadius: '8px', background: t.bgSecondary,
+                              fontSize: '13px', fontWeight: '500', color: t.textMuted,
+                              flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
                             }}>
-                              <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>🐦</span>
-                              <span style={{ flex: 1 }}>Twitter</span>
-                            </button>
-                            <button style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              padding: '12px 16px',
-                              border: '1px solid #e6e8ea',
-                              borderRadius: '8px',
-                              background: 'white',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              fontSize: '13px',
-                              fontWeight: '500',
-                              color: '#050f19',
-                              textAlign: 'left',
-                              flex: 1,
-                              minWidth: 0
-                            }}>
-                              <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>📱</span>
-                              <span style={{ flex: 1 }}>Telegram</span>
+                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>💬</span>
+                              <span>Telegram</span>
                             </button>
                           </div>
                         </div>
@@ -1913,13 +2038,155 @@ const TokenPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
+
+                {/* ── TRANSACTIONS TAB ─────────────────────────────── */}
+                {activeInsightTab === 'transactions' && (
+                <div style={{
+                  border: `1px solid ${t.border}`,
+                  borderTop: 'none',
+                  borderBottomLeftRadius: '12px',
+                  borderBottomRightRadius: '12px',
+                  overflow: 'hidden',
+                }}>
+                  {recentTrades.length === 0 ? (
+                    <div style={{
+                      padding: '40px 20px',
+                      textAlign: 'center',
+                      color: t.textMuted,
+                      fontSize: '14px',
+                    }}>
+                      No trades yet — be the first to buy!
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
+                          {['Type', 'Wallet', 'Tokens', 'APT Value', 'Time'].map(h => (
+                            <th key={h} style={{
+                              padding: '10px 16px',
+                              textAlign: 'left',
+                              fontWeight: 600,
+                              fontSize: '11px',
+                              color: t.textMuted,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                            }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentTrades.slice(0, 50).map((trade, i) => (
+                          <tr key={i} style={{
+                            borderBottom: `1px solid ${t.border}`,
+                            background: i % 2 === 0 ? 'transparent' : t.bgSecondary,
+                          }}>
+                            <td style={{ padding: '10px 16px' }}>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                background: trade.type === 'buy' ? 'rgba(0,212,170,0.12)' : 'rgba(255,71,87,0.12)',
+                                color: trade.type === 'buy' ? t.positive : t.negative,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.3px',
+                              }}>
+                                {trade.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
+                              {trade.wallet ? `${trade.wallet.slice(0, 6)}…${trade.wallet.slice(-4)}` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
+                              {trade.amount.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
+                              {trade.aptValue.toFixed(4)} APT
+                            </td>
+                            <td style={{ padding: '10px 16px', color: t.textMuted, fontSize: '12px' }}>
+                              {timeAgo(trade.timestampMs)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                )}
+
+                {/* ── TOP HOLDERS TAB ───────────────────────────────── */}
+                {activeInsightTab === 'holders' && (() => {
+                  // Aggregate total tokens bought per wallet from recentTrades
+                  const holderMap = new Map<string, number>();
+                  for (const t2 of recentTrades) {
+                    if (t2.type === 'buy' && t2.wallet) {
+                      holderMap.set(t2.wallet, (holderMap.get(t2.wallet) ?? 0) + t2.amount);
+                    }
+                  }
+                  const sorted = Array.from(holderMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 20);
+                  return (
+                    <div style={{
+                      border: `1px solid ${t.border}`,
+                      borderTop: 'none',
+                      borderBottomLeftRadius: '12px',
+                      borderBottomRightRadius: '12px',
+                      overflow: 'hidden',
+                    }}>
+                      {sorted.length === 0 ? (
+                        <div style={{ padding: '40px 20px', textAlign: 'center', color: t.textMuted, fontSize: '14px' }}>
+                          No holder data yet.
+                        </div>
+                      ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
+                              {['Rank', 'Wallet', 'Tokens Bought', '% of Supply'].map(h => (
+                                <th key={h} style={{
+                                  padding: '10px 16px',
+                                  textAlign: 'left',
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                  color: t.textMuted,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px',
+                                }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sorted.map(([wallet, amount], i) => (
+                              <tr key={wallet} style={{ borderBottom: `1px solid ${t.border}`, background: i % 2 === 0 ? 'transparent' : t.bgSecondary }}>
+                                <td style={{ padding: '10px 16px', color: t.textMuted, fontWeight: 600 }}>#{i + 1}</td>
+                                <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
+                                  {`${wallet.slice(0, 8)}…${wallet.slice(-6)}`}
+                                </td>
+                                <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
+                                  {amount.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '10px 16px', color: t.textMuted }}>
+                                  {((amount / 800_000_000) * 100).toFixed(3)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })()}
+
               </div>
             </div>
 
             {/* Trading Panel */}
             <div style={{
               width: '400px',
-              background: '#ffffff',
+              background: t.bgPrimary,
+              borderLeft: `1px solid ${t.border}`,
               padding: '20px',
               flexShrink: 0,
               position: 'sticky',
@@ -1929,17 +2196,17 @@ const TokenPage: React.FC = () => {
               overflowY: 'auto'
             }}>
               <div style={{
-                background: '#f8f9fa',
+                background: t.bgSecondary,
                 borderRadius: '12px',
                 padding: '20px',
-                border: '1px solid #e6e8ea',
+                border: `1px solid ${t.border}`,
                 height: '100%'
               }}>
                 <div style={{ marginBottom: '20px' }}>
                   <h3 style={{
                     fontSize: '16px',
                     fontWeight: '600',
-                    color: '#0a0b0d',
+                    color: t.textPrimary,
                     marginBottom: '8px'
                   }}>
                     Your Balance
@@ -1955,11 +2222,12 @@ const TokenPage: React.FC = () => {
 
                 <ul style={{
                   display: 'flex',
-                  background: '#e9ecef',
+                  background: t.bgPrimary,
                   borderRadius: '8px',
                   padding: '4px',
                   marginBottom: '20px',
-                  listStyle: 'none'
+                  listStyle: 'none',
+                  border: `1px solid ${t.border}`,
                 }}>
                   <li
                     style={{
@@ -1970,8 +2238,8 @@ const TokenPage: React.FC = () => {
                       cursor: 'pointer',
                       fontWeight: '600',
                       fontSize: '14px',
-                      background: activeTab === 'buy' ? '#00d4aa' : 'transparent',
-                      color: activeTab === 'buy' ? 'white' : '#6c757d'
+                      background: activeTab === 'buy' ? t.positive : 'transparent',
+                      color: activeTab === 'buy' ? 'white' : t.textSecondary,
                     }}
                     onClick={() => setActiveTab('buy')}
                   >
@@ -1986,8 +2254,8 @@ const TokenPage: React.FC = () => {
                       cursor: 'pointer',
                       fontWeight: '600',
                       fontSize: '14px',
-                      background: activeTab === 'sell' ? '#00d4aa' : 'transparent',
-                      color: activeTab === 'sell' ? 'white' : '#6c757d'
+                      background: activeTab === 'sell' ? t.negative : 'transparent',
+                      color: activeTab === 'sell' ? 'white' : t.textSecondary,
                     }}
                     onClick={() => setActiveTab('sell')}
                   >
@@ -2000,7 +2268,7 @@ const TokenPage: React.FC = () => {
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#0a0b0d',
+                    color: t.textPrimary,
                     marginBottom: '8px'
                   }}>
                     Amount
@@ -2012,10 +2280,11 @@ const TokenPage: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '12px 16px',
-                      border: '1px solid #e6e8ea',
+                      border: `1px solid ${t.border}`,
                       borderRadius: '8px',
                       fontSize: '16px',
-                      background: 'white'
+                      background: t.bgPrimary,
+                      color: t.textPrimary,
                     }}
                   />
                 </div>
@@ -2025,7 +2294,7 @@ const TokenPage: React.FC = () => {
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#0a0b0d',
+                    color: t.textPrimary,
                     marginBottom: '8px'
                   }}>
                     Total (APT)
@@ -2037,11 +2306,11 @@ const TokenPage: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '12px 16px',
-                      border: '1px solid #e6e8ea',
+                      border: `1px solid ${t.border}`,
                       borderRadius: '8px',
                       fontSize: '16px',
-                      background: '#f8f9fa',
-                      color: '#6c757d'
+                      background: t.bgSecondary,
+                      color: t.textSecondary,
                     }}
                   />
                 </div>
@@ -2050,9 +2319,9 @@ const TokenPage: React.FC = () => {
                 <div style={{
                   margin: '20px 0',
                   padding: '15px',
-                  background: '#f8f9fa',
+                  background: t.bgPrimary,
                   borderRadius: '8px',
-                  border: '1px solid #e6e8ea',
+                  border: `1px solid ${t.border}`,
                   cursor: 'pointer',
                   transition: 'all 0.3s ease'
                 }}>
@@ -2069,13 +2338,13 @@ const TokenPage: React.FC = () => {
                     <span style={{
                       fontSize: '14px',
                       fontWeight: '600',
-                      color: '#050f19'
+                      color: t.textPrimary,
                     }}>
                       Slippage Protection
                     </span>
                     <span style={{
                       fontSize: '12px',
-                      color: '#8a9ba8',
+                      color: t.textMuted,
                       cursor: 'pointer',
                       transition: 'transform 0.3s ease',
                       display: 'flex',
@@ -2106,9 +2375,9 @@ const TokenPage: React.FC = () => {
                           style={{
                             flex: 1,
                             padding: '8px 12px',
-                            border: `1px solid ${selectedSlippage === slippage ? '#00d4aa' : '#d3d3d3'}`,
-                            background: selectedSlippage === slippage ? '#00d4aa' : '#ffffff',
-                            color: selectedSlippage === slippage ? '#ffffff' : '#5b616e',
+                            border: `1px solid ${selectedSlippage === slippage ? t.accent : t.border}`,
+                            background: selectedSlippage === slippage ? t.accent : t.bgSecondary,
+                            color: selectedSlippage === slippage ? '#ffffff' : t.textSecondary,
                             borderRadius: '6px',
                             fontSize: '12px',
                             fontWeight: '500',
@@ -2134,16 +2403,16 @@ const TokenPage: React.FC = () => {
                         style={{
                           flex: 1,
                           padding: '8px 12px',
-                          border: '1px solid #d3d3d3',
+                          border: `1px solid ${t.border}`,
                           borderRadius: '6px',
                           fontSize: '12px',
-                          background: '#ffffff',
-                          color: '#050f19'
+                          background: t.bgSecondary,
+                          color: t.textPrimary,
                         }}
                       />
                       <span style={{
                         fontSize: '12px',
-                        color: '#8a9ba8',
+                        color: t.textMuted,
                         fontWeight: '500'
                       }}>
                         %
@@ -2151,11 +2420,11 @@ const TokenPage: React.FC = () => {
                     </div>
                     <div style={{
                       fontSize: '11px',
-                      color: '#ff4757',
+                      color: t.negative,
                       marginTop: '8px',
                       display: parseFloat(selectedSlippage) > 5.0 ? 'block' : 'none'
                     }}>
-                      ⚠️ High slippage may result in unfavorable trade execution
+                      High slippage may result in unfavorable trade execution
                     </div>
                   </div>
                 </div>
@@ -2182,9 +2451,9 @@ const TokenPage: React.FC = () => {
 
           {/* Footer */}
           <div style={{
-            background: '#ffffff',
-            borderTop: '1px solid #e7ebee',
-            padding: '20px 24px',
+            background: t.bgPrimary,
+            borderTop: `1px solid ${t.border}`,
+            padding: '16px 24px',
             width: '100%',
             flexShrink: 0
           }}>
@@ -2193,43 +2462,22 @@ const TokenPage: React.FC = () => {
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <div style={{
-                display: 'flex',
-                gap: '20px'
-              }}>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Careers
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Privacy & Legal
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Docs
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Accessibility
-                </a>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                {['Careers', 'Privacy & Legal', 'Docs', 'Accessibility'].map(label => (
+                  <a key={label} href="#" style={{
+                    color: t.textMuted,
+                    textDecoration: 'none',
+                    fontSize: '13px',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = t.textSecondary)}
+                  onMouseLeave={e => (e.currentTarget.style.color = t.textMuted)}
+                  >
+                    {label}
+                  </a>
+                ))}
               </div>
-              <p style={{
-                fontSize: '14px',
-                color: '#5b616e'
-              }}>
+              <p style={{ fontSize: '13px', color: t.textMuted, margin: 0 }}>
                 &copy; 2025 MoveMint
               </p>
             </div>

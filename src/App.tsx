@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { PetraWallet } from "petra-plugin-wallet-adapter";
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
 import Layout from "./components/Layout";
@@ -8,7 +7,6 @@ import Layout from "./components/Layout";
 import HomePage from "./components/HomePage";
 import Marketplace from "./components/Marketplace";
 import Profile from "./components/Profile";
-import Launch from "./components/Launch";
 
 import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
@@ -18,22 +16,8 @@ import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
 import { AptPriceProvider } from "./contexts/AptPriceContext";
 import { WatchlistProvider } from "./contexts/WatchlistContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import "./styles/Landing.css";
-
-// Placeholder components for missing routes
-const Trending: React.FC = () => (
-  <div style={{ padding: '20px', textAlign: 'center' }}>
-    <h1>Trending</h1>
-    <p>Trending tokens and market movements will be displayed here.</p>
-  </div>
-);
-
-const Communities: React.FC = () => (
-  <div style={{ padding: '20px', textAlign: 'center' }}>
-    <h1>Communities</h1>
-    <p>Token communities and social features will be displayed here.</p>
-  </div>
-);
 
 const About: React.FC = () => (
   <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -44,84 +28,40 @@ const About: React.FC = () => (
 
 const App: React.FC = () => {
   return (
-    <AptosWalletAdapterProvider 
-      autoConnect={true}
-      dappConfig={{ network: Network.TESTNET }}
-      optInWallets={["Petra"]}
-      onError={(error: Error) => {
-        console.log('Wallet Connection Error:', error);
-      }}>
-      <AptPriceProvider>
-        <BalanceProvider>
-          <WatchlistProvider>
-            <GraduationListener />
-            <Router>
-            <Routes>
-            <Route path="/" element={
-              <HomePage />
-            } />
-            <Route path="/homepage" element={
-              <HomePage />
-            } />
-            <Route path="/marketplace" element={
-              <Marketplace />
-            } />
-            <Route path="/marketplace/:metadataAddress" element={
-              <Marketplace />
-            } />
-            <Route path="/boost" element={
-              <Boost />
-            } />
-            <Route path="/trending" element={
-              <Trending />
-            } />
-            <Route path="/communities" element={
-              <Communities />
-            } />
-            <Route path="/about" element={
-              <About />
-            } />
-            <Route path="/tokenpage" element={
-              <NEWtokenpage />
-            } />
-            <Route path="/launchpage" element={
-              <NEWLaunch />
-            } />
-            <Route path="/profile" element={
-              <Layout>
-                <Profile />
-              </Layout>
-            } />
-            <Route path="/profile/:address" element={
-              <Layout>
-                <Profile />
-              </Layout>
-            } />
-            <Route path="/launch" element={
-              <NEWLaunch />
-            } />
-            <Route path="/token/:coinHash" element={
-              <ErrorBoundary>
-                <NEWtokenpage />
-              </ErrorBoundary>
-            } />
-            <Route path="/newtoken/:coinHash" element={
-              <ErrorBoundary>
-                <NEWtokenpage />
-              </ErrorBoundary>
-            } />
-            <Route path="*" element={
-              <Layout>
-                <div>404 - Page Not Found</div>
-              </Layout>
-            } />
-                    </Routes>
-          </Router>
-          </WatchlistProvider>
+    <ThemeProvider>
+      <AptosWalletAdapterProvider
+        autoConnect={true}
+        dappConfig={{ network: Network.TESTNET }}
+        optInWallets={["Petra"]}
+        onError={(error: Error) => { console.log('Wallet Connection Error:', error); }}>
+        <AptPriceProvider>
+          <BalanceProvider>
+            <WatchlistProvider>
+              <GraduationListener />
+              <Router>
+                <Routes>
+                  <Route path="/"                  element={<HomePage />} />
+                  <Route path="/homepage"          element={<HomePage />} />
+                  <Route path="/marketplace"       element={<Marketplace />} />
+                  <Route path="/marketplace/:metadataAddress" element={<Marketplace />} />
+                  <Route path="/boost"             element={<Boost />} />
+                  <Route path="/about"             element={<About />} />
+                  <Route path="/tokenpage"         element={<NEWtokenpage />} />
+                  <Route path="/launchpage"        element={<NEWLaunch />} />
+                  <Route path="/launch"            element={<NEWLaunch />} />
+                  <Route path="/profile"           element={<Layout><Profile /></Layout>} />
+                  <Route path="/profile/:address"  element={<Layout><Profile /></Layout>} />
+                  <Route path="/token/:coinHash"   element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
+                  <Route path="/newtoken/:coinHash" element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
+                  <Route path="*"                  element={<Layout><div>404 - Page Not Found</div></Layout>} />
+                </Routes>
+              </Router>
+            </WatchlistProvider>
           </BalanceProvider>
         </AptPriceProvider>
       </AptosWalletAdapterProvider>
-    );
-  };
+    </ThemeProvider>
+  );
+};
 
 export default App;

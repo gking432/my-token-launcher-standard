@@ -1,277 +1,217 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWatchlist } from '../contexts/WatchlistContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface GlobalSidebarProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
 }
 
-const GlobalSidebar = ({ 
-  activeTab,
-  onTabChange
-}: GlobalSidebarProps): React.ReactElement => {
+const GlobalSidebar = ({ activeTab, onTabChange }: GlobalSidebarProps): React.ReactElement => {
   const { watchlist } = useWatchlist();
+  const { isDark, toggleTheme, theme: t } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
   const tabs = [
-    { id: 'home', label: 'Home', path: '/homepage' },
-    { id: 'trade', label: 'Trade', path: '/marketplace' },
-    { id: 'learn', label: 'Learn', path: '/about' }
+    { id: 'home',  label: 'Home',  path: '/homepage',    icon: '⌂' },
+    { id: 'trade', label: 'Trade', path: '/marketplace', icon: '↗' },
+    { id: 'learn', label: 'Learn', path: '/about',       icon: '◎' },
   ];
-  
-  const launchTab = { id: 'launch', label: 'Launch', path: '/launch' };
+  const launchTab = { id: 'launch', label: 'Launch', path: '/launch', icon: '✦' };
 
-  // Determine active tab based on current location or prop
-  const currentActiveTab = activeTab || 
-    tabs.find(tab => tab.path === location.pathname)?.id || 
-    (location.pathname === launchTab.path ? launchTab.id : null) || 
-    'marketplace';
-
-  const handleTabClick = (tabId: string) => {
-    onTabChange?.(tabId);
-  };
+  const currentActive = activeTab ||
+    tabs.find(tab => tab.path === location.pathname)?.id ||
+    (location.pathname === launchTab.path ? launchTab.id : null) ||
+    'home';
 
   return (
-    <>
-      <style>
-        {`
-          .sidebar {
-            width: 200px;
-            min-width: 200px;
-            background: #ffffff;
-            border-right: 1px solid #d3d3d3;
-            padding: 0;
-            height: 100%;
-            min-height: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            align-self: stretch;
-            position: relative;
-          }
-          
-          .sidebar::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: -9999px;
-            width: 1px;
-            background: #d3d3d3;
-            pointer-events: none;
-          }
-          
-          .nav-tabs {
-            padding: 20px 0;
-            border-bottom: 1px solid #d3d3d3;
-            flex-shrink: 0;
-          }
-          
-          .nav-tab {
-            display: flex;
-            align-items: center;
-            padding: 12px 20px;
-            color: #5b616e;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            transition: background 0.2s;
-          }
-          
-          .nav-tab:hover {
-            background: #f5f5f5;
-            color: #0a0b0d;
-          }
-          
-          .nav-tab.active {
-            background: #f0f8ff;
-            color: #00d4aa;
-          }
-          
-          .launch-tab-container {
-            margin-top: 0px;
-            padding-top: 20px;
-            border-top: 0px solid #e6e8ea;
-          }
-          
-          .launch-tab {
-            display: flex;
-            align-items: left;
-            padding: 8px 0px;
-            color: #ffffff;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
-            background: #00d4aa;
-            border-radius: 6px;
-            margin: 0 12px;
-            justify-content: center;
-          }
-          
-          .launch-tab:hover {
-            background: #00b894;
-            color: #ffffff;
-          }
-          
-          .launch-tab.active {
-            background: #00b894;
-            color: #ffffff;
-          }
-          
-          .watchlist-section {
-            flex: 1;
-            padding: 20px 0;
-            overflow-y: auto;
-            min-height: 0;
-          }
-          
-          .section-title2 {
-            font-size: 12px;
-            font-weight: 600;
-            color: #5b616e;
-            margin-bottom: 16px;
-            padding: 0 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          
-          .meme-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: all 0.2s;
-          }
-          
-          .meme-item:hover {
-            background: #f5f5f5;
-          }
-          
-          .meme-item.active {
-            background: #f0f8ff;
-          }
-          
-          .meme-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-          }
-          
-          .meme-info {
-            flex: 1;
-          }
-          
-          .meme-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0a0b0d;
-            line-height: 1.2;
-          }
-          
-          .meme-symbol {
-            font-size: 12px;
-            color: #5b616e;
-            margin-top: 2px;
-          }
-          
-          @media (max-width: 768px) {
-            .sidebar {
-              width: 100%;
-              min-width: 100%;
-              height: auto;
-              border-right: none;
-              border-bottom: 1px solid #d3d3d3;
-            }
-            
-            .nav-tabs {
-              display: flex;
-              overflow-x: auto;
-              padding: 12px 0;
-            }
-            
-            .nav-tab {
-              white-space: nowrap;
-              padding: 8px 16px;
-            }
-          }
-        `}
-      </style>
+    <div style={{
+      width: '220px',
+      minWidth: '220px',
+      background: t.bgPrimary,
+      borderRight: `1px solid ${t.border}`,
+      height: '100%',
+      minHeight: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      alignSelf: 'stretch',
+      fontFamily: "'Inter', sans-serif",
+    }}>
+      {/* Logo / Brand */}
+      <div style={{
+        padding: '20px 20px 16px',
+        borderBottom: `1px solid ${t.border}`,
+      }}>
+        <div style={{ fontSize: '18px', fontWeight: 700, color: t.accent, letterSpacing: '-0.3px' }}>
+          MoveMint
+        </div>
+        <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '2px', fontWeight: 500 }}>
+          Aptos Testnet
+        </div>
+      </div>
 
-      <div className="sidebar">
-        <div className="nav-tabs">
-          {tabs.map((tab) => (
+      {/* Nav Items */}
+      <nav style={{ padding: '12px 0', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+        {tabs.map((tab) => {
+          const isActive = currentActive === tab.id;
+          return (
             <Link
               key={tab.id}
               to={tab.path}
-              className={`nav-tab ${currentActiveTab === tab.id ? 'active' : ''}`}
-              onClick={() => handleTabClick(tab.id)}
+              onClick={() => onTabChange?.(tab.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 20px',
+                color: isActive ? t.accent : t.textSecondary,
+                textDecoration: 'none',
+                fontSize: '14px',
+                fontWeight: 500,
+                background: isActive ? t.accentLight : 'transparent',
+                borderLeft: `3px solid ${isActive ? t.accent : 'transparent'}`,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = t.bgHover; }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
             >
+              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center', flexShrink: 0 }}>
+                {tab.icon}
+              </span>
               {tab.label}
             </Link>
-          ))}
-          
-          <div className="launch-tab-container">
-            <Link
-              to={launchTab.path}
-              className={`launch-tab ${currentActiveTab === launchTab.id ? 'active' : ''}`}
-              onClick={() => handleTabClick(launchTab.id)}
-            >
-              {launchTab.label}
-            </Link>
-          </div>
+          );
+        })}
+
+        {/* Launch CTA */}
+        <div style={{ padding: '12px 12px 4px' }}>
+          <Link
+            to={launchTab.path}
+            onClick={() => onTabChange?.(launchTab.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              background: t.accent,
+              color: '#fff',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontWeight: 600,
+              borderRadius: '8px',
+              transition: 'background 0.15s',
+              letterSpacing: '0.1px',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.accentHover; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = t.accent; }}
+          >
+            <span style={{ fontSize: '14px' }}>✦</span>
+            Launch Token
+          </Link>
         </div>
-        
-        <div className="watchlist-section">
-          <div className="section-title2">Watchlist</div>
-          {watchlist.length > 0 ? (
-            watchlist.map((item, index) => (
-              <div 
-                key={item.metadataAddress || index}
-                className="meme-item"
-                onClick={() => {
-                  if (item.metadataAddress) {
-                    navigate(`/newtoken/${item.metadataAddress}`);
-                  }
-                }}
-              >
-                <div 
-                  className="meme-icon" 
-                  style={{ background: item.iconBg }}
-                >
-                  {item.icon}
+      </nav>
+
+      {/* Watchlist */}
+      <div style={{ flex: 1, padding: '16px 0', overflowY: 'auto', minHeight: 0 }}>
+        <div style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          color: t.textMuted,
+          padding: '0 20px 10px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.6px',
+        }}>
+          Watchlist
+        </div>
+
+        {watchlist.length > 0 ? (
+          watchlist.map((item, i) => (
+            <div
+              key={item.metadataAddress || i}
+              onClick={() => item.metadataAddress && navigate(`/newtoken/${item.metadataAddress}`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '8px 20px',
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.bgHover; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <div style={{
+                width: '30px', height: '30px',
+                borderRadius: '50%',
+                background: item.iconBg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontWeight: 700, fontSize: '13px',
+                flexShrink: 0,
+              }}>
+                {item.icon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: t.textPrimary, lineHeight: 1.2,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.name}
                 </div>
-                <div className="meme-info">
-                  <div className="meme-name">{item.name}</div>
-                  <div className="meme-symbol">{item.symbol}</div>
+                <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '1px' }}>
+                  {item.symbol}
                 </div>
               </div>
-            ))
-          ) : (
-            <div style={{
-              padding: '20px',
-              textAlign: 'center',
-              color: '#8a9ba8',
-              fontSize: '13px',
-              lineHeight: '1.5'
-            }}>
-              Your watchlist is empty.<br />
-              Add tokens to track them here.
             </div>
-          )}
-        </div>
+          ))
+        ) : (
+          <div style={{ padding: '16px 20px', color: t.textMuted, fontSize: '13px', lineHeight: 1.5 }}>
+            Star tokens to track them here.
+          </div>
+        )}
       </div>
-    </>
+
+      {/* Dark mode toggle */}
+      <div style={{
+        padding: '12px 20px',
+        borderTop: `1px solid ${t.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: '13px', color: t.textSecondary, fontWeight: 500 }}>
+          {isDark ? 'Dark' : 'Light'} mode
+        </span>
+        <button
+          onClick={toggleTheme}
+          title="Toggle dark mode"
+          style={{
+            width: '40px', height: '22px',
+            borderRadius: '11px',
+            border: 'none',
+            background: isDark ? t.accent : t.border,
+            cursor: 'pointer',
+            position: 'relative',
+            transition: 'background 0.2s',
+            padding: 0,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            position: 'absolute',
+            top: '3px',
+            left: isDark ? '21px' : '3px',
+            width: '16px', height: '16px',
+            borderRadius: '50%',
+            background: '#fff',
+            transition: 'left 0.2s',
+            display: 'block',
+          }} />
+        </button>
+      </div>
+    </div>
   );
 };
 
-export default GlobalSidebar; 
+export default GlobalSidebar;
