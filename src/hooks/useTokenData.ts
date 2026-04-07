@@ -246,18 +246,21 @@ export const useTokenData = (): UseTokenDataReturn => {
         
         // Parse supply data
         // aptosIndexer renames minted_supply → tokens_sold in the data wrapper
-        const MAX_SUPPLY = 800_000_000;
-        const totalSupply = parseInt(eventData?.total_supply || String(MAX_SUPPLY));
-        // tokens_sold is the renamed minted_supply; fall back to total - remaining
+        // Total supply = 1B (800M sold via bonding curve + 200M pre-minted for DEX at graduation)
+        const BONDING_CURVE_MAX = 800_000_000;
+        const TOTAL_SUPPLY_DEFAULT = 1_000_000_000;
+        const totalSupply = parseInt(eventData?.total_supply || String(TOTAL_SUPPLY_DEFAULT));
+        // tokens_sold is the renamed minted_supply; fall back to curve-max minus remaining
         const mintedSupply = parseInt(
           eventData?.tokens_sold ?? eventData?.minted_supply ?? '0'
         );
-        const remainingSupply = parseInt(eventData?.remaining_supply || String(MAX_SUPPLY));
+        const remainingSupply = parseInt(eventData?.remaining_supply || String(BONDING_CURVE_MAX));
 
-        // Prefer explicit tokens_sold/minted_supply field; fall back to total - remaining
+        // Prefer explicit tokens_sold field; fall back to bonding_curve_max - remaining
+        // (NOT totalSupply - remaining, which would incorrectly include the 200M reserve)
         const tokensSold = mintedSupply > 0
           ? mintedSupply
-          : Math.max(0, totalSupply - remainingSupply);
+          : Math.max(0, BONDING_CURVE_MAX - remainingSupply);
         
         // Calculate APT price using bonding curve
         const priceAPT = calculateBondingCurvePrice(tokensSold);

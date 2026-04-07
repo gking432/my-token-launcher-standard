@@ -795,7 +795,7 @@ const TokenPage: React.FC = () => {
   // Apply chart mode multiplier to candle prices
   const displayCandles = useMemo(() => {
     if (!candles.length) return candles;
-    const supply = tokenData?.supply ?? 800_000_000;
+    const supply = tokenData?.supply ?? 1_000_000_000;
     const apt = aptPrice ?? 0;
     const mult = chartMode === 'usd'  ? apt
                : chartMode === 'mcap' ? apt * supply
@@ -2168,7 +2168,7 @@ const TokenPage: React.FC = () => {
                                   {amount.toLocaleString()}
                                 </td>
                                 <td style={{ padding: '10px 16px', color: t.textMuted }}>
-                                  {((amount / 800_000_000) * 100).toFixed(3)}%
+                                  {((amount / 1_000_000_000) * 100).toFixed(3)}%
                                 </td>
                               </tr>
                             ))}

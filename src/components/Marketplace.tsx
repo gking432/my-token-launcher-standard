@@ -1116,7 +1116,12 @@ const Marketplace: React.FC = () => {
                               padding: '12px 8px',
                               color: t.textMuted
                             }}>
-                              {token.marketCap ? token.marketCap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
+                              {token.marketCapUSD
+                                ? (token.marketCapUSD >= 1e9 ? `$${(token.marketCapUSD/1e9).toFixed(2)}B`
+                                  : token.marketCapUSD >= 1e6 ? `$${(token.marketCapUSD/1e6).toFixed(2)}M`
+                                  : token.marketCapUSD >= 1e3 ? `$${(token.marketCapUSD/1e3).toFixed(2)}K`
+                                  : `$${token.marketCapUSD.toFixed(2)}`)
+                                : 'N/A'}
                             </td>
                             <td style={{
                               textAlign: 'right',
