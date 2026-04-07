@@ -81,24 +81,32 @@ export const useTokenData = (): UseTokenDataReturn => {
     return priceInOctas / 100_000_000;
   };
 
+  // Convert Aptos event timestamp (microseconds) to milliseconds
+  const aptosTimestampToMs = (ts: number): number => {
+    if (ts > 1e15) return ts / 1000;   // nanoseconds → ms
+    if (ts > 1e12) return ts / 1000;   // microseconds → ms
+    if (ts > 1e9)  return ts;          // already ms
+    return ts * 1000;                  // seconds → ms
+  };
+
   // Calculate 24h volume by summing purchase events from last 24 hours
   const calculate24hVolume = async (metadataAddr: string): Promise<number> => {
     try {
       // Fetch purchase events for this token
       const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
-      
+
       if (!purchaseEvents || purchaseEvents.length === 0) {
         return 0;
       }
 
-      // Get timestamp 24 hours ago
-      const now = Date.now();
-      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-      
-      // Filter events from the last 24 hours
+      // Get timestamp 24 hours ago (in ms)
+      const nowMs = Date.now();
+      const twentyFourHoursAgoMs = nowMs - (24 * 60 * 60 * 1000);
+
+      // Filter events from the last 24 hours (convert Aptos μs timestamps to ms)
       const eventsLast24h = purchaseEvents.filter((event: any) => {
-        const eventTimestamp = parseInt(event.timestamp || '0');
-        return eventTimestamp >= twentyFourHoursAgo && eventTimestamp <= now;
+        const eventMs = aptosTimestampToMs(parseInt(event.timestamp || '0'));
+        return eventMs >= twentyFourHoursAgoMs && eventMs <= nowMs;
       });
 
       if (eventsLast24h.length === 0) {
@@ -142,51 +150,40 @@ export const useTokenData = (): UseTokenDataReturn => {
     try {
       // Fetch purchase events for this token
       const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
-      
+
       if (!purchaseEvents || purchaseEvents.length === 0) {
-        // No purchase events, price hasn't changed (or token just launched)
         return 0;
       }
 
-      // Get timestamp 24 hours ago
-      const now = Date.now();
-      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-      
+      // Get timestamp 24 hours ago (in ms)
+      const nowMs = Date.now();
+      const twentyFourHoursAgoMs = nowMs - (24 * 60 * 60 * 1000);
+
       // Filter events from the last 24 hours and sort by timestamp (oldest first)
       const eventsLast24h = purchaseEvents
         .filter((event: any) => {
-          const eventTimestamp = parseInt(event.timestamp || '0');
-          return eventTimestamp >= twentyFourHoursAgo && eventTimestamp <= now;
+          const eventMs = aptosTimestampToMs(parseInt(event.timestamp || '0'));
+          return eventMs >= twentyFourHoursAgoMs && eventMs <= nowMs;
         })
         .sort((a: any, b: any) => {
-          const timestampA = parseInt(a.timestamp || '0');
-          const timestampB = parseInt(b.timestamp || '0');
-          return timestampA - timestampB; // Oldest first
+          return parseInt(a.timestamp || '0') - parseInt(b.timestamp || '0');
         });
 
       if (eventsLast24h.length === 0) {
-        // No events in last 24h
-        // If token has any events, find the oldest to check launch time
         if (purchaseEvents.length > 0) {
-          const oldestEvent = purchaseEvents.sort((a: any, b: any) => {
-            const timestampA = parseInt(a.timestamp || '0');
-            const timestampB = parseInt(b.timestamp || '0');
-            return timestampA - timestampB;
-          })[0];
-          
-          const oldestTimestamp = parseInt(oldestEvent.timestamp || '0');
-          if (oldestTimestamp < twentyFourHoursAgo) {
-            // Token existed 24h ago but no trades in last 24h, price unchanged
-            return 0;
+          const oldestEvent = [...purchaseEvents].sort((a: any, b: any) =>
+            parseInt(a.timestamp || '0') - parseInt(b.timestamp || '0')
+          )[0];
+
+          const oldestMs = aptosTimestampToMs(parseInt(oldestEvent.timestamp || '0'));
+          if (oldestMs < twentyFourHoursAgoMs) {
+            return 0; // Existed 24h ago, no trades since
           } else {
-            // Token launched less than 24h ago, calculate change from launch
-            // tokens_sold at launch would be 0 (or premint amount, but we'll use 0 for simplicity)
             const launchPrice = calculateBondingCurvePrice(0);
             if (launchPrice === 0) return 0;
             return ((currentPrice - launchPrice) / launchPrice) * 100;
           }
         }
-        // No purchase events at all - token just launched, no change
         return 0;
       }
 
@@ -277,7 +274,7 @@ export const useTokenData = (): UseTokenDataReturn => {
           supply: totalSupply,
           txHash: fullMetadataAddr !== 'Unknown' ? fullMetadataAddr : `0x${Math.random().toString(16).substr(2, 64)}`,
           image: null,
-          launchDate: new Date(parseInt(eventData?.timestamp || '0') / 1000).toISOString(),
+          launchDate: new Date(aptosTimestampToMs(parseInt(eventData?.timestamp || '0'))).toISOString(),
           creator: eventData?.creator || 'Unknown',
           creatorAddress: eventData?.creator || 'Unknown',
           metadataAddress: fullMetadataAddr,

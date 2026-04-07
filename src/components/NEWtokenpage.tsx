@@ -1,15 +1,16 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
-import { createChart, IChartApi, ISeriesApi, Time } from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, Time, ColorType } from "lightweight-charts";
 import GlobalSidebar from './GlobalSidebar';
 import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useAptPrice } from '../hooks/useAptPrice';
 import { useWatchlist } from '../contexts/WatchlistContext';
+import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -28,7 +29,7 @@ const TokenPage: React.FC = () => {
   const { tokens, loading: tokensLoading } = useTokenData();
   const { aptPrice } = useAptPrice();
   const [amount, setAmount] = useState<number>(0);
-  const [timeframe, setTimeframe] = useState<string>("1m");
+  const [timeframe, setTimeframe] = useState<Timeframe>("15m");
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
   
@@ -767,13 +768,112 @@ const TokenPage: React.FC = () => {
   // Helper to find token from tokens array using metadataAddress
   const tokenData = useMemo(() => {
     if (!tokenDetails?.metadataAddress || tokens.length === 0) return null;
-    return tokens.find(t => 
+    return tokens.find(t =>
       t.metadataAddress?.toLowerCase() === tokenDetails.metadataAddress?.toLowerCase() ||
       t.txHash?.toLowerCase() === tokenDetails.metadataAddress?.toLowerCase() ||
       t.metadataAddress?.toLowerCase() === coinHash?.toLowerCase() ||
       t.txHash?.toLowerCase() === coinHash?.toLowerCase()
     );
   }, [tokenDetails?.metadataAddress, tokens, coinHash]);
+
+  // Resolve metadataAddress for chart & holder data
+  const resolvedMetadataAddr = tokenDetails?.metadataAddress || coinHash;
+
+  // Fetch OHLC candles and holder count
+  const { candles, loading: chartLoading, holderCount } = useOHLCData(
+    resolvedMetadataAddr,
+    timeframe,
+    refreshChart,
+  );
+
+  // Initialize lightweight-charts once the container is mounted
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const container = chartContainerRef.current;
+
+    const chart = createChart(container, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#fbfbfb' },
+        textColor: '#5b616e',
+      },
+      grid: {
+        vertLines: { color: '#f0f0f0' },
+        horzLines: { color: '#f0f0f0' },
+      },
+      crosshair: { mode: 1 },
+      rightPriceScale: { borderColor: '#e7ebee' },
+      timeScale: { borderColor: '#e7ebee', timeVisible: true, secondsVisible: false },
+      width: container.clientWidth,
+      height: container.clientHeight,
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#00d4aa',
+      downColor: '#ff4757',
+      borderUpColor: '#00d4aa',
+      borderDownColor: '#ff4757',
+      wickUpColor: '#00d4aa',
+      wickDownColor: '#ff4757',
+    });
+
+    const volSeries = chart.addHistogramSeries({
+      color: '#00d4aa',
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'volume',
+    });
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = candleSeries as unknown as ISeriesApi<"Candlestick", Time>;
+    volumeSeriesRef.current = volSeries as unknown as ISeriesApi<"Histogram", Time>;
+
+    // Handle resize
+    const ro = new ResizeObserver(() => {
+      if (container) {
+        chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+      }
+    });
+    ro.observe(container);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+      volumeSeriesRef.current = null;
+    };
+  }, []); // intentionally run once on mount
+
+  // Update chart data whenever candles or timeframe changes
+  useEffect(() => {
+    if (!seriesRef.current || !volumeSeriesRef.current) return;
+    if (candles.length === 0) {
+      seriesRef.current.setData([]);
+      volumeSeriesRef.current.setData([]);
+      return;
+    }
+
+    const candleData = candles.map(c => ({
+      time: c.time as Time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    const volumeData = candles.map(c => ({
+      time: c.time as Time,
+      value: c.volume,
+      color: c.close >= c.open ? '#00d4aa44' : '#ff475744',
+    }));
+
+    seriesRef.current.setData(candleData);
+    volumeSeriesRef.current.setData(volumeData);
+    chartRef.current?.timeScale().fitContent();
+  }, [candles]);
 
   // Format currency (for USD prices)
   const formatCurrency = (value: number | undefined): string => {
@@ -1180,7 +1280,11 @@ const TokenPage: React.FC = () => {
                   lineHeight: '1',
                   padding: '0 0px'
                 }}>
-                  {tokenData?.price !== undefined ? formatPrice(tokenData.price) : 'Loading...'}
+                  {tokenData?.priceUSD !== undefined
+                    ? formatPrice(tokenData.priceUSD)
+                    : tokenData?.price !== undefined
+                      ? `${tokenData.price.toFixed(8)} APT`
+                      : 'Loading...'}
                 </div>
                 <div style={{
                   color: tokenData?.change24h !== undefined ? getPercentageColor(formatPercentage(tokenData.change24h)) : '#5b616e',
@@ -1206,15 +1310,16 @@ const TokenPage: React.FC = () => {
                     display: 'flex',
                     gap: '0'
                   }}>
-                    {['1m', '15m', '1H', '4H', '1D', 'ALL'].map((time, index) => (
+                    {(['1m', '15m', '1H', '4H', '1D', 'ALL'] as Timeframe[]).map((time) => (
                       <button
                         key={time}
+                        onClick={() => setTimeframe(time)}
                         style={{
                           padding: '8px 16px',
                           border: '0px solid #d3d3d3',
                           borderRadius: '6px',
-                          background: index === 1 ? '#d6f0ea' : '#ffffff',
-                          color: index === 1 ? '#00d4aa' : '#292929',
+                          background: timeframe === time ? '#d6f0ea' : '#ffffff',
+                          color: timeframe === time ? '#00d4aa' : '#292929',
                           fontSize: '16px',
                           fontWeight: '100',
                           cursor: 'pointer',
@@ -1287,65 +1392,49 @@ const TokenPage: React.FC = () => {
               <div style={{
                 background: 'white',
                 borderRadius: '12px',
-                padding: '20px',
                 marginBottom: '30px',
-                height: '400px',
-                position: 'relative'
+                height: '360px',
+                position: 'relative',
               }}>
-                <div style={{
-                  width: '100%',
-                  height: '320px',
-                  background: '#fbfbfb',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}>
-                  <svg style={{ width: '100%', height: '100%' }}>
-                    <defs>
-                      <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style={{ stopColor: '#ff4757', stopOpacity: 0.3 }} />
-                        <stop offset="100%" style={{ stopColor: '#ff4757', stopOpacity: 0 }} />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Grid lines */}
-                    <g style={{ stroke: '#b3b3b4', strokeWidth: 0.5, opacity: 0.5 }}>
-                      <line x1="0" y1="50" x2="100%" y2="50" />
-                      <line x1="0" y1="100" x2="100%" y2="100" />
-                      <line x1="0" y1="150" x2="100%" y2="150" />
-                      <line x1="0" y1="200" x2="100%" y2="200" />
-                      <line x1="0" y1="250" x2="100%" y2="250" />
-                    </g>
-
-                    {/* Chart line */}
-                    <path
-                      style={{ fill: 'none', stroke: '#ff4757', strokeWidth: 2 }}
-                      d="M 0 180 L 50 120 L 100 140 L 150 110 L 200 100 L 250 130 L 300 120 L 350 140 L 400 160 L 450 180 L 500 200 L 550 190 L 600 210 L 650 220 L 700 240 L 750 260 L 800 280 L 850 270 L 900 290 L 950 280 L 1000 300"
-                    />
-
-                    {/* Area fill */}
-                    <path
-                      style={{ fill: 'url(#gradient)' }}
-                      d="M 0 180 L 50 120 L 100 140 L 150 110 L 200 100 L 250 130 L 300 120 L 350 140 L 400 160 L 450 180 L 500 200 L 550 190 L 600 210 L 650 220 L 700 240 L 750 260 L 800 280 L 850 270 L 900 290 L 950 280 L 1000 300 L 1000 320 L 0 320 Z"
-                    />
-                  </svg>
-                </div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: '10px',
-                  fontSize: '12px',
-                  color: '#666'
-                }}>
-                  <span>3:35 PM</span>
-                  <span>6:45 PM</span>
-                  <span>9:55 PM</span>
-                  <span>1:05 AM</span>
-                  <span>4:15 AM</span>
-                  <span>7:25 AM</span>
-                  <span>10:35 AM</span>
-                  <span>1:45 PM</span>
-                </div>
+                {/* lightweight-charts mounts here */}
+                <div
+                  ref={chartContainerRef}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                  }}
+                />
+                {/* Overlay when no data yet */}
+                {!chartLoading && candles.length === 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#8a9ba8',
+                    fontSize: '14px',
+                    pointerEvents: 'none',
+                  }}>
+                    No trades yet — be the first to buy!
+                  </div>
+                )}
+                {chartLoading && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#8a9ba8',
+                    fontSize: '14px',
+                    pointerEvents: 'none',
+                  }}>
+                    Loading chart…
+                  </div>
+                )}
               </div>
 
               {/* Balance Section with Tabs */}
@@ -1502,7 +1591,7 @@ const TokenPage: React.FC = () => {
                               fontWeight: '600',
                               fontSize: '14px'
                             }}>
-                              1,247 wallets
+                              {holderCount > 0 ? `${holderCount.toLocaleString()} wallets` : 'Loading...'}
                             </span>
                           </div>
                           <div style={{
@@ -1634,60 +1723,71 @@ const TokenPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        marginTop: '20px',
-                        width: '100%'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '8px'
-                        }}>
+                      {(() => {
+                        const MAX_SUPPLY = 800_000_000;
+                        const GRAD_TARGET_APT = 1200;
+                        const tokensSold = tokenData?.tokensSold ?? 0;
+                        // Approximate APT raised: proportional to tokens sold vs max supply
+                        const progressPct = Math.min((tokensSold / MAX_SUPPLY) * 100, 100);
+                        const aptRaisedApprox = (progressPct / 100) * GRAD_TARGET_APT;
+                        return (
                           <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: '#050f19',
-                            lineHeight: '1'
+                            display: 'flex',
+                            flexDirection: 'column',
+                            marginTop: '20px',
+                            width: '100%'
                           }}>
-                            962 / 1283 APT
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: '8px'
+                            }}>
+                              <div style={{
+                                fontSize: '22px',
+                                fontWeight: '700',
+                                color: '#050f19',
+                                lineHeight: '1'
+                              }}>
+                                {aptRaisedApprox.toFixed(1)} / {GRAD_TARGET_APT} APT
+                              </div>
+                              <div style={{
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                color: '#8a9ba8',
+                                letterSpacing: '0.5px'
+                              }}>
+                                {progressPct.toFixed(1)}% Complete
+                              </div>
+                            </div>
+                            <div style={{
+                              width: '100%',
+                              height: '8px',
+                              background: '#f0f0f0',
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                              marginBottom: '8px'
+                            }}>
+                              <div style={{
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #00d4aa, #00b894)',
+                                borderRadius: '4px',
+                                width: `${progressPct}%`,
+                                transition: 'width 0.5s ease'
+                              }}></div>
+                            </div>
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              color: '#8a9ba8',
+                              marginTop: '8px',
+                              letterSpacing: '0.5px'
+                            }}>
+                              Graduation Progress
+                            </div>
                           </div>
-                          <div style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            color: '#8a9ba8',
-                            letterSpacing: '0.5px'
-                          }}>
-                            75% Complete
-                          </div>
-                        </div>
-                        <div style={{
-                          width: '100%',
-                          height: '8px',
-                          background: '#f0f0f0',
-                          borderRadius: '4px',
-                          overflow: 'hidden',
-                          marginBottom: '8px'
-                        }}>
-                          <div style={{
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-                            borderRadius: '4px',
-                            width: '75%'
-                          }}></div>
-                        </div>
-                        <div style={{
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          color: '#8a9ba8',
-                          marginTop: '8px',
-                          letterSpacing: '0.5px'
-                        }}>
-                          Graduation Progress
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
 
                     <div style={{
