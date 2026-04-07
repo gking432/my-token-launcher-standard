@@ -23,9 +23,26 @@ interface AptPriceProviderProps {
   children: ReactNode;
 }
 
-const CACHE_DURATION = 60000; // 60 seconds (increased to reduce API calls)
-// Use a different CORS proxy that doesn't have rate limits
-const COINGECKO_API_URL = 'https://corsproxy.io/?' + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd');
+const CACHE_DURATION = 60000; // 60 seconds
+
+// Price sources in priority order — Binance needs no API key and has no CORS issues
+const PRICE_SOURCES = [
+  {
+    name: 'Binance',
+    url: 'https://api.binance.com/api/v3/ticker/price?symbol=APTUSDT',
+    parse: (data: any): number => parseFloat(data.price),
+  },
+  {
+    name: 'CoinGecko (direct)',
+    url: 'https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd',
+    parse: (data: any): number => data?.aptos?.usd,
+  },
+  {
+    name: 'CoinGecko (proxy)',
+    url: 'https://corsproxy.io/?' + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd'),
+    parse: (data: any): number => data?.aptos?.usd,
+  },
+];
 
 export const AptPriceProvider = ({ children }: AptPriceProviderProps): JSX.Element => {
   const [aptPrice, setAptPrice] = useState<number | null>(null);
@@ -44,47 +61,35 @@ export const AptPriceProvider = ({ children }: AptPriceProviderProps): JSX.Eleme
     setLoading(true);
     setError(null);
 
-    try {
-      console.log('🔄 Fetching APT price from CoinGecko...');
-      
-      const response = await fetch(COINGECKO_API_URL);
-      
-      if (!response.ok) {
-        throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
+    let lastError: string = 'All price sources failed';
+    for (const source of PRICE_SOURCES) {
+      try {
+        console.log(`🔄 Fetching APT price from ${source.name}...`);
+        const response = await fetch(source.url);
+        if (!response.ok) {
+          throw new Error(`${source.name} error: ${response.status}`);
+        }
+        const data = await response.json();
+        const price = source.parse(data);
+        if (!price || isNaN(price) || price <= 0) {
+          throw new Error(`${source.name}: invalid price value`);
+        }
+        console.log(`✅ APT price from ${source.name}: $${price}`);
+        setAptPrice(price);
+        setLastUpdated(Date.now());
+        setError(null);
+        setLoading(false);
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        console.warn(`⚠️ ${source.name} failed:`, lastError);
       }
-
-      const data = await response.json();
-      console.log('🔍 Raw API response:', data);
-      
-      // Check for rate limit errors
-      if (data.status && data.status.error_code === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
-      }
-      
-      if (!data.aptos || !data.aptos.usd) {
-        console.error('❌ Invalid response format:', data);
-        throw new Error('Invalid response format from CoinGecko API');
-      }
-
-      const price = data.aptos.usd;
-      console.log('✅ APT price fetched:', price);
-      
-      setAptPrice(price);
-      setLastUpdated(Date.now());
-      setError(null);
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching APT price';
-      console.error('❌ Error fetching APT price:', errorMessage);
-      setError(errorMessage);
-      
-      // If we have a cached price, keep using it
-      if (aptPrice) {
-        console.log('📊 Using cached APT price due to error:', aptPrice);
-      }
-    } finally {
-      setLoading(false);
     }
+    // All sources failed
+    console.error('❌ All APT price sources failed:', lastError);
+    setError(lastError);
+    if (aptPrice) console.log('📊 Keeping cached APT price:', aptPrice);
+    setLoading(false);
   }, [aptPrice, lastUpdated]);
 
   // Initial fetch - only if page is visible

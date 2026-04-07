@@ -8,6 +8,7 @@ import { MODULE_ADDRESS } from "../config";
 import PreLaunchModal from './PreLaunchModal';
 import GlobalSidebar from './GlobalSidebar';
 import GlobalHeaderBar from './GlobalHeaderBar';
+import { useTheme } from '../contexts/ThemeContext';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -45,6 +46,7 @@ const client = new Aptos(config);
 const tokenLauncherAddress = CONTRACT_ADDRESSES['testnet'];
 
 const Launch: React.FC = () => {
+  const { theme: t } = useTheme();
   const { account, signAndSubmitTransaction, network } = useWallet();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
@@ -346,10 +348,13 @@ const Launch: React.FC = () => {
       flexDirection: 'column',
       height: '100vh',
       width: '100vw',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       margin: 0,
       padding: 0,
-      overflow: 'hidden'
+      overflow: 'hidden',
+      background: t.bgPrimary,
+      color: t.textPrimary,
+      transition: 'background 0.2s ease, color 0.2s ease',
     }}>
       {/* Global Header Bar */}
       <GlobalHeaderBar />

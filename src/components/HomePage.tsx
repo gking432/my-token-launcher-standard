@@ -170,9 +170,9 @@ const HomePage: React.FC = () => {
           }
 
           body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #ffffff;
-            color: #0a0b0d;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             line-height: 1.5;
           }
 
@@ -186,8 +186,8 @@ const HomePage: React.FC = () => {
           }
 
           .header {
-            background: #ffffff;
-            border-bottom: 1px solid #e7ebee;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
             padding: 16px 0;
             width: 100vw;
             max-width: 100vw;
@@ -216,14 +216,15 @@ const HomePage: React.FC = () => {
           .nav-search-input {
             width: 100%;
             padding: 10px 16px;
-            border: 1px solid #d8dce0;
+            border: 1px solid var(--border);
             border-radius: 8px;
             font-size: 14px;
-            background: #f7f8fa;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
           }
 
           .nav-search-input::placeholder {
-            color: #8a92a5;
+            color: var(--text-muted);
           }
 
           .logo {
@@ -232,7 +233,8 @@ const HomePage: React.FC = () => {
             gap: 8px;
             font-size: 28px;
             font-weight: 900;
-            color: #0a0b0d;
+            color: var(--text-primary);
+            color: var(--text-primary);
           }
 
           .logo-dot {
@@ -252,7 +254,7 @@ const HomePage: React.FC = () => {
           }
 
           .nav-links a {
-            color: #5b616e;
+            color: var(--text-secondary);
             text-decoration: none;
             font-weight: 500;
             font-size: 16px;
@@ -260,7 +262,7 @@ const HomePage: React.FC = () => {
           }
 
           .nav-links a:hover {
-            color: #0a0b0d;
+            color: var(--text-primary);
           }
 
           .auth-section {
@@ -272,7 +274,7 @@ const HomePage: React.FC = () => {
 
 
           .sign-in {
-            color: #0a0b0d;
+            color: var(--text-primary);
             text-decoration: none;
             font-weight: 500;
           }
@@ -322,7 +324,7 @@ const HomePage: React.FC = () => {
             font-size: 68px;
             font-weight: 600;
             margin-bottom: 16px;
-            color:rgb(0, 0, 0);
+            color: var(--text-primary);
           }
 
 
@@ -340,7 +342,7 @@ const HomePage: React.FC = () => {
           }
 
           .section-subtitle {
-            color: #5b616e;
+            color: var(--text-secondary);
             font-size: 16px;
             line-height: 1.6;
             margin-bottom: 8px;
@@ -364,36 +366,37 @@ const HomePage: React.FC = () => {
             align-items: center;
             gap: 8px;
             padding: 8px 12px;
-            border: 1px solid #d8dce0;
+            border: 1px solid var(--border);
             border-radius: 6px;
-            background: white;
+            background: var(--bg-primary);
             cursor: pointer;
             font-size: 14px;
-            color: #0a0b0d;
+            color: var(--text-primary);
           }
 
           .crypto-table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            background: var(--bg-primary);
           }
 
           .crypto-table th {
             text-align: left;
             padding: 16px 12px;
             font-weight: 600;
-            color: #5b616e;
+            color: var(--text-secondary);
             font-size: 14px;
-            border-bottom: 1px solid #e7ebee;
+            border-bottom: 1px solid var(--border);
           }
 
           .crypto-table td {
             padding: 16px 12px;
-            border-bottom: 1px solid #f7f8fa;
+            border-bottom: 1px solid var(--bg-secondary);
+            color: var(--text-primary);
           }
 
           .crypto-table tr:hover {
-            background: #f7f8fa;
+            background: var(--bg-hover);
           }
 
           .asset-cell {
@@ -427,12 +430,12 @@ const HomePage: React.FC = () => {
 
           .asset-name {
             font-weight: 600;
-            color: #0a0b0d;
+            color: var(--text-primary);
             font-size: 16px;
           }
 
           .asset-symbol {
-            color: #5b616e;
+            color: var(--text-secondary);
             font-size: 14px;
           }
 
@@ -462,7 +465,7 @@ const HomePage: React.FC = () => {
           }
 
           .volume {
-            color: #5b616e;
+            color: var(--text-secondary);
           }
 
           .trade-btn {
@@ -528,8 +531,8 @@ const HomePage: React.FC = () => {
           }
 
           .movers-card {
-            background: white;
-            border: 1px solid #e7ebee;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
             border-radius: 12px;
             padding: 24px;
           }
@@ -554,17 +557,17 @@ const HomePage: React.FC = () => {
           .nav-arrow {
             width: 32px;
             height: 32px;
-            border: 1px solid #e7ebee;
+            border: 1px solid var(--border);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            color: #5b616e;
+            color: var(--text-secondary);
           }
 
           .movers-subtitle {
-            color: #5b616e;
+            color: var(--text-secondary);
             font-size: 14px;
             margin-bottom: 16px;
           }
@@ -574,7 +577,7 @@ const HomePage: React.FC = () => {
             align-items: center;
             gap: 12px;
             padding: 12px 0;
-            border-bottom: 1px solid #f7f8fa;
+            border-bottom: 1px solid var(--bg-secondary);
           }
 
           .mover-item:last-child {
@@ -597,7 +600,7 @@ const HomePage: React.FC = () => {
           }
 
           .mover-price {
-            color: #5b616e;
+            color: var(--text-secondary);
             font-size: 12px;
           }
 
@@ -608,8 +611,8 @@ const HomePage: React.FC = () => {
           
           /* Footer Styles */
           .footer {
-            background: #ffffff;
-            border-top: 1px solid #e7ebee;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
             width: 100vw;
             max-width: 100vw;
             padding: 40px 0;
@@ -630,13 +633,13 @@ const HomePage: React.FC = () => {
           .footer-section h4 {
             font-size: 16px;
             font-weight: 600;
-            color: #050f19;
+            color: var(--text-primary);
             margin-bottom: 16px;
           }
           
           .footer-section p {
             font-size: 14px;
-            color: #5b616e;
+            color: var(--text-secondary);
             line-height: 1.6;
             margin-bottom: 20px;
           }
@@ -647,7 +650,7 @@ const HomePage: React.FC = () => {
           }
           
           .social-link {
-            color: #5b616e;
+            color: var(--text-secondary);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -679,7 +682,7 @@ const HomePage: React.FC = () => {
           }
           
           .footer-bottom {
-            border-top: 1px solid #e7ebee;
+            border-top: 1px solid var(--border);
             padding: 20px 0;
             margin-top: 40px;
             width: 100%;
@@ -697,7 +700,7 @@ const HomePage: React.FC = () => {
           
           .footer-bottom p {
             font-size: 14px;
-            color: #5b616e;
+            color: var(--text-secondary);
           }
           
           .footer-bottom-links {

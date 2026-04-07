@@ -244,13 +244,20 @@ export const useTokenData = (): UseTokenDataReturn => {
         const tickerHex = eventData?.ticker || '';
         const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
         
-        // Parse supply data - use correct field names from TokenCreatedEvent
-        const totalSupply = parseInt(eventData?.total_supply || '1000000');
-        const mintedSupply = parseInt(eventData?.minted_supply || '0');
-        const remainingSupply = parseInt(eventData?.remaining_supply || '1000000');
-        
-        // Calculate tokens sold as total - remaining
-        const tokensSold = totalSupply - remainingSupply;
+        // Parse supply data
+        // aptosIndexer renames minted_supply → tokens_sold in the data wrapper
+        const MAX_SUPPLY = 800_000_000;
+        const totalSupply = parseInt(eventData?.total_supply || String(MAX_SUPPLY));
+        // tokens_sold is the renamed minted_supply; fall back to total - remaining
+        const mintedSupply = parseInt(
+          eventData?.tokens_sold ?? eventData?.minted_supply ?? '0'
+        );
+        const remainingSupply = parseInt(eventData?.remaining_supply || String(MAX_SUPPLY));
+
+        // Prefer explicit tokens_sold/minted_supply field; fall back to total - remaining
+        const tokensSold = mintedSupply > 0
+          ? mintedSupply
+          : Math.max(0, totalSupply - remainingSupply);
         
         // Calculate APT price using bonding curve
         const priceAPT = calculateBondingCurvePrice(tokensSold);

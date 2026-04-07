@@ -401,7 +401,7 @@ async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: strin
         if (event.data && event.data.metadata_address) {
           const metadataAddress = event.data.metadata_address;
           const tokensSold = event.data.tokens_sold || 0;
-          const totalSupply = event.data.total_supply || 1000000;
+          const totalSupply = event.data.total_supply || 800_000_000;
           
           // Calculate price using bonding curve
           const priceAPT = calculateBondingCurvePrice(tokensSold);

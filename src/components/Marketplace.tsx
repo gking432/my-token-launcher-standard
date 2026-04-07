@@ -9,8 +9,10 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Marketplace: React.FC = () => {
+  const { theme: t } = useTheme();
   const { account, signAndSubmitTransaction } = useWallet();
   const { metadataAddress } = useParams<{ metadataAddress?: string }>();
   const navigate = useNavigate();
@@ -545,22 +547,24 @@ const Marketplace: React.FC = () => {
           }
         `}
       </style>
-              <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          height: '100vh', 
+              <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
           width: '100vw',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           margin: 0,
           padding: 0,
           overflow: 'hidden',
-          background: '#ffffff'
+          background: t.bgPrimary,
+          color: t.textPrimary,
+          transition: 'background 0.2s ease, color 0.2s ease',
         }}>
                             {/* Header */}
         {/* Token Leaderboard - Commented out for future CTA */}
         {/* <div style={{
-          background: '#ffffff',
-          borderBottom: '1px solid #e7ebee',
+          background: t.bgPrimary,
+          borderBottom: `1px solid ${t.border}`,
           padding: headerMinimized ? '4px 24px' : '8px 24px',
           width: '100%',
           flexShrink: 0,
@@ -578,7 +582,7 @@ const Marketplace: React.FC = () => {
             <div style={{
               fontSize: '14px',
               fontWeight: '600',
-              color: '#5b616e',
+              color: t.textSecondary,
               textTransform: 'uppercase',
               letterSpacing: '0.5px'
             }}>
@@ -631,7 +635,7 @@ const Marketplace: React.FC = () => {
                 <span style={{
                   fontSize: '12px',
                   fontWeight: '600',
-                  color: '#5b616e',
+                  color: t.textSecondary,
                   minWidth: '16px'
                 }}>
                   {token.rank}
@@ -656,7 +660,7 @@ const Marketplace: React.FC = () => {
                   <div style={{
                     fontSize: '12px',
                     fontWeight: '600',
-                    color: '#0a0b0d',
+                    color: t.textPrimary,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
@@ -665,7 +669,7 @@ const Marketplace: React.FC = () => {
                   </div>
                   <div style={{
                     fontSize: '10px',
-                    color: '#5b616e',
+                    color: t.textSecondary,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
@@ -702,8 +706,8 @@ const Marketplace: React.FC = () => {
           }}>
             {/* Token Title Bar */}
             <div style={{
-              background: 'white',
-              borderBottom: '1px solid #e7ebee',
+              background: t.bgPrimary,
+              borderBottom: `1px solid ${t.border}`,
               padding: '18px 24px',
               display: 'flex',
               alignItems: 'center',
@@ -714,7 +718,7 @@ const Marketplace: React.FC = () => {
               <div style={{
                 fontSize: '32px',
                 fontWeight: '600',
-                color: '#050f19',
+                color: t.textPrimary,
                 flexShrink: 0
               }}>
                 Marketplace
@@ -734,11 +738,11 @@ const Marketplace: React.FC = () => {
                   style={{
                     width: '400px',
                     padding: '8px 12px',
-                    border: '1px solid #d3d3d3',
+                    border: `1px solid ${t.border}`,
                     borderRadius: '6px',
                     fontSize: '14px',
-                    background: '#f8f9fa',
-                    color: '#050f19'
+                    background: t.bgSecondary,
+                    color: t.textPrimary
                   }}
                 />
               </div>
@@ -750,7 +754,7 @@ const Marketplace: React.FC = () => {
               }}>
                 <span>⚙️</span>
                 <a href="#" style={{
-                  color: '#5b616e',
+                  color: t.textSecondary,
                   textDecoration: 'none'
                 }}>
                   Launch
@@ -782,8 +786,8 @@ const Marketplace: React.FC = () => {
                         position: 'absolute',
                         top: '100%',
                         right: 0,
-                        background: 'white',
-                        border: '1px solid #e6e8ea',
+                        background: t.bgPrimary,
+                        border: `1px solid ${t.border}`,
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                         zIndex: 1000,
@@ -804,7 +808,7 @@ const Marketplace: React.FC = () => {
                             textAlign: 'left',
                             cursor: 'pointer',
                             fontSize: '14px',
-                            color: '#050f19',
+                            color: t.textPrimary,
                             borderBottom: '1px solid #f0f0f0'
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
@@ -849,13 +853,13 @@ const Marketplace: React.FC = () => {
               flex: 1,
               minHeight: 0,
               width: '100%',
-              background: '#ffffff'
+              background: t.bgPrimary,
             }}>
               {/* Content Left */}
               <div style={{
                 flex: 1,
                 padding: '20px',
-                background: '#ffffff',
+                background: t.bgPrimary,
                 overflowY: 'auto',
                 minWidth: 0
               }}>
@@ -863,20 +867,20 @@ const Marketplace: React.FC = () => {
 
                 {/* Trading Section */}
                 <div style={{
-                  background: 'white',
+                  background: t.bgSecondary,
                   borderRadius: '12px',
                   padding: '20px',
-                  border: '1px solid #e6e8ea'
+                  border: `1px solid ${t.border}`,
                 }}>
                   <div style={{
                     fontSize: '18px',
                     fontWeight: '600',
-                    color: '#050f19',
+                    color: t.textPrimary,
                     marginBottom: '20px'
                   }}>
                     Tokens
                   </div>
-                  
+
                   {/* Controls */}
                   <div style={{
                     display: 'flex',
@@ -884,23 +888,25 @@ const Marketplace: React.FC = () => {
                     marginBottom: '20px',
                     flexWrap: 'wrap'
                   }}>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Filter by name"
                       style={{
                         padding: '8px 12px',
-                        border: '1px solid #d3d3d3',
+                        border: `1px solid ${t.border}`,
                         borderRadius: '4px',
                         fontSize: '14px',
-                        minWidth: '200px'
+                        minWidth: '200px',
+                        background: t.bgPrimary,
+                        color: t.textPrimary,
                       }}
                     />
                     <select style={{
                       padding: '8px 12px',
-                      border: '1px solid #d3d3d3',
+                      border: `1px solid ${t.border}`,
                       borderRadius: '4px',
                       fontSize: '14px',
-                      background: 'white'
+                      background: t.bgPrimary
                     }}>
                       <option>1h</option>
                       <option>4h</option>
@@ -910,10 +916,11 @@ const Marketplace: React.FC = () => {
                     </select>
                     <select style={{
                       padding: '8px 12px',
-                      border: '1px solid #d3d3d3',
+                      border: `1px solid ${t.border}`,
                       borderRadius: '4px',
                       fontSize: '14px',
-                      background: 'white'
+                      background: t.bgPrimary,
+                      color: t.textPrimary,
                     }}>
                       <option>All Status</option>
                       <option>Verified</option>
@@ -929,13 +936,13 @@ const Marketplace: React.FC = () => {
                   }}>
                     <thead>
                       <tr style={{
-                        borderBottom: '1px solid #e6e8ea'
+                        borderBottom: `1px solid ${t.border}`,
                       }}>
                         <th style={{
                           textAlign: 'left',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8'
+                          color: t.textMuted,
                         }}>
                           Name
                         </th>
@@ -943,7 +950,7 @@ const Marketplace: React.FC = () => {
                           textAlign: 'right',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8',
+                          color: t.textMuted,
                           width: '150px'
                         }}>
                           Price
@@ -952,7 +959,7 @@ const Marketplace: React.FC = () => {
                           textAlign: 'right',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8'
+                          color: t.textMuted,
                         }}>
                           Change
                         </th>
@@ -960,7 +967,7 @@ const Marketplace: React.FC = () => {
                           textAlign: 'right',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8'
+                          color: t.textMuted
                         }}>
                           Market cap
                         </th>
@@ -968,7 +975,7 @@ const Marketplace: React.FC = () => {
                           textAlign: 'right',
                           padding: '12px 8px',
                           fontWeight: '600',
-                          color: '#8a9ba8',
+                          color: t.textMuted,
                           width: '200px'
                         }}>
                           Actions
@@ -980,10 +987,10 @@ const Marketplace: React.FC = () => {
                         <tr>
                           <td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>
                             <div style={{ padding: '20px' }}>
-                              <div style={{ fontSize: '16px', fontWeight: '600', color: '#050f19', marginBottom: '8px' }}>
+                              <div style={{ fontSize: '16px', fontWeight: '600', color: t.textPrimary, marginBottom: '8px' }}>
                                 Loading tokens...
                               </div>
-                              <div style={{ fontSize: '14px', color: '#8a9ba8' }}>
+                              <div style={{ fontSize: '14px', color: t.textMuted }}>
                                 {error ? 'Retrying after rate limit...' : 'Fetching from Aptos network...'}
                               </div>
                             </div>
@@ -993,10 +1000,10 @@ const Marketplace: React.FC = () => {
                         <tr>
                           <td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>
                             <div style={{ padding: '20px' }}>
-                              <div style={{ fontSize: '16px', fontWeight: '600', color: '#050f19', marginBottom: '8px' }}>
+                              <div style={{ fontSize: '16px', fontWeight: '600', color: t.textPrimary, marginBottom: '8px' }}>
                                 Unable to load tokens
                               </div>
-                              <div style={{ fontSize: '14px', color: '#8a9ba8', marginBottom: '16px' }}>
+                              <div style={{ fontSize: '14px', color: t.textMuted, marginBottom: '16px' }}>
                                 The Aptos network is experiencing high traffic. This usually resolves in a few minutes.
                                 <br />
                                 <strong>Tip:</strong> Try refreshing the page or wait a moment before retrying.
@@ -1020,7 +1027,7 @@ const Marketplace: React.FC = () => {
                                 onClick={() => window.location.reload()} 
                                 style={{
                                   background: 'transparent',
-                                  color: '#8a9ba8',
+                                  color: t.textMuted,
                                   border: '1px solid #e0e0e0',
                                   padding: '8px 16px',
                                   borderRadius: '6px',
@@ -1074,13 +1081,13 @@ const Marketplace: React.FC = () => {
                                   <div style={{
                                     fontSize: '14px',
                                     fontWeight: '600',
-                                    color: '#050f19'
+                                    color: t.textPrimary
                                   }}>
                                     {token.name}
                                   </div>
                                   <div style={{
                                     fontSize: '12px',
-                                    color: '#8a9ba8'
+                                    color: t.textMuted
                                   }}>
                                     {token.symbol}
                                   </div>
@@ -1091,7 +1098,7 @@ const Marketplace: React.FC = () => {
                               textAlign: 'right',
                               padding: '12px 8px',
                               fontWeight: '600',
-                              color: '#050f19',
+                              color: t.textPrimary,
                               width: '150px'
                             }}>
                               {token.price?.toFixed(7)}
@@ -1107,7 +1114,7 @@ const Marketplace: React.FC = () => {
                             <td style={{
                               textAlign: 'right',
                               padding: '12px 8px',
-                              color: '#8a9ba8'
+                              color: t.textMuted
                             }}>
                               {token.marketCap ? token.marketCap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
                             </td>
@@ -1155,7 +1162,7 @@ const Marketplace: React.FC = () => {
                                 {/* Boost button - commented out for future deployment */}
                                 {/* <button style={{
                                   padding: '8px 16px',
-                                  background: 'white',
+                                  background: t.bgPrimary,
                                   color: '#FF6B35',
                                   border: '1px solid #FF6B35',
                                   borderRadius: '6px',
@@ -1168,7 +1175,7 @@ const Marketplace: React.FC = () => {
                                 {/* Verify button - commented out for future deployment */}
                                 {/* <button style={{
                                   padding: '8px 16px',
-                                  background: 'white',
+                                  background: t.bgPrimary,
                                   color: '#00BFFF',
                                   border: '1px solid #00BFFF',
                                   borderRadius: '6px',
@@ -1182,7 +1189,7 @@ const Marketplace: React.FC = () => {
                                   onClick={(e) => handleStarClick(token, e)}
                                   style={{
                                     background: '#fff',
-                                    border: '1px solid #e6e8ea',
+                                    border: `1px solid ${t.border}`,
                                     color: (token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '#FFD700' : '#666',
                                     cursor: 'pointer',
                                     fontSize: '16px',
@@ -1210,7 +1217,7 @@ const Marketplace: React.FC = () => {
               {/* Trading Panel */}
               <div style={{
                 width: '400px',
-                background: '#ffffff',
+                background: t.bgPrimary,
                 borderLeft: '1px solid #d3d3d3',
                 padding: '20px',
                 flexShrink: 0,
@@ -1219,10 +1226,10 @@ const Marketplace: React.FC = () => {
                 minHeight: 0
               }}>
                 <div style={{
-                  background: '#f8f9fa',
+                  background: t.bgSecondary,
                   borderRadius: '12px',
                   padding: '20px',
-                  border: '1px solid #e6e8ea',
+                  border: `1px solid ${t.border}`,
                   height: '100%'
                 }}>
                   {/* Token Info Section */}
@@ -1230,9 +1237,9 @@ const Marketplace: React.FC = () => {
                     <div style={{ 
                       marginBottom: '20px',
                       padding: '16px',
-                      background: '#ffffff',
+                      background: t.bgPrimary,
                       borderRadius: '8px',
-                      border: '1px solid #e6e8ea'
+                      border: `1px solid ${t.border}`
                     }}>
                       <div style={{
                         display: 'flex',
@@ -1258,14 +1265,14 @@ const Marketplace: React.FC = () => {
                           <h4 style={{
                             fontSize: '18px',
                             fontWeight: '700',
-                            color: '#0a0b0d',
+                            color: t.textPrimary,
                             margin: '0'
                           }}>
                             {selectedToken.symbol}
                           </h4>
                           <p style={{
                             fontSize: '14px',
-                            color: '#6c757d',
+                            color: t.textSecondary,
                             margin: '0'
                           }}>
                             {selectedToken.name}
@@ -1278,14 +1285,14 @@ const Marketplace: React.FC = () => {
                     <div style={{ 
                       marginBottom: '20px',
                       padding: '16px',
-                      background: '#f8f9fa',
+                      background: t.bgSecondary,
                       borderRadius: '8px',
-                      border: '1px solid #e6e8ea',
+                      border: `1px solid ${t.border}`,
                       textAlign: 'center'
                     }}>
                       <p style={{
                         fontSize: '14px',
-                        color: '#6c757d',
+                        color: t.textSecondary,
                         margin: '0'
                       }}>
                         Select a token to start trading
@@ -1297,7 +1304,7 @@ const Marketplace: React.FC = () => {
                     <h3 style={{
                       fontSize: '16px',
                       fontWeight: '600',
-                      color: '#0a0b0d',
+                      color: t.textPrimary,
                       marginBottom: '8px'
                     }}>
                       Your Balance {selectedToken && <span style={{ color: '#000000', fontWeight: '600' }}>({selectedToken.symbol})</span>}
@@ -1313,7 +1320,7 @@ const Marketplace: React.FC = () => {
                   
                   <ul style={{
                     display: 'flex',
-                    background: '#e9ecef',
+                    background: t.bgSecondary,
                     borderRadius: '8px',
                     padding: '4px',
                     marginBottom: '20px',
@@ -1358,7 +1365,7 @@ const Marketplace: React.FC = () => {
                       display: 'block',
                       fontSize: '14px',
                       fontWeight: '600',
-                      color: '#0a0b0d',
+                      color: t.textPrimary,
                       marginBottom: '8px'
                     }}>
                       Amount
@@ -1370,10 +1377,10 @@ const Marketplace: React.FC = () => {
                       style={{
                         width: '100%',
                         padding: '12px 16px',
-                        border: '1px solid #e6e8ea',
+                        border: `1px solid ${t.border}`,
                         borderRadius: '8px',
                         fontSize: '16px',
-                        background: 'white'
+                        background: t.bgPrimary
                       }}
                     />
                   </div>
@@ -1383,7 +1390,7 @@ const Marketplace: React.FC = () => {
                       display: 'block',
                       fontSize: '14px',
                       fontWeight: '600',
-                      color: '#0a0b0d',
+                      color: t.textPrimary,
                       marginBottom: '8px'
                     }}>
                       Total (APT)
@@ -1395,11 +1402,11 @@ const Marketplace: React.FC = () => {
                       style={{
                         width: '100%',
                         padding: '12px 16px',
-                        border: '1px solid #e6e8ea',
+                        border: `1px solid ${t.border}`,
                         borderRadius: '8px',
                         fontSize: '16px',
-                        background: '#f8f9fa',
-                        color: '#6c757d'
+                        background: t.bgSecondary,
+                        color: t.textSecondary
                       }}
                     />
                   </div>
@@ -1408,9 +1415,9 @@ const Marketplace: React.FC = () => {
                   <div style={{
                     margin: '20px 0',
                     padding: '15px',
-                    background: '#f8f9fa',
+                    background: t.bgSecondary,
                     borderRadius: '8px',
-                    border: '1px solid #e6e8ea',
+                    border: `1px solid ${t.border}`,
                     cursor: 'pointer',
                     transition: 'all 0.3s ease'
                   }}>
@@ -1427,13 +1434,13 @@ const Marketplace: React.FC = () => {
                       <span style={{
                         fontSize: '14px',
                         fontWeight: '600',
-                        color: '#050f19'
+                        color: t.textPrimary
                       }}>
                         Slippage Protection
                       </span>
                       <span style={{
                         fontSize: '12px',
-                        color: '#8a9ba8',
+                        color: t.textMuted,
                         cursor: 'pointer',
                         transition: 'transform 0.3s ease',
                         display: 'flex',
@@ -1492,16 +1499,16 @@ const Marketplace: React.FC = () => {
                           style={{
                             flex: 1,
                             padding: '8px 12px',
-                            border: '1px solid #d3d3d3',
+                            border: `1px solid ${t.border}`,
                             borderRadius: '6px',
                             fontSize: '12px',
-                            background: '#ffffff',
-                            color: '#050f19'
+                            background: t.bgPrimary,
+                            color: t.textPrimary
                           }}
                         />
                         <span style={{
                           fontSize: '12px',
-                          color: '#8a9ba8',
+                          color: t.textMuted,
                           fontWeight: '500'
                         }}>
                           %
@@ -1543,8 +1550,8 @@ const Marketplace: React.FC = () => {
                         width: '100%',
                         padding: '12px 24px',
                         background: 'transparent',
-                        color: '#5b616e',
-                        border: '1px solid #d3d3d3',
+                        color: t.textSecondary,
+                        border: `1px solid ${t.border}`,
                         borderRadius: '8px',
                         fontSize: '14px',
                         fontWeight: '500',
@@ -1563,7 +1570,7 @@ const Marketplace: React.FC = () => {
 
             {/* Footer */}
             <div style={{
-              background: '#ffffff',
+              background: t.bgPrimary,
               borderTop: '1px solid #e7ebee',
               padding: '20px 24px',
               width: '100%',
@@ -1579,28 +1586,28 @@ const Marketplace: React.FC = () => {
                   gap: '20px'
                 }}>
                   <a href="#" style={{
-                    color: '#5b616e',
+                    color: t.textSecondary,
                     textDecoration: 'none',
                     fontSize: '14px'
                   }}>
                     Careers
                   </a>
                   <a href="#" style={{
-                    color: '#5b616e',
+                    color: t.textSecondary,
                     textDecoration: 'none',
                     fontSize: '14px'
                   }}>
                     Privacy & Legal
                   </a>
                   <a href="#" style={{
-                    color: '#5b616e',
+                    color: t.textSecondary,
                     textDecoration: 'none',
                     fontSize: '14px'
                   }}>
                     Docs
                   </a>
                   <a href="#" style={{
-                    color: '#5b616e',
+                    color: t.textSecondary,
                     textDecoration: 'none',
                     fontSize: '14px'
                   }}>
@@ -1609,7 +1616,7 @@ const Marketplace: React.FC = () => {
                 </div>
                 <p style={{
                   fontSize: '14px',
-                  color: '#5b616e'
+                  color: t.textSecondary
                 }}>
                   &copy; 2025 MoveMint
                 </p>
