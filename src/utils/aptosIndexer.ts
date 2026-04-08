@@ -333,33 +333,75 @@ async function fetchSaleEvents(metadataAddr?: string, limit: number = 100): Prom
   }
 }
 
+// Fetch the latest tokens_sold and cumulative apt_raised per token from purchase events
+async function fetchLatestPurchaseStates(): Promise<Map<string, { tokensSold: number; aptRaised: number }>> {
+  try {
+    // Fetch recent purchase events across all tokens (desc by timestamp = latest first)
+    const events = await fetchPurchaseEvents(undefined, 1000);
+    const tokensSoldMap = new Map<string, number>();
+    const aptRaisedMap = new Map<string, number>();
+
+    for (const e of events) {
+      const addr: string = e.metadata_addr;
+      if (!addr) continue;
+      // First occurrence per addr = most recent (desc order) → current tokens_sold
+      if (!tokensSoldMap.has(addr)) {
+        tokensSoldMap.set(addr, parseInt(e.tokens_sold || '0'));
+      }
+      // Sum liquidity_contribution for all events (mirrors vault.total_apt_spent)
+      aptRaisedMap.set(addr, (aptRaisedMap.get(addr) ?? 0) + parseInt(e.liquidity_contribution || '0'));
+    }
+
+    const result = new Map<string, { tokensSold: number; aptRaised: number }>();
+    const allAddrs = Array.from(tokensSoldMap.keys()).concat(Array.from(aptRaisedMap.keys()))
+      .filter((v, i, a) => a.indexOf(v) === i);
+    for (const addr of allAddrs) {
+      result.set(addr, {
+        tokensSold: tokensSoldMap.get(addr) ?? 0,
+        aptRaised: aptRaisedMap.get(addr) ?? 0,
+      });
+    }
+    return result;
+  } catch (e) {
+    console.warn('⚠️ fetchLatestPurchaseStates failed, falling back to creation event data:', e);
+    return new Map();
+  }
+}
+
 // Main function to get optimized token data via GraphQL
 async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: string, aptPrice: number = 0): Promise<OptimizedTokenData> {
   console.log('🚀 GraphQL: Getting ALL token data via Geomi indexer...');
 
   try {
-    // 1. Get token creation events
-    console.log("🔍 Fetching TokenCreatedEvents from indexer...");
-    const createdEvents = await fetchTokenCreatedEvents();
-    console.log(`✅ Token events: ${createdEvents.length}`);
+    // 1. Get token creation events + latest purchase states in parallel
+    console.log("🔍 Fetching TokenCreatedEvents and latest purchase states...");
+    const [createdEvents, purchaseStates] = await Promise.all([
+      fetchTokenCreatedEvents(),
+      fetchLatestPurchaseStates(),
+    ]);
+    console.log(`✅ Token events: ${createdEvents.length}, purchase states: ${purchaseStates.size}`);
 
-    // Convert to expected format
-    const tokenEvents: TokenCreationEvent[] = createdEvents.map((event: any) => ({
-      type: 'TokenCreatedEvent',
-      sequence_number: event.sequence_number?.toString() || event.event_index?.toString() || '',
-      data: {
-        creator: event.creator,
-        metadata_address: event.metadata_addr,
-        ticker: event.ticker,
-        total_supply: event.total_supply,
-        tokens_sold: event.minted_supply || 0, // Use minted_supply as tokens_sold
-        remaining_supply: event.remaining_supply,
-        decimals_factor: event.decimals_factor,
-        premint_amount: event.premint_amount,
-        timestamp: event.timestamp,
-      },
-      __typename: 'TokenCreatedEvent'
-    }));
+    // Convert to expected format — use real tokens_sold/apt_raised from purchase events
+    const tokenEvents: TokenCreationEvent[] = createdEvents.map((event: any) => {
+      const state = purchaseStates.get(event.metadata_addr);
+      return {
+        type: 'TokenCreatedEvent',
+        sequence_number: event.sequence_number?.toString() || event.event_index?.toString() || '',
+        data: {
+          creator: event.creator,
+          metadata_address: event.metadata_addr,
+          ticker: event.ticker,
+          total_supply: event.total_supply,
+          tokens_sold: state?.tokensSold ?? 0,
+          apt_raised: state?.aptRaised ?? 0,
+          remaining_supply: event.remaining_supply,
+          decimals_factor: event.decimals_factor,
+          premint_amount: event.premint_amount,
+          timestamp: event.timestamp,
+        },
+        __typename: 'TokenCreatedEvent'
+      };
+    });
 
     // 2. Get graduation events
     console.log("🔍 Fetching TokenGraduatedEvents from indexer...");

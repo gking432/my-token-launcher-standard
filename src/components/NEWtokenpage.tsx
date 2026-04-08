@@ -785,8 +785,8 @@ const TokenPage: React.FC = () => {
   // Resolve metadataAddress for chart & holder data
   const resolvedMetadataAddr = tokenDetails?.metadataAddress || coinHash;
 
-  // Fetch OHLC candles, holder count, and raw trades
-  const { candles, recentTrades, loading: chartLoading, holderCount } = useOHLCData(
+  // Fetch OHLC candles, holder count, apt raised, and raw trades
+  const { candles, recentTrades, loading: chartLoading, holderCount, aptRaised } = useOHLCData(
     resolvedMetadataAddr,
     timeframe,
     refreshChart,
@@ -1853,12 +1853,11 @@ const TokenPage: React.FC = () => {
                       </div>
 
                       {(() => {
-                        const MAX_SUPPLY = 800_000_000;
-                        const GRAD_TARGET_APT = 1200;
-                        const tokensSold = tokenData?.tokensSold ?? 0;
-                        // Approximate APT raised: proportional to tokens sold vs max supply
-                        const progressPct = Math.min((tokensSold / MAX_SUPPLY) * 100, 100);
-                        const aptRaisedApprox = (progressPct / 100) * GRAD_TARGET_APT;
+                        const GRADUATION_TARGET_OCTAS = 128_300_000_000; // 1283 APT in Octas
+                        const GRAD_TARGET_APT = 1283;
+                        const aptRaisedOctas = aptRaised; // from useOHLCData (sum of liquidity_contribution)
+                        const aptRaisedAPT = aptRaisedOctas / 1e8;
+                        const progressPct = Math.min((aptRaisedOctas / GRADUATION_TARGET_OCTAS) * 100, 100);
                         return (
                           <div style={{
                             display: 'flex',
@@ -1878,7 +1877,7 @@ const TokenPage: React.FC = () => {
                                 color: t.textPrimary,
                                 lineHeight: '1'
                               }}>
-                                {aptRaisedApprox.toFixed(1)} / {GRAD_TARGET_APT} APT
+                                {aptRaisedAPT.toFixed(2)} / {GRAD_TARGET_APT} APT
                               </div>
                               <div style={{
                                 fontSize: '14px',

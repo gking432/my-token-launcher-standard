@@ -58,6 +58,7 @@ interface UseOHLCDataReturn {
   recentTrades: RecentTrade[];
   loading: boolean;
   holderCount: number;
+  aptRaised: number; // cumulative APT raised via bonding curve, in Octas
   refetch: () => void;
 }
 
@@ -70,6 +71,7 @@ export function useOHLCData(
   const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([]);
   const [loading, setLoading] = useState(false);
   const [holderCount, setHolderCount] = useState(0);
+  const [aptRaised, setAptRaised] = useState(0);
 
   const fetchAndAggregate = useCallback(async () => {
     if (!metadataAddr || metadataAddr === 'Unknown') return;
@@ -81,12 +83,15 @@ export function useOHLCData(
         getSaleEvents(metadataAddr, 1000),
       ]);
 
-      // Unique buyers → holder count
+      // Unique buyers → holder count; sum liquidity_contribution → apt raised
       const buyers = new Set<string>();
+      let totalAptRaised = 0;
       for (const p of purchases) {
         if (p.buyer) buyers.add(p.buyer.toLowerCase());
+        totalAptRaised += parseInt(p.liquidity_contribution || '0');
       }
       setHolderCount(buyers.size);
+      setAptRaised(totalAptRaised);
 
       // ── Recent trades (for Transactions tab) ──────────────
       const trades: RecentTrade[] = [];
@@ -166,5 +171,5 @@ export function useOHLCData(
 
   useEffect(() => { fetchAndAggregate(); }, [fetchAndAggregate]);
 
-  return { candles, recentTrades, loading, holderCount, refetch: fetchAndAggregate };
+  return { candles, recentTrades, loading, holderCount, aptRaised, refetch: fetchAndAggregate };
 }

@@ -22,7 +22,8 @@ interface Token {
   // Add USD fields
   priceUSD?: number;
   marketCapUSD?: number;
-  tokensSold?: number; // For internal calculation
+  tokensSold?: number;
+  aptRaised?: number; // Cumulative APT raised via bonding curve (Octas)
 }
 
 interface UseTokenDataReturn {
@@ -261,6 +262,7 @@ export const useTokenData = (): UseTokenDataReturn => {
         const tokensSold = mintedSupply > 0
           ? mintedSupply
           : Math.max(0, BONDING_CURVE_MAX - remainingSupply);
+        const aptRaised = parseInt(eventData?.apt_raised || '0');
         
         // Calculate APT price using bonding curve
         const priceAPT = calculateBondingCurvePrice(tokensSold);
@@ -294,7 +296,8 @@ export const useTokenData = (): UseTokenDataReturn => {
           change24h: 0, // Will be calculated below
           priceUSD,
           marketCapUSD,
-          tokensSold // Store for 24h calculation
+          tokensSold,
+          aptRaised
         };
       });
 
