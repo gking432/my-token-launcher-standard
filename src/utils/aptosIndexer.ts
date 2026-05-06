@@ -262,14 +262,19 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
     `;
   }
 
+  const normalizedAddr = metadataAddr?.toLowerCase();
   const variables: any = { limit };
-  if (metadataAddr) {
-    variables.metadataAddr = metadataAddr;
+  if (normalizedAddr) {
+    variables.metadataAddr = normalizedAddr;
   }
 
   try {
     const data = await graphqlQuery(query, variables);
-    return data[tableName] || [];
+    const results = data[tableName] || [];
+    if (normalizedAddr && results.length === 0) {
+      console.warn(`[fetchPurchaseEvents] 0 results for addr=${normalizedAddr}`);
+    }
+    return results;
   } catch (error: any) {
     console.error(`❌ Failed to query ${tableName}:`, error);
     return [];
@@ -295,7 +300,7 @@ export async function fetchAptRaisedPerToken(metadataAddr?: string, limit: numbe
       }`;
 
   const variables: any = { limit };
-  if (metadataAddr) variables.metadataAddr = metadataAddr;
+  if (metadataAddr) variables.metadataAddr = metadataAddr.toLowerCase();
 
   try {
     const data = await graphqlQuery(query, variables);
@@ -349,7 +354,7 @@ async function fetchSaleEvents(metadataAddr?: string, limit: number = 100): Prom
 
   const variables: any = { limit };
   if (metadataAddr) {
-    variables.metadataAddr = metadataAddr;
+    variables.metadataAddr = metadataAddr.toLowerCase();
   }
 
   try {

@@ -76,6 +76,7 @@ export function useOHLCData(
   const fetchAndAggregate = useCallback(async () => {
     if (!metadataAddr || metadataAddr === 'Unknown') return;
 
+    console.log('[useOHLCData] fetching for addr:', metadataAddr, 'timeframe:', timeframe);
     setLoading(true);
     try {
       const [purchases, sales, aptRaisedEvents] = await Promise.all([
@@ -83,6 +84,8 @@ export function useOHLCData(
         getSaleEvents(metadataAddr, 1000),
         fetchAptRaisedPerToken(metadataAddr, 1000),
       ]);
+      console.log('[useOHLCData] purchases:', purchases.length, 'sales:', sales.length, 'aptRaisedEvents:', aptRaisedEvents.length);
+      if (purchases.length > 0) console.log('[useOHLCData] first purchase:', purchases[0]);
 
       // Unique buyers → holder count
       const buyers = new Set<string>();
@@ -141,6 +144,7 @@ export function useOHLCData(
         if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold, amount });
       }
 
+      console.log('[useOHLCData] raw trades for OHLC:', raw.length);
       if (raw.length === 0) { setCandles([]); return; }
 
       raw.sort((a, b) => a.timestampMs - b.timestampMs);
@@ -162,7 +166,9 @@ export function useOHLCData(
         }
       }
 
-      setCandles(Array.from(candleMap.values()).sort((a, b) => a.time - b.time));
+      const sortedCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+      console.log('[useOHLCData] candles built:', sortedCandles.length, sortedCandles[0] ?? null);
+      setCandles(sortedCandles);
     } catch (err) {
       console.error('useOHLCData error:', err);
       setCandles([]);
