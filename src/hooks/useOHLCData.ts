@@ -78,12 +78,22 @@ export function useOHLCData(
 
     console.log('[useOHLCData] fetching for addr:', metadataAddr, 'timeframe:', timeframe);
     setLoading(true);
+    const addrLower = metadataAddr.toLowerCase();
     try {
-      const [purchases, sales, aptRaisedEvents] = await Promise.all([
-        getPurchaseEvents(metadataAddr, 1000),
-        getSaleEvents(metadataAddr, 1000),
+      // Fetch all events (no server-side filter) and filter client-side.
+      // The server-side _eq filter fails when the DB stores addresses in a
+      // different case or format than we send — client-side toLowerCase() handles that.
+      const [allPurchases, allSales, aptRaisedEvents] = await Promise.all([
+        getPurchaseEvents(undefined, 1000),
+        getSaleEvents(undefined, 1000),
         fetchAptRaisedPerToken(metadataAddr, 1000),
       ]);
+      const purchases = allPurchases.filter((e: any) =>
+        (e.metadata_addr || '').toLowerCase() === addrLower
+      );
+      const sales = allSales.filter((e: any) =>
+        (e.metadata_addr || '').toLowerCase() === addrLower
+      );
       console.log('[useOHLCData] purchases:', purchases.length, 'sales:', sales.length, 'aptRaisedEvents:', aptRaisedEvents.length);
       if (purchases.length > 0) console.log('[useOHLCData] first purchase:', purchases[0]);
 

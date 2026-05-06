@@ -91,124 +91,79 @@ export const useTokenData = (): UseTokenDataReturn => {
   };
 
   // Calculate 24h volume by summing purchase events from last 24 hours
-  const calculate24hVolume = async (metadataAddr: string): Promise<number> => {
+  // Pre-fetched events are passed in so we only need one API call for all tokens.
+  // Client-side toLowerCase() match handles any address case mismatch in the DB.
+  const calculate24hVolume = (purchaseEvents: any[]): number => {
     try {
-      // Fetch purchase events for this token
-      const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
+      if (!purchaseEvents || purchaseEvents.length === 0) return 0;
 
-      if (!purchaseEvents || purchaseEvents.length === 0) {
-        return 0;
-      }
-
-      // Get timestamp 24 hours ago (in ms)
       const nowMs = Date.now();
       const twentyFourHoursAgoMs = nowMs - (24 * 60 * 60 * 1000);
 
-      // Filter events from the last 24 hours (convert Aptos μs timestamps to ms)
       const eventsLast24h = purchaseEvents.filter((event: any) => {
         const eventMs = aptosTimestampToMs(parseInt(event.timestamp || '0'));
         return eventMs >= twentyFourHoursAgoMs && eventMs <= nowMs;
       });
 
-      if (eventsLast24h.length === 0) {
-        return 0;
-      }
+      if (eventsLast24h.length === 0) return 0;
 
-      // Calculate total volume in USD
-      // For each purchase, calculate the cost using the bonding curve
-      // tokens_sold in event is AFTER purchase, so tokens_sold_before = tokens_sold - amount
       let totalVolumeUSD = 0;
-      
       for (const event of eventsLast24h) {
         const amount = parseFloat(event.amount || '0');
         const tokensSoldAfter = parseFloat(event.tokens_sold || '0');
         const tokensSoldBefore = Math.max(0, tokensSoldAfter - amount);
-        
         if (amount > 0 && aptPrice) {
-          // Calculate price before and after purchase
           const priceBefore = calculateBondingCurvePrice(tokensSoldBefore);
           const priceAfter = calculateBondingCurvePrice(tokensSoldAfter);
-          
-          // Use average price for the purchase
           const avgPrice = (priceBefore + priceAfter) / 2;
-          
-          // Volume = amount * average_price * aptPrice
-          const eventVolumeUSD = amount * avgPrice * aptPrice;
-          totalVolumeUSD += eventVolumeUSD;
+          totalVolumeUSD += amount * avgPrice * aptPrice;
         }
       }
-
       return totalVolumeUSD;
-      
     } catch (error) {
-      console.error(`Error calculating 24h volume for ${metadataAddr}:`, error);
-      return 0; // Return 0 on error
+      console.error('Error calculating 24h volume:', error);
+      return 0;
     }
   };
 
-  // Calculate 24h price change by fetching purchase events
-  const calculate24hPriceChange = async (metadataAddr: string, currentTokensSold: number, currentPrice: number): Promise<number> => {
+  const calculate24hPriceChange = (purchaseEvents: any[], currentPrice: number): number => {
     try {
-      // Fetch purchase events for this token
-      const purchaseEvents = await fetchPurchaseEvents(metadataAddr, 1000);
+      if (!purchaseEvents || purchaseEvents.length === 0) return 0;
 
-      if (!purchaseEvents || purchaseEvents.length === 0) {
-        return 0;
-      }
-
-      // Get timestamp 24 hours ago (in ms)
       const nowMs = Date.now();
       const twentyFourHoursAgoMs = nowMs - (24 * 60 * 60 * 1000);
 
-      // Filter events from the last 24 hours and sort by timestamp (oldest first)
       const eventsLast24h = purchaseEvents
         .filter((event: any) => {
           const eventMs = aptosTimestampToMs(parseInt(event.timestamp || '0'));
           return eventMs >= twentyFourHoursAgoMs && eventMs <= nowMs;
         })
-        .sort((a: any, b: any) => {
-          return parseInt(a.timestamp || '0') - parseInt(b.timestamp || '0');
-        });
+        .sort((a: any, b: any) => parseInt(a.timestamp || '0') - parseInt(b.timestamp || '0'));
 
       if (eventsLast24h.length === 0) {
         if (purchaseEvents.length > 0) {
           const oldestEvent = [...purchaseEvents].sort((a: any, b: any) =>
             parseInt(a.timestamp || '0') - parseInt(b.timestamp || '0')
           )[0];
-
           const oldestMs = aptosTimestampToMs(parseInt(oldestEvent.timestamp || '0'));
-          if (oldestMs < twentyFourHoursAgoMs) {
-            return 0; // Existed 24h ago, no trades since
-          } else {
-            const launchPrice = calculateBondingCurvePrice(0);
-            if (launchPrice === 0) return 0;
-            return ((currentPrice - launchPrice) / launchPrice) * 100;
-          }
+          if (oldestMs < twentyFourHoursAgoMs) return 0;
+          const launchPrice = calculateBondingCurvePrice(0);
+          if (launchPrice === 0) return 0;
+          return ((currentPrice - launchPrice) / launchPrice) * 100;
         }
         return 0;
       }
 
-      // Get tokens_sold from the earliest event in the last 24 hours
-      // tokens_sold in the event is AFTER the purchase, so we need to subtract the amount
       const earliestEvent = eventsLast24h[0];
       const tokensSoldAfterPurchase = parseInt(earliestEvent.tokens_sold || '0');
       const amountPurchased = parseInt(earliestEvent.amount || '0');
       const tokensSold24hAgo = Math.max(0, tokensSoldAfterPurchase - amountPurchased);
-      
-      // Calculate price 24h ago
       const price24hAgo = calculateBondingCurvePrice(tokensSold24hAgo);
-      
-      // Calculate percentage change
-      if (price24hAgo === 0) {
-        return 0;
-      }
-      
-      const changePercent = ((currentPrice - price24hAgo) / price24hAgo) * 100;
-      return changePercent;
-      
+      if (price24hAgo === 0) return 0;
+      return ((currentPrice - price24hAgo) / price24hAgo) * 100;
     } catch (error) {
-      console.error(`Error calculating 24h price change for ${metadataAddr}:`, error);
-      return 0; // Return 0 on error
+      console.error('Error calculating 24h price change:', error);
+      return 0;
     }
   };
 
@@ -301,28 +256,32 @@ export const useTokenData = (): UseTokenDataReturn => {
         };
       });
 
-      // Calculate 24h price changes and volumes for all tokens in parallel
+      // Fetch ALL purchase events once (no filter) so we avoid server-side
+      // address matching issues. Group client-side by lowercased metadata_addr.
+      console.log("📊 Fetching all purchase events for 24h calculations...");
+      let allPurchaseEvents: any[] = [];
+      try {
+        allPurchaseEvents = await fetchPurchaseEvents(undefined, 1000);
+      } catch {
+        allPurchaseEvents = [];
+      }
+      const eventsByAddr = new Map<string, any[]>();
+      for (const e of allPurchaseEvents) {
+        const key = (e.metadata_addr || '').toLowerCase();
+        if (!eventsByAddr.has(key)) eventsByAddr.set(key, []);
+        eventsByAddr.get(key)!.push(e);
+      }
+
       console.log("📊 Calculating 24h price changes and volumes...");
-      const tokensWith24hData = await Promise.all(
-        tokensBasicData.map(async (token) => {
-          if (token.metadataAddress && token.metadataAddress !== 'Unknown') {
-            const [change24h, volume24h] = await Promise.all([
-              calculate24hPriceChange(
-                token.metadataAddress,
-                token.tokensSold,
-                token.price
-              ),
-              calculate24hVolume(token.metadataAddress)
-            ]);
-            return {
-              ...token,
-              change24h,
-              volume: volume24h
-            };
-          }
-          return token;
-        })
-      );
+      const tokensWith24hData = tokensBasicData.map((token) => {
+        if (token.metadataAddress && token.metadataAddress !== 'Unknown') {
+          const events = eventsByAddr.get(token.metadataAddress.toLowerCase()) || [];
+          const change24h = calculate24hPriceChange(events, token.price);
+          const volume24h = calculate24hVolume(events);
+          return { ...token, change24h, volume: volume24h };
+        }
+        return token;
+      });
 
       const fetchedTokens: Token[] = tokensWith24hData;
 

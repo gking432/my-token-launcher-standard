@@ -380,6 +380,7 @@ async function fetchLatestPurchaseStates(): Promise<Map<string, { tokensSold: nu
     const addr: string = e.metadata_addr;
     if (!addr) continue;
     if (!tokensSoldMap.has(addr)) {
+      console.log('[fetchLatestPurchaseStates] found addr in purchase events:', addr);
       tokensSoldMap.set(addr, parseInt(e.tokens_sold || '0'));
     }
   }
