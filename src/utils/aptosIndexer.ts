@@ -235,7 +235,6 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
         metadata_addr
         amount
         price
-        liquidity_contribution
         timestamp
         tokens_sold
       }
@@ -256,7 +255,6 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
           metadata_addr
           amount
           price
-          liquidity_contribution
           timestamp
           tokens_sold
         }
@@ -274,6 +272,36 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
     return data[tableName] || [];
   } catch (error: any) {
     console.error(`❌ Failed to query ${tableName}:`, error);
+    return [];
+  }
+}
+
+// Fetch liquidity_contribution totals per token for graduation bar.
+// Kept separate so a missing DB column doesn't break chart data fetching.
+export async function fetchAptRaisedPerToken(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const tableName = 'token_purchase_events';
+  const query = metadataAddr
+    ? `query GetAptRaised($metadataAddr: String!, $limit: Int) {
+        ${tableName}(where: {metadata_addr: {_eq: $metadataAddr}}, limit: $limit) {
+          metadata_addr
+          liquidity_contribution
+        }
+      }`
+    : `query GetAptRaisedAll($limit: Int) {
+        ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
+          metadata_addr
+          liquidity_contribution
+        }
+      }`;
+
+  const variables: any = { limit };
+  if (metadataAddr) variables.metadataAddr = metadataAddr;
+
+  try {
+    const data = await graphqlQuery(query, variables);
+    return data[tableName] || [];
+  } catch {
+    // liquidity_contribution field may not exist in older indexer schemas
     return [];
   }
 }
@@ -335,37 +363,39 @@ async function fetchSaleEvents(metadataAddr?: string, limit: number = 100): Prom
 
 // Fetch the latest tokens_sold and cumulative apt_raised per token from purchase events
 async function fetchLatestPurchaseStates(): Promise<Map<string, { tokensSold: number; aptRaised: number }>> {
-  try {
-    // Fetch recent purchase events across all tokens (desc by timestamp = latest first)
-    const events = await fetchPurchaseEvents(undefined, 1000);
-    const tokensSoldMap = new Map<string, number>();
-    const aptRaisedMap = new Map<string, number>();
+  // Fetch tokens_sold and liquidity_contribution independently so a missing
+  // liquidity_contribution column doesn't break the tokens_sold / price calculation.
+  const [events, aptRaisedEvents] = await Promise.all([
+    fetchPurchaseEvents(undefined, 1000).catch(() => [] as any[]),
+    fetchAptRaisedPerToken(undefined, 1000).catch(() => [] as any[]),
+  ]);
 
-    for (const e of events) {
-      const addr: string = e.metadata_addr;
-      if (!addr) continue;
-      // First occurrence per addr = most recent (desc order) → current tokens_sold
-      if (!tokensSoldMap.has(addr)) {
-        tokensSoldMap.set(addr, parseInt(e.tokens_sold || '0'));
-      }
-      // Sum liquidity_contribution for all events (mirrors vault.total_apt_spent)
-      aptRaisedMap.set(addr, (aptRaisedMap.get(addr) ?? 0) + parseInt(e.liquidity_contribution || '0'));
+  const tokensSoldMap = new Map<string, number>();
+  for (const e of events) {
+    const addr: string = e.metadata_addr;
+    if (!addr) continue;
+    if (!tokensSoldMap.has(addr)) {
+      tokensSoldMap.set(addr, parseInt(e.tokens_sold || '0'));
     }
-
-    const result = new Map<string, { tokensSold: number; aptRaised: number }>();
-    const allAddrs = Array.from(tokensSoldMap.keys()).concat(Array.from(aptRaisedMap.keys()))
-      .filter((v, i, a) => a.indexOf(v) === i);
-    for (const addr of allAddrs) {
-      result.set(addr, {
-        tokensSold: tokensSoldMap.get(addr) ?? 0,
-        aptRaised: aptRaisedMap.get(addr) ?? 0,
-      });
-    }
-    return result;
-  } catch (e) {
-    console.warn('⚠️ fetchLatestPurchaseStates failed, falling back to creation event data:', e);
-    return new Map();
   }
+
+  const aptRaisedMap = new Map<string, number>();
+  for (const e of aptRaisedEvents) {
+    const addr: string = e.metadata_addr;
+    if (!addr) continue;
+    aptRaisedMap.set(addr, (aptRaisedMap.get(addr) ?? 0) + parseInt(e.liquidity_contribution || '0'));
+  }
+
+  const result = new Map<string, { tokensSold: number; aptRaised: number }>();
+  const allAddrs = Array.from(tokensSoldMap.keys()).concat(Array.from(aptRaisedMap.keys()))
+    .filter((v, i, a) => a.indexOf(v) === i);
+  for (const addr of allAddrs) {
+    result.set(addr, {
+      tokensSold: tokensSoldMap.get(addr) ?? 0,
+      aptRaised: aptRaisedMap.get(addr) ?? 0,
+    });
+  }
+  return result;
 }
 
 // Main function to get optimized token data via GraphQL

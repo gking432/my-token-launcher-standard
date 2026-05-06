@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPurchaseEvents, getSaleEvents } from '../utils/aptosIndexer';
+import { getPurchaseEvents, getSaleEvents, fetchAptRaisedPerToken } from '../utils/aptosIndexer';
 
 export interface OHLCCandle {
   time: number; // Unix timestamp in seconds (for lightweight-charts)
@@ -78,19 +78,23 @@ export function useOHLCData(
 
     setLoading(true);
     try {
-      const [purchases, sales] = await Promise.all([
+      const [purchases, sales, aptRaisedEvents] = await Promise.all([
         getPurchaseEvents(metadataAddr, 1000),
         getSaleEvents(metadataAddr, 1000),
+        fetchAptRaisedPerToken(metadataAddr, 1000),
       ]);
 
-      // Unique buyers → holder count; sum liquidity_contribution → apt raised
+      // Unique buyers → holder count
       const buyers = new Set<string>();
-      let totalAptRaised = 0;
       for (const p of purchases) {
         if (p.buyer) buyers.add(p.buyer.toLowerCase());
-        totalAptRaised += parseInt(p.liquidity_contribution || '0');
       }
       setHolderCount(buyers.size);
+
+      // Sum liquidity_contribution from separate query (fails gracefully if field missing)
+      const totalAptRaised = aptRaisedEvents.reduce(
+        (sum: number, e: any) => sum + parseInt(e.liquidity_contribution || '0'), 0
+      );
       setAptRaised(totalAptRaised);
 
       // ── Recent trades (for Transactions tab) ──────────────
