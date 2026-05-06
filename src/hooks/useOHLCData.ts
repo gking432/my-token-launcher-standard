@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPurchaseEvents, getSaleEvents, fetchAptRaisedPerToken } from '../utils/aptosIndexer';
+import { getPurchaseEvents, getSaleEvents } from '../utils/aptosIndexer';
 
 export interface OHLCCandle {
   time: number; // Unix timestamp in seconds (for lightweight-charts)
@@ -80,21 +80,13 @@ export function useOHLCData(
     setLoading(true);
     const addrLower = metadataAddr.toLowerCase();
     try {
-      // Fetch all events (no server-side filter) and filter client-side.
-      // The server-side _eq filter fails when the DB stores addresses in a
-      // different case or format than we send — client-side toLowerCase() handles that.
-      const [allPurchases, allSales, aptRaisedEvents] = await Promise.all([
-        getPurchaseEvents(undefined, 1000),
-        getSaleEvents(undefined, 1000),
-        fetchAptRaisedPerToken(metadataAddr, 1000),
+      // fetchPurchaseEvents/fetchSaleEvents now use the Aptos standard indexer and
+      // already filter client-side by metadata_addr.
+      const [purchases, sales] = await Promise.all([
+        getPurchaseEvents(addrLower, 1000),
+        getSaleEvents(addrLower, 1000),
       ]);
-      const purchases = allPurchases.filter((e: any) =>
-        (e.metadata_addr || '').toLowerCase() === addrLower
-      );
-      const sales = allSales.filter((e: any) =>
-        (e.metadata_addr || '').toLowerCase() === addrLower
-      );
-      console.log('[useOHLCData] purchases:', purchases.length, 'sales:', sales.length, 'aptRaisedEvents:', aptRaisedEvents.length);
+      console.log('[useOHLCData] purchases:', purchases.length, 'sales:', sales.length);
       if (purchases.length > 0) console.log('[useOHLCData] first purchase:', purchases[0]);
 
       // Unique buyers → holder count
@@ -104,8 +96,8 @@ export function useOHLCData(
       }
       setHolderCount(buyers.size);
 
-      // Sum liquidity_contribution from separate query (fails gracefully if field missing)
-      const totalAptRaised = aptRaisedEvents.reduce(
+      // liquidity_contribution is now included in every purchase event from the standard indexer
+      const totalAptRaised = purchases.reduce(
         (sum: number, e: any) => sum + parseInt(e.liquidity_contribution || '0'), 0
       );
       setAptRaised(totalAptRaised);
@@ -143,9 +135,11 @@ export function useOHLCData(
 
       for (const p of purchases) {
         const ts = parseInt(p.timestamp || '0');
-        const tokensSold = parseInt(p.tokens_sold || '0');
+        // Contract emits tokens_sold BEFORE this purchase; add amount to get post-purchase state
+        const tokensSoldBefore = parseInt(p.tokens_sold || '0');
         const amount = parseInt(p.amount || '0');
-        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold, amount });
+        const tokensSoldAfter = tokensSoldBefore + amount;
+        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold: tokensSoldAfter, amount });
       }
       for (const s of sales) {
         const ts = parseInt(s.timestamp || '0');

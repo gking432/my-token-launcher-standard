@@ -1,7 +1,9 @@
-// Aptos Indexer GraphQL API integration - Using Geomi No-Code Indexer
-// Efficient GraphQL queries to fetch indexed events
+// Aptos Indexer GraphQL API integration
+// - token_created_events / token_graduated_events: Geomi No-Code Indexer
+// - token_purchase_events / token_sale_events: Aptos standard indexer
+//   (Geomi does not reliably capture these for this contract)
 
-import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY } from "../config";
+import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY, APTOS_INDEXER_ENDPOINT, MODULE_ADDRESS } from "../config";
 
 // Helper function for bonding curve calculation
 function calculateBondingCurvePrice(tokensSold: number): number {
@@ -128,6 +130,50 @@ async function graphqlQuery(query: string, variables?: any): Promise<any> {
   return result.data;
 }
 
+// Query the official Aptos standard indexer for module events by type.
+// Returns events with their data fields spread at the top level.
+async function fetchAptosIndexerEvents(eventType: string, limit: number = 1000): Promise<any[]> {
+  const query = `
+    query GetModuleEvents($type: String!, $limit: Int!) {
+      events(
+        where: { indexed_type: { _eq: $type } }
+        order_by: { transaction_version: desc }
+        limit: $limit
+      ) {
+        data
+        transaction_version
+        event_index
+      }
+    }
+  `;
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${GEOMI_API_KEY}`,
+    "x-api-key": GEOMI_API_KEY,
+  };
+
+  const response = await fetch(APTOS_INDEXER_ENDPOINT, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ query, variables: { type: eventType, limit } }),
+  });
+
+  if (!response.ok) throw new Error(`Aptos indexer query failed: ${response.status} ${response.statusText}`);
+
+  const result = await response.json();
+  if (result.errors) {
+    console.error("Aptos indexer errors:", result.errors);
+    throw new Error(`Aptos indexer errors: ${JSON.stringify(result.errors)}`);
+  }
+
+  return (result.data?.events || []).map((e: any) => ({
+    ...e.data,
+    event_index: e.event_index,
+    transaction_version: e.transaction_version,
+  }));
+}
+
 // Introspect schema to find correct table names
 async function introspectSchema(): Promise<any> {
   const query = `
@@ -223,184 +269,79 @@ async function fetchGraduationEvents(): Promise<any[]> {
   }
 }
 
-// Fetch purchase events from Geomi indexer (optional, for trading data)
-export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
-  const tableName = 'token_purchase_events';
-  let query = `
-    query GetPurchaseEvents($limit: Int) {
-      ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
-        event_index
-        sequence_number
-        buyer
-        metadata_addr
-        amount
-        price
-        timestamp
-        tokens_sold
-      }
-    }
-  `;
-
-  if (metadataAddr) {
-    query = `
-      query GetPurchaseEvents($metadataAddr: String!, $limit: Int) {
-        ${tableName}(
-          where: {metadata_addr: {_eq: $metadataAddr}}
-          order_by: {timestamp: desc}
-          limit: $limit
-        ) {
-          event_index
-          sequence_number
-          buyer
-          metadata_addr
-          amount
-          price
-          timestamp
-          tokens_sold
-        }
-      }
-    `;
-  }
-
-  const normalizedAddr = metadataAddr?.toLowerCase();
-  const variables: any = { limit };
-  if (normalizedAddr) {
-    variables.metadataAddr = normalizedAddr;
-  }
-
+// Fetch purchase events from the Aptos standard indexer.
+// Geomi does not reliably index TokenPurchaseEvent for this contract.
+// All events are fetched (no server-side filter) and filtered client-side to
+// avoid address-format mismatches between what we send and what the DB stores.
+export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
   try {
-    const data = await graphqlQuery(query, variables);
-    const results = data[tableName] || [];
-    if (normalizedAddr && results.length === 0) {
-      console.warn(`[fetchPurchaseEvents] 0 results for addr=${normalizedAddr}`);
-    }
-    return results;
+    const events = await fetchAptosIndexerEvents(
+      `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`,
+      limit
+    );
+    console.log(`[fetchPurchaseEvents] Aptos indexer returned ${events.length} total purchase events`);
+    if (!metadataAddr) return events;
+    const addrLower = metadataAddr.toLowerCase();
+    const filtered = events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+    console.log(`[fetchPurchaseEvents] filtered to ${filtered.length} events for addr=${addrLower}`);
+    return filtered;
   } catch (error: any) {
-    console.error(`❌ Failed to query ${tableName}:`, error);
+    console.error('❌ fetchPurchaseEvents (Aptos indexer) failed:', error);
     return [];
   }
 }
 
-// Fetch liquidity_contribution totals per token for graduation bar.
-// Kept separate so a missing DB column doesn't break chart data fetching.
+// Fetch sale events from the Aptos standard indexer.
+async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  try {
+    const events = await fetchAptosIndexerEvents(
+      `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`,
+      limit
+    );
+    if (!metadataAddr) return events;
+    const addrLower = metadataAddr.toLowerCase();
+    return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+  } catch (error: any) {
+    console.error('❌ fetchSaleEvents (Aptos indexer) failed:', error);
+    return [];
+  }
+}
+
+// Kept for backward compatibility — callers that used this separately can now
+// use fetchPurchaseEvents directly since liquidity_contribution is included.
 export async function fetchAptRaisedPerToken(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
-  const tableName = 'token_purchase_events';
-  const query = metadataAddr
-    ? `query GetAptRaised($metadataAddr: String!, $limit: Int) {
-        ${tableName}(where: {metadata_addr: {_eq: $metadataAddr}}, limit: $limit) {
-          metadata_addr
-          liquidity_contribution
-        }
-      }`
-    : `query GetAptRaisedAll($limit: Int) {
-        ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
-          metadata_addr
-          liquidity_contribution
-        }
-      }`;
-
-  const variables: any = { limit };
-  if (metadataAddr) variables.metadataAddr = metadataAddr.toLowerCase();
-
-  try {
-    const data = await graphqlQuery(query, variables);
-    return data[tableName] || [];
-  } catch {
-    // liquidity_contribution field may not exist in older indexer schemas
-    return [];
-  }
+  return fetchPurchaseEvents(metadataAddr, limit);
 }
 
-// Fetch sale events from Geomi indexer (optional, for trading data)
-async function fetchSaleEvents(metadataAddr?: string, limit: number = 100): Promise<any[]> {
-  const tableName = 'token_sale_events';
-  let query = `
-    query GetSaleEvents($limit: Int) {
-      ${tableName}(order_by: {timestamp: desc}, limit: $limit) {
-        event_index
-        sequence_number
-        seller
-        metadata_addr
-        amount
-        price
-        apt_returned
-        timestamp
-        tokens_sold
-      }
-    }
-  `;
-
-  if (metadataAddr) {
-    query = `
-      query GetSaleEvents($metadataAddr: String!, $limit: Int) {
-        ${tableName}(
-          where: {metadata_addr: {_eq: $metadataAddr}}
-          order_by: {timestamp: desc}
-          limit: $limit
-        ) {
-          event_index
-          sequence_number
-          seller
-          metadata_addr
-          amount
-          price
-          apt_returned
-          timestamp
-          tokens_sold
-        }
-      }
-    `;
-  }
-
-  const variables: any = { limit };
-  if (metadataAddr) {
-    variables.metadataAddr = metadataAddr.toLowerCase();
-  }
-
-  try {
-    const data = await graphqlQuery(query, variables);
-    return data[tableName] || [];
-  } catch (error: any) {
-    console.error(`❌ Failed to query ${tableName}:`, error);
-    return [];
-  }
-}
-
-// Fetch the latest tokens_sold and cumulative apt_raised per token from purchase events
+// Fetch the latest tokens_sold and cumulative apt_raised per token from purchase events.
+// Since we now use the Aptos standard indexer, liquidity_contribution is always present.
 async function fetchLatestPurchaseStates(): Promise<Map<string, { tokensSold: number; aptRaised: number }>> {
-  // Fetch tokens_sold and liquidity_contribution independently so a missing
-  // liquidity_contribution column doesn't break the tokens_sold / price calculation.
-  const [events, aptRaisedEvents] = await Promise.all([
-    fetchPurchaseEvents(undefined, 1000).catch(() => [] as any[]),
-    fetchAptRaisedPerToken(undefined, 1000).catch(() => [] as any[]),
-  ]);
+  const events = await fetchPurchaseEvents(undefined, 1000).catch(() => [] as any[]);
 
   const tokensSoldMap = new Map<string, number>();
+  const aptRaisedMap = new Map<string, number>();
+
   for (const e of events) {
     const addr: string = e.metadata_addr;
     if (!addr) continue;
+    // tokens_sold: keep the latest value (events ordered desc, so first occurrence = most recent)
     if (!tokensSoldMap.has(addr)) {
-      console.log('[fetchLatestPurchaseStates] found addr in purchase events:', addr);
-      tokensSoldMap.set(addr, parseInt(e.tokens_sold || '0'));
+      // tokens_sold in the event is BEFORE the purchase; add amount to get post-purchase value
+      const tsBefore = parseInt(e.tokens_sold || '0');
+      const amount = parseInt(e.amount || '0');
+      tokensSoldMap.set(addr, tsBefore + amount);
     }
-  }
-
-  const aptRaisedMap = new Map<string, number>();
-  for (const e of aptRaisedEvents) {
-    const addr: string = e.metadata_addr;
-    if (!addr) continue;
+    // apt_raised: sum all contributions
     aptRaisedMap.set(addr, (aptRaisedMap.get(addr) ?? 0) + parseInt(e.liquidity_contribution || '0'));
   }
 
   const result = new Map<string, { tokensSold: number; aptRaised: number }>();
-  const allAddrs = Array.from(tokensSoldMap.keys()).concat(Array.from(aptRaisedMap.keys()))
-    .filter((v, i, a) => a.indexOf(v) === i);
-  for (const addr of allAddrs) {
+  tokensSoldMap.forEach((_, addr) => {
     result.set(addr, {
       tokensSold: tokensSoldMap.get(addr) ?? 0,
       aptRaised: aptRaisedMap.get(addr) ?? 0,
     });
-  }
+  });
   return result;
 }
 
