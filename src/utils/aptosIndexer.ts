@@ -344,12 +344,38 @@ async function fetchGraduationEvents(): Promise<any[]> {
   }
 }
 
+// Call the Vercel serverless proxy (/api/events) which queries the Aptos
+// standard indexer server-side, avoiding browser CORS restrictions entirely.
+async function fetchViaProxy(type: 'purchase' | 'sale', metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const params = new URLSearchParams({ type, limit: String(limit) });
+  if (metadataAddr) params.set('addr', metadataAddr);
+  const response = await fetch(`/api/events?${params}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Proxy error ${response.status}: ${body}`);
+  }
+  const { events } = await response.json();
+  return events || [];
+}
+
 // Fetch purchase events. Priority chain:
-// 1. Geomi No-Code Indexer (token_purchase_events) — works once user adds event to Geomi dashboard
+// 0. Vercel proxy /api/events — server-side call, no CORS issues (needs APTOS_API_KEY in Vercel env)
+// 1. Geomi No-Code Indexer — works once token_purchase_events is added in the Geomi dashboard
 // 2. Aptos fullnode REST API — may work from browser with Geomi key
 // 3. Aptos standard indexer GraphQL — requires REACT_APP_APTOS_API_KEY
 export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
   const addrLower = metadataAddr?.toLowerCase();
+
+  // 0. Vercel proxy (server-side, no CORS restriction)
+  try {
+    const events = await fetchViaProxy('purchase', addrLower, limit);
+    if (events.length > 0) {
+      console.log(`[fetchPurchaseEvents] proxy returned ${events.length} events`);
+      return events;
+    }
+  } catch (err: any) {
+    console.warn('[fetchPurchaseEvents] proxy unavailable:', err?.message);
+  }
 
   // 1. Geomi No-Code Indexer
   try {
@@ -359,7 +385,7 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
       return events;
     }
   } catch (err: any) {
-    if (!err?.message?.includes('field "token_purchase_events" not found')) {
+    if (!err?.message?.includes('token_purchase_events')) {
       console.warn('[fetchPurchaseEvents] Geomi error:', err?.message);
     }
   }
@@ -393,6 +419,17 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
 async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
   const addrLower = metadataAddr?.toLowerCase();
 
+  // 0. Vercel proxy
+  try {
+    const events = await fetchViaProxy('sale', addrLower, limit);
+    if (events.length > 0) {
+      console.log(`[fetchSaleEvents] proxy returned ${events.length} events`);
+      return events;
+    }
+  } catch (err: any) {
+    console.warn('[fetchSaleEvents] proxy unavailable:', err?.message);
+  }
+
   // 1. Geomi No-Code Indexer
   try {
     const events = await fetchGeomiSaleEvents(addrLower, limit);
@@ -401,7 +438,7 @@ async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Pro
       return events;
     }
   } catch (err: any) {
-    if (!err?.message?.includes('field "token_sale_events" not found')) {
+    if (!err?.message?.includes('token_sale_events')) {
       console.warn('[fetchSaleEvents] Geomi error:', err?.message);
     }
   }
