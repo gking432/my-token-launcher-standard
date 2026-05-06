@@ -3,7 +3,7 @@
 // - token_purchase_events / token_sale_events: Aptos standard indexer
 //   (Geomi does not reliably capture these for this contract)
 
-import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY, APTOS_INDEXER_ENDPOINT, MODULE_ADDRESS } from "../config";
+import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY, APTOS_INDEXER_ENDPOINT, APTOS_API_KEY, MODULE_ADDRESS } from "../config";
 
 // Helper function for bonding curve calculation
 function calculateBondingCurvePrice(tokensSold: number): number {
@@ -130,9 +130,10 @@ async function graphqlQuery(query: string, variables?: any): Promise<any> {
   return result.data;
 }
 
-// Query the official Aptos standard indexer for module events by type.
-// Returns events with their data fields spread at the top level.
+// Query the official Aptos standard indexer (requires REACT_APP_APTOS_API_KEY).
 async function fetchAptosIndexerEvents(eventType: string, limit: number = 1000): Promise<any[]> {
+  if (!APTOS_API_KEY) throw new Error('REACT_APP_APTOS_API_KEY not configured');
+
   const query = `
     query GetModuleEvents($type: String!, $limit: Int!) {
       events(
@@ -147,31 +148,105 @@ async function fetchAptosIndexerEvents(eventType: string, limit: number = 1000):
     }
   `;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${GEOMI_API_KEY}`,
-    "x-api-key": GEOMI_API_KEY,
-  };
-
   const response = await fetch(APTOS_INDEXER_ENDPOINT, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${APTOS_API_KEY}`,
+    },
     body: JSON.stringify({ query, variables: { type: eventType, limit } }),
   });
 
-  if (!response.ok) throw new Error(`Aptos indexer query failed: ${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Aptos indexer query failed: ${response.status} ${body}`);
+  }
 
   const result = await response.json();
-  if (result.errors) {
-    console.error("Aptos indexer errors:", result.errors);
-    throw new Error(`Aptos indexer errors: ${JSON.stringify(result.errors)}`);
-  }
+  if (result.errors) throw new Error(`Aptos indexer errors: ${JSON.stringify(result.errors)}`);
 
   return (result.data?.events || []).map((e: any) => ({
     ...e.data,
     event_index: e.event_index,
     transaction_version: e.transaction_version,
   }));
+}
+
+// Query the Aptos fullnode REST API for module events.
+// Uses the GEOMI key which may have browser-CORS permission even when
+// the standard indexer does not.  Works for Move-v2 (event::emit) events.
+async function fetchAptosRestEvents(eventTypeSuffix: string, limit: number = 100): Promise<any[]> {
+  const key = APTOS_API_KEY || GEOMI_API_KEY;
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (key) headers["Authorization"] = `Bearer ${key}`;
+
+  const cap = Math.min(limit, 100); // REST API caps at 100 per page
+  const url = `https://api.testnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::${eventTypeSuffix}?limit=${cap}`;
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Aptos REST API failed: ${response.status} ${body}`);
+  }
+
+  const events: any[] = await response.json();
+  return events.map((e: any) => ({
+    ...e.data,
+    transaction_version: e.version,
+  }));
+}
+
+// Query Geomi No-Code Indexer for purchase events.
+// Requires token_purchase_events to be configured in the Geomi dashboard.
+async function fetchGeomiPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const whereClause = metadataAddr
+    ? `where: { metadata_addr: { _eq: "${metadataAddr}" } }`
+    : '';
+  const query = `
+    query GetPurchaseEvents {
+      token_purchase_events(
+        ${whereClause}
+        order_by: { timestamp: desc }
+        limit: ${limit}
+      ) {
+        buyer
+        metadata_addr
+        amount
+        price
+        liquidity_contribution
+        timestamp
+        tokens_sold
+      }
+    }
+  `;
+  const data = await graphqlQuery(query);
+  return data?.token_purchase_events || [];
+}
+
+// Query Geomi No-Code Indexer for sale events.
+// Requires token_sale_events to be configured in the Geomi dashboard.
+async function fetchGeomiSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const whereClause = metadataAddr
+    ? `where: { metadata_addr: { _eq: "${metadataAddr}" } }`
+    : '';
+  const query = `
+    query GetSaleEvents {
+      token_sale_events(
+        ${whereClause}
+        order_by: { timestamp: desc }
+        limit: ${limit}
+      ) {
+        seller
+        metadata_addr
+        amount
+        apt_returned
+        timestamp
+        tokens_sold
+      }
+    }
+  `;
+  const data = await graphqlQuery(query);
+  return data?.token_sale_events || [];
 }
 
 // Introspect schema to find correct table names
@@ -269,42 +344,89 @@ async function fetchGraduationEvents(): Promise<any[]> {
   }
 }
 
-// Fetch purchase events from the Aptos standard indexer.
-// Geomi does not reliably index TokenPurchaseEvent for this contract.
-// All events are fetched (no server-side filter) and filtered client-side to
-// avoid address-format mismatches between what we send and what the DB stores.
+// Fetch purchase events. Priority chain:
+// 1. Geomi No-Code Indexer (token_purchase_events) — works once user adds event to Geomi dashboard
+// 2. Aptos fullnode REST API — may work from browser with Geomi key
+// 3. Aptos standard indexer GraphQL — requires REACT_APP_APTOS_API_KEY
 export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const addrLower = metadataAddr?.toLowerCase();
+
+  // 1. Geomi No-Code Indexer
   try {
-    const events = await fetchAptosIndexerEvents(
-      `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`,
-      limit
-    );
-    console.log(`[fetchPurchaseEvents] Aptos indexer returned ${events.length} total purchase events`);
-    if (!metadataAddr) return events;
-    const addrLower = metadataAddr.toLowerCase();
-    const filtered = events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
-    console.log(`[fetchPurchaseEvents] filtered to ${filtered.length} events for addr=${addrLower}`);
-    return filtered;
-  } catch (error: any) {
-    console.error('❌ fetchPurchaseEvents (Aptos indexer) failed:', error);
-    return [];
+    const events = await fetchGeomiPurchaseEvents(addrLower, limit);
+    if (events.length > 0) {
+      console.log(`[fetchPurchaseEvents] Geomi returned ${events.length} events`);
+      return events;
+    }
+  } catch (err: any) {
+    if (!err?.message?.includes('field "token_purchase_events" not found')) {
+      console.warn('[fetchPurchaseEvents] Geomi error:', err?.message);
+    }
   }
+
+  // 2. Aptos fullnode REST API
+  try {
+    const events = await fetchAptosRestEvents('TokenPurchaseEvent', limit);
+    if (events.length > 0) {
+      console.log(`[fetchPurchaseEvents] REST API returned ${events.length} events`);
+      if (!addrLower) return events;
+      return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+    }
+  } catch (err: any) {
+    console.warn('[fetchPurchaseEvents] REST API unavailable:', err?.message);
+  }
+
+  // 3. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
+  try {
+    const events = await fetchAptosIndexerEvents(`${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`, limit);
+    console.log(`[fetchPurchaseEvents] Aptos indexer returned ${events.length} events`);
+    if (!addrLower) return events;
+    return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+  } catch (err: any) {
+    console.warn('[fetchPurchaseEvents] Aptos indexer unavailable:', err?.message);
+  }
+
+  return [];
 }
 
-// Fetch sale events from the Aptos standard indexer.
+// Fetch sale events. Same priority chain as fetchPurchaseEvents.
 async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
+  const addrLower = metadataAddr?.toLowerCase();
+
+  // 1. Geomi No-Code Indexer
   try {
-    const events = await fetchAptosIndexerEvents(
-      `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`,
-      limit
-    );
-    if (!metadataAddr) return events;
-    const addrLower = metadataAddr.toLowerCase();
-    return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
-  } catch (error: any) {
-    console.error('❌ fetchSaleEvents (Aptos indexer) failed:', error);
-    return [];
+    const events = await fetchGeomiSaleEvents(addrLower, limit);
+    if (events.length > 0) {
+      console.log(`[fetchSaleEvents] Geomi returned ${events.length} events`);
+      return events;
+    }
+  } catch (err: any) {
+    if (!err?.message?.includes('field "token_sale_events" not found')) {
+      console.warn('[fetchSaleEvents] Geomi error:', err?.message);
+    }
   }
+
+  // 2. Aptos fullnode REST API
+  try {
+    const events = await fetchAptosRestEvents('TokenSaleEvent', limit);
+    if (events.length > 0) {
+      if (!addrLower) return events;
+      return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+    }
+  } catch (err: any) {
+    console.warn('[fetchSaleEvents] REST API unavailable:', err?.message);
+  }
+
+  // 3. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
+  try {
+    const events = await fetchAptosIndexerEvents(`${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`, limit);
+    if (!addrLower) return events;
+    return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
+  } catch (err: any) {
+    console.warn('[fetchSaleEvents] Aptos indexer unavailable:', err?.message);
+  }
+
+  return [];
 }
 
 // Kept for backward compatibility — callers that used this separately can now
