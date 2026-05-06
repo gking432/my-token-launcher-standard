@@ -817,6 +817,7 @@ const TokenPage: React.FC = () => {
     const container = chartContainerRef.current;
 
     const chart = createChart(container, {
+      autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: t.chartBg },
         textColor: t.chartText,
@@ -830,8 +831,6 @@ const TokenPage: React.FC = () => {
       crosshair: { mode: 1 },
       rightPriceScale: { borderColor: t.border },
       timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
-      width: container.clientWidth,
-      height: container.clientHeight,
     });
 
     const candleSeries = chart.addCandlestickSeries({
@@ -856,16 +855,7 @@ const TokenPage: React.FC = () => {
     seriesRef.current = candleSeries as unknown as ISeriesApi<"Candlestick", Time>;
     volumeSeriesRef.current = volSeries as unknown as ISeriesApi<"Histogram", Time>;
 
-    // Handle resize
-    const ro = new ResizeObserver(() => {
-      if (container) {
-        chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
-      }
-    });
-    ro.observe(container);
-
     return () => {
-      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
