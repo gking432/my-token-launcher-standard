@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPurchaseEvents, getSaleEvents } from '../utils/aptosIndexer';
+import { getPurchaseEvents, getSaleEvents, fetchWalletTransactionEvents } from '../utils/aptosIndexer';
 
 export interface OHLCCandle {
   time: number; // Unix timestamp in seconds (for lightweight-charts)
@@ -66,6 +66,7 @@ export function useOHLCData(
   metadataAddr: string | undefined,
   timeframe: Timeframe,
   refreshSignal?: number,
+  walletAddr?: string,
 ): UseOHLCDataReturn {
   const [candles, setCandles] = useState<OHLCCandle[]>([]);
   const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([]);
@@ -80,12 +81,25 @@ export function useOHLCData(
     setLoading(true);
     const addrLower = metadataAddr.toLowerCase();
     try {
-      // fetchPurchaseEvents/fetchSaleEvents now use the Aptos standard indexer and
-      // already filter client-side by metadata_addr.
-      const [purchases, sales] = await Promise.all([
-        getPurchaseEvents(addrLower, 1000),
-        getSaleEvents(addrLower, 1000),
+      let [purchases, sales] = await Promise.all([
+        getPurchaseEvents(addrLower, 1000).catch(() => [] as any[]),
+        getSaleEvents(addrLower, 1000).catch(() => [] as any[]),
       ]);
+
+      // Geomi has no data yet (indexer catching up) — fall back to wallet's own transactions
+      if (purchases.length === 0 && walletAddr) {
+        console.log('[useOHLCData] Geomi empty, querying wallet transactions...');
+        try {
+          const fallback = await fetchWalletTransactionEvents(walletAddr, addrLower);
+          if (fallback.purchases.length > 0 || fallback.sales.length > 0) {
+            purchases = fallback.purchases;
+            sales = fallback.sales;
+            console.log('[useOHLCData] wallet fallback:', purchases.length, 'purchases,', sales.length, 'sales');
+          }
+        } catch (err: any) {
+          console.warn('[useOHLCData] wallet fallback failed:', err?.message);
+        }
+      }
       console.log('[useOHLCData] purchases:', purchases.length, 'sales:', sales.length);
       if (purchases.length > 0) console.log('[useOHLCData] first purchase:', purchases[0]);
 
@@ -181,7 +195,7 @@ export function useOHLCData(
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadataAddr, timeframe, refreshSignal]);
+  }, [metadataAddr, timeframe, refreshSignal, walletAddr]);
 
   useEffect(() => { fetchAndAggregate(); }, [fetchAndAggregate]);
 

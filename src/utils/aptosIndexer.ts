@@ -1,3 +1,4 @@
+import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY, MODULE_ADDRESS } from "../config";
 
 // Helper function for bonding curve calculation
@@ -271,6 +272,62 @@ async function fetchGraduationEvents(): Promise<any[]> {
     console.error(`❌ Failed to query ${tableName}:`, error);
     return []; // Return empty array on error for graduation events
   }
+}
+
+// Fallback: scan the wallet's own transaction history for buy/sell events.
+// Used when Geomi has no data (e.g. indexer catching up after a pause).
+// Only returns this wallet's trades, but is 100% reliable and requires no indexer.
+export async function fetchWalletTransactionEvents(
+  walletAddr: string,
+  metadataAddr: string,
+): Promise<{ purchases: any[]; sales: any[] }> {
+  const aptos = new Aptos(new AptosConfig({
+    network: Network.TESTNET,
+    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
+  }));
+
+  const purchases: any[] = [];
+  const sales: any[] = [];
+  const addrLower = metadataAddr.toLowerCase();
+  const buyFn = `${MODULE_ADDRESS}::token_launcher::buy_tokens`;
+  const sellFn = `${MODULE_ADDRESS}::token_launcher::sell_tokens`;
+
+  let offset = 0;
+  const batchSize = 25;
+
+  for (let batch = 0; batch < 8; batch++) {
+    const txns: any[] = await aptos.getAccountTransactions({
+      accountAddress: walletAddr,
+      options: { limit: batchSize, offset },
+    });
+
+    if (!txns || txns.length === 0) break;
+
+    for (const txn of txns) {
+      if (txn.type !== 'user_transaction' || !txn.success) continue;
+      const fn: string = txn.payload?.function || '';
+      const isBuy = fn === buyFn;
+      const isSell = fn === sellFn;
+      if (!isBuy && !isSell) continue;
+
+      for (const ev of (txn.events || [])) {
+        const evType: string = ev.type || '';
+        const evAddr: string = (ev.data?.metadata_addr || '').toLowerCase();
+        if (evAddr !== addrLower) continue;
+        if (isBuy && evType.endsWith('::token_launcher::TokenPurchaseEvent')) {
+          purchases.push({ ...ev.data, transaction_version: txn.version });
+        }
+        if (isSell && evType.endsWith('::token_launcher::TokenSaleEvent')) {
+          sales.push({ ...ev.data, transaction_version: txn.version });
+        }
+      }
+    }
+
+    if (txns.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  return { purchases, sales };
 }
 
 export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
