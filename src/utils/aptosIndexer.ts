@@ -172,29 +172,6 @@ async function fetchAptosIndexerEvents(eventType: string, limit: number = 1000):
   }));
 }
 
-// Query the Aptos fullnode REST API for module events.
-// Uses the GEOMI key which may have browser-CORS permission even when
-// the standard indexer does not.  Works for Move-v2 (event::emit) events.
-async function fetchAptosRestEvents(eventTypeSuffix: string, limit: number = 100): Promise<any[]> {
-  const key = APTOS_API_KEY || GEOMI_API_KEY;
-  const headers: HeadersInit = { "Content-Type": "application/json" };
-  if (key) headers["Authorization"] = `Bearer ${key}`;
-
-  const cap = Math.min(limit, 100); // REST API caps at 100 per page
-  const url = `https://api.testnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::${eventTypeSuffix}?limit=${cap}`;
-
-  const response = await fetch(url, { headers });
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Aptos REST API failed: ${response.status} ${body}`);
-  }
-
-  const events: any[] = await response.json();
-  return events.map((e: any) => ({
-    ...e.data,
-    transaction_version: e.version,
-  }));
-}
 
 // Query Geomi No-Code Indexer for purchase events.
 // Requires token_purchase_events to be configured in the Geomi dashboard.
@@ -349,13 +326,18 @@ async function fetchGraduationEvents(): Promise<any[]> {
 async function fetchViaProxy(type: 'purchase' | 'sale', metadataAddr?: string, limit: number = 1000): Promise<any[]> {
   const params = new URLSearchParams({ type, limit: String(limit) });
   if (metadataAddr) params.set('addr', metadataAddr);
-  const response = await fetch(`/api/events?${params}`);
+  const url = `/api/events?${params}`;
+  console.log(`[fetchViaProxy] calling ${url}`);
+  const response = await fetch(url);
+  console.log(`[fetchViaProxy] status: ${response.status}`);
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new Error(`Proxy error ${response.status}: ${body}`);
+    console.warn(`[fetchViaProxy] error body: ${body.slice(0, 300)}`);
+    throw new Error(`Proxy error ${response.status}: ${body.slice(0, 200)}`);
   }
-  const { events } = await response.json();
-  return events || [];
+  const data = await response.json();
+  console.log(`[fetchViaProxy] result:`, data.error || `${data.events?.length ?? 0} events`);
+  return data.events || [];
 }
 
 // Fetch purchase events. Priority chain:
@@ -390,19 +372,7 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
     }
   }
 
-  // 2. Aptos fullnode REST API
-  try {
-    const events = await fetchAptosRestEvents('TokenPurchaseEvent', limit);
-    if (events.length > 0) {
-      console.log(`[fetchPurchaseEvents] REST API returned ${events.length} events`);
-      if (!addrLower) return events;
-      return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
-    }
-  } catch (err: any) {
-    console.warn('[fetchPurchaseEvents] REST API unavailable:', err?.message);
-  }
-
-  // 3. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
+  // 2. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
   try {
     const events = await fetchAptosIndexerEvents(`${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`, limit);
     console.log(`[fetchPurchaseEvents] Aptos indexer returned ${events.length} events`);
@@ -443,18 +413,7 @@ async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Pro
     }
   }
 
-  // 2. Aptos fullnode REST API
-  try {
-    const events = await fetchAptosRestEvents('TokenSaleEvent', limit);
-    if (events.length > 0) {
-      if (!addrLower) return events;
-      return events.filter((e: any) => (e.metadata_addr || '').toLowerCase() === addrLower);
-    }
-  } catch (err: any) {
-    console.warn('[fetchSaleEvents] REST API unavailable:', err?.message);
-  }
-
-  // 3. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
+  // 2. Aptos standard indexer (needs REACT_APP_APTOS_API_KEY)
   try {
     const events = await fetchAptosIndexerEvents(`${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`, limit);
     if (!addrLower) return events;
