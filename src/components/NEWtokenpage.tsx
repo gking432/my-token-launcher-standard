@@ -790,7 +790,6 @@ const TokenPage: React.FC = () => {
     resolvedMetadataAddr,
     timeframe,
     refreshChart,
-    account?.address ? String(account.address) : undefined,
   );
 
   // Apply chart mode multiplier to candle prices

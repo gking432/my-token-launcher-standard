@@ -1,4 +1,3 @@
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { GEOMI_GRAPHQL_ENDPOINT, GEOMI_API_KEY, MODULE_ADDRESS } from "../config";
 
 // Helper function for bonding curve calculation
@@ -274,57 +273,72 @@ async function fetchGraduationEvents(): Promise<any[]> {
   }
 }
 
-// Fallback: scan the wallet's own transaction history for buy/sell events.
-// Used when Geomi has no data (e.g. indexer catching up after a pause).
-// Only returns this wallet's trades, but is 100% reliable and requires no indexer.
-export async function fetchWalletTransactionEvents(
-  walletAddr: string,
+// Fallback: reconstruct purchase/sale events from fungible_asset_activities.
+// Queries the standard Aptos indexer via the /api/events proxy (server-side, no CORS).
+// Works for ALL buyers — not indexer-dependent. Used when Geomi has no data yet.
+export async function fetchActivitiesFallback(
   metadataAddr: string,
+  decimalsFactor: number = 1,
 ): Promise<{ purchases: any[]; sales: any[] }> {
-  const aptos = new Aptos(new AptosConfig({
-    network: Network.TESTNET,
-    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
-  }));
+  const params = new URLSearchParams({ type: 'activities', addr: metadataAddr, limit: '1000' });
+  const response = await fetch(`/api/events?${params}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Activities proxy error ${response.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  if (data.error) throw new Error(`Activities error: ${JSON.stringify(data.error)}`);
 
+  const activities: any[] = data.activities || [];
+  console.log(`[fetchActivitiesFallback] ${activities.length} activities for ${metadataAddr}`);
+
+  // Sort ascending to accumulate tokens_sold state correctly
+  const sorted = [...activities].sort(
+    (a, b) => parseInt(a.transaction_version) - parseInt(b.transaction_version),
+  );
+
+  const RESOURCE_ADDR = '0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5';
+  let tokensSold = 0;
   const purchases: any[] = [];
   const sales: any[] = [];
-  const addrLower = metadataAddr.toLowerCase();
-  const buyFn = `${MODULE_ADDRESS}::token_launcher::buy_tokens`;
-  const sellFn = `${MODULE_ADDRESS}::token_launcher::sell_tokens`;
 
-  let offset = 0;
-  const batchSize = 25;
+  for (const act of sorted) {
+    const owner: string = (act.owner_address || '').toLowerCase();
+    if (owner === RESOURCE_ADDR.toLowerCase()) continue; // skip graduation mints
 
-  for (let batch = 0; batch < 8; batch++) {
-    const txns: any[] = await aptos.getAccountTransactions({
-      accountAddress: walletAddr,
-      options: { limit: batchSize, offset },
-    });
+    const amountAtomic = parseInt(act.amount || '0');
+    if (amountAtomic <= 0) continue;
+    const amountTokens = amountAtomic / decimalsFactor;
 
-    if (!txns || txns.length === 0) break;
+    const type: string = (act.type || '').toLowerCase();
+    const tsMs = new Date(act.transaction_timestamp || 0).getTime();
+    const tsMicros = String(tsMs * 1000); // microseconds, matching contract timestamp format
 
-    for (const txn of txns) {
-      if (txn.type !== 'user_transaction' || !txn.success) continue;
-      const fn: string = txn.payload?.function || '';
-      const isBuy = fn === buyFn;
-      const isSell = fn === sellFn;
-      if (!isBuy && !isSell) continue;
-
-      for (const ev of (txn.events || [])) {
-        const evType: string = ev.type || '';
-        const evAddr: string = (ev.data?.metadata_addr || '').toLowerCase();
-        if (evAddr !== addrLower) continue;
-        if (isBuy && evType.endsWith('::token_launcher::TokenPurchaseEvent')) {
-          purchases.push({ ...ev.data, transaction_version: txn.version });
-        }
-        if (isSell && evType.endsWith('::token_launcher::TokenSaleEvent')) {
-          sales.push({ ...ev.data, transaction_version: txn.version });
-        }
-      }
+    if (type.includes('mint')) {
+      purchases.push({
+        buyer: act.owner_address,
+        metadata_addr: metadataAddr,
+        amount: String(amountAtomic),
+        tokens_sold: String(tokensSold), // pre-purchase state
+        liquidity_contribution: '0',     // approximated by useOHLCData from bonding curve
+        price: '0',
+        timestamp: tsMicros,
+        transaction_version: act.transaction_version,
+      });
+      tokensSold += amountTokens;
+    } else if (type.includes('burn')) {
+      tokensSold = Math.max(0, tokensSold - amountTokens);
+      sales.push({
+        seller: act.owner_address,
+        metadata_addr: metadataAddr,
+        amount: String(amountAtomic),
+        tokens_sold: String(tokensSold),
+        apt_returned: '0',
+        price: '0',
+        timestamp: tsMicros,
+        transaction_version: act.transaction_version,
+      });
     }
-
-    if (txns.length < batchSize) break;
-    offset += batchSize;
   }
 
   return { purchases, sales };
