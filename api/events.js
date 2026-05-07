@@ -1,22 +1,49 @@
 const https = require('https');
 
-const MODULE  = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
-const QUERY   = `query GetModuleEvents($type: String!, $limit: Int!) {
-  events(
-    where: { indexed_type: { _eq: $type } }
-    order_by: { transaction_version: desc }
+const GEOMI_HOST = 'api.testnet.aptoslabs.com';
+const GEOMI_PATH = '/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql';
+
+const PURCHASE_QUERY = `query GetPurchaseEvents($addr: String!, $limit: Int!) {
+  token_purchase_events(
+    where: { metadata_addr: { _eq: $addr } }
+    order_by: { timestamp: desc }
     limit: $limit
-  ) { data transaction_version event_index }
+  ) { buyer metadata_addr amount price liquidity_contribution timestamp tokens_sold }
+}`;
+
+const PURCHASE_QUERY_ALL = `query GetAllPurchaseEvents($limit: Int!) {
+  token_purchase_events(
+    order_by: { timestamp: desc }
+    limit: $limit
+  ) { buyer metadata_addr amount price liquidity_contribution timestamp tokens_sold }
+}`;
+
+const SALE_QUERY = `query GetSaleEvents($addr: String!, $limit: Int!) {
+  token_sale_events(
+    where: { metadata_addr: { _eq: $addr } }
+    order_by: { timestamp: desc }
+    limit: $limit
+  ) { seller metadata_addr amount apt_returned timestamp tokens_sold }
+}`;
+
+const SALE_QUERY_ALL = `query GetAllSaleEvents($limit: Int!) {
+  token_sale_events(
+    order_by: { timestamp: desc }
+    limit: $limit
+  ) { seller metadata_addr amount apt_returned timestamp tokens_sold }
 }`;
 
 function post(body, apiKey) {
   const payload = JSON.stringify(body);
   const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    headers['x-api-key'] = apiKey;
+  }
 
   return new Promise((resolve, reject) => {
     const req = https.request(
-      { hostname: 'api.testnet.aptoslabs.com', path: '/v1/graphql', method: 'POST', headers },
+      { hostname: GEOMI_HOST, path: GEOMI_PATH, method: 'POST', headers },
       (res) => {
         let raw = '';
         res.on('data', (c) => { raw += c; });
@@ -38,12 +65,30 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'type must be purchase or sale' });
   }
 
-  const eventType = `${MODULE}::token_launcher::Token${type === 'purchase' ? 'Purchase' : 'Sale'}Event`;
-  const limitNum  = Math.min(parseInt(limit, 10) || 1000, 1000);
-  const apiKey    = process.env.APTOS_API_KEY || process.env.REACT_APP_GEOMI_API_KEY || '';
+  const limitNum = Math.min(parseInt(limit, 10) || 1000, 1000);
+  const apiKey = process.env.GEOMI_API_KEY || process.env.REACT_APP_GEOMI_API_KEY || '';
+
+  let query, variables;
+  if (type === 'purchase') {
+    if (addr) {
+      query = PURCHASE_QUERY;
+      variables = { addr: addr.toLowerCase(), limit: limitNum };
+    } else {
+      query = PURCHASE_QUERY_ALL;
+      variables = { limit: limitNum };
+    }
+  } else {
+    if (addr) {
+      query = SALE_QUERY;
+      variables = { addr: addr.toLowerCase(), limit: limitNum };
+    } else {
+      query = SALE_QUERY_ALL;
+      variables = { limit: limitNum };
+    }
+  }
 
   try {
-    const { status, body } = await post({ query: QUERY, variables: { type: eventType, limit: limitNum } }, apiKey);
+    const { status, body } = await post({ query, variables }, apiKey);
 
     if (status >= 400) {
       console.error('[/api/events] upstream error', status, body.slice(0, 300));
@@ -56,16 +101,8 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: result.errors });
     }
 
-    let events = (result.data?.events || []).map((e) => ({
-      ...e.data,
-      event_index: e.event_index,
-      transaction_version: e.transaction_version,
-    }));
-
-    if (addr) {
-      const addrLower = addr.toLowerCase();
-      events = events.filter((e) => (e.metadata_addr || '').toLowerCase() === addrLower);
-    }
+    const tableKey = type === 'purchase' ? 'token_purchase_events' : 'token_sale_events';
+    const events = result.data?.[tableKey] || [];
 
     console.log(`[/api/events] type=${type} addr=${addr || 'all'} => ${events.length} events`);
     return res.json({ events });

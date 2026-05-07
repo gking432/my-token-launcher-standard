@@ -5,7 +5,7 @@ import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-lab
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time, ColorType } from "lightweight-charts";
 import GlobalSidebar from './GlobalSidebar';
-import { MODULE_ADDRESS, APTOS_API_KEY } from "../config";
+import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
