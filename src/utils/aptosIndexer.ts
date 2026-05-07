@@ -314,7 +314,11 @@ export async function fetchActivitiesFallback(
     const tsMs = new Date(act.transaction_timestamp || 0).getTime();
     const tsMicros = String(tsMs * 1000); // microseconds, matching contract timestamp format
 
-    if (type.includes('mint')) {
+    console.log(`[fetchActivitiesFallback] activity type: "${act.type}" owner: ${act.owner_address} amount: ${amountAtomic}`);
+
+    // Aptos indexer stores types as "0x1::fungible_asset::Deposit" / "Withdraw"
+    // (not "Mint"/"Burn" — those are internal; the recorded events are Deposit/Withdraw)
+    if (type.includes('deposit')) {
       purchases.push({
         buyer: act.owner_address,
         metadata_addr: metadataAddr,
@@ -326,7 +330,7 @@ export async function fetchActivitiesFallback(
         transaction_version: act.transaction_version,
       });
       tokensSold += amountTokens;
-    } else if (type.includes('burn')) {
+    } else if (type.includes('withdraw')) {
       tokensSold = Math.max(0, tokensSold - amountTokens);
       sales.push({
         seller: act.owner_address,
