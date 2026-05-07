@@ -1,9 +1,4 @@
 {
   "buildCommand": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
-  "outputDirectory": "build",
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node"
-    }
-  }
+  "outputDirectory": "build"
 }
