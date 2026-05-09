@@ -840,6 +840,18 @@ const TokenPage: React.FC = () => {
       borderDownColor: '#ff4757',
       wickUpColor: '#00d4aa',
       wickDownColor: '#ff4757',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => {
+          if (price === 0) return '0';
+          if (price < 0.000001) return price.toFixed(10);
+          if (price < 0.0001)   return price.toFixed(8);
+          if (price < 0.01)     return price.toFixed(6);
+          if (price < 1)        return price.toFixed(4);
+          return price.toFixed(2);
+        },
+        minMove: 0.0000000001,
+      },
     });
 
     const volSeries = chart.addHistogramSeries({

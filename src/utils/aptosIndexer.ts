@@ -339,12 +339,15 @@ export async function fetchActivitiesFallback(
 
     // Aptos indexer stores types as "0x1::fungible_asset::Deposit" / "Withdraw"
     if (type.includes('deposit')) {
+      const p0 = calculateBondingCurvePrice(tokensSold);
+      const p1 = calculateBondingCurvePrice(tokensSold + amountTokens);
+      const liquidityOctas = Math.round(((p0 + p1) / 2) * amountTokens * 1e8);
       purchases.push({
         buyer: act.owner_address,
         metadata_addr: metadataAddr,
-        amount: String(amountTokens),      // whole tokens for display + bonding curve
-        tokens_sold: String(tokensSold),   // pre-purchase state, whole tokens
-        liquidity_contribution: '0',
+        amount: String(amountTokens),
+        tokens_sold: String(tokensSold),
+        liquidity_contribution: String(liquidityOctas),
         price: '0',
         timestamp: tsMicros,
         transaction_version: act.transaction_version,
@@ -355,7 +358,7 @@ export async function fetchActivitiesFallback(
       sales.push({
         seller: act.owner_address,
         metadata_addr: metadataAddr,
-        amount: String(amountTokens),      // whole tokens
+        amount: String(amountTokens),
         tokens_sold: String(tokensSold),
         apt_returned: '0',
         price: '0',
