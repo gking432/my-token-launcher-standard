@@ -149,7 +149,18 @@ async function fetchGeomiPurchaseEvents(metadataAddr?: string, limit: number = 1
     }
   `;
   const data = await graphqlQuery(query);
-  return data?.token_purchase_events || [];
+  const events: any[] = data?.token_purchase_events || [];
+  if (!events.length || !metadataAddr) return events;
+
+  // Contract emits amount = tokens_bought * decimals_factor (atomic units).
+  // tokens_sold is in whole tokens. Normalize amount → whole tokens so both
+  // fields use the same unit and the bonding curve math doesn't overflow.
+  const decimals = await getTokenDecimals(metadataAddr);
+  const df = Math.pow(10, decimals);
+  return events.map(e => ({
+    ...e,
+    amount: String(Math.round(parseInt(e.amount || '0') / df)),
+  }));
 }
 
 // Query Geomi No-Code Indexer for sale events.
@@ -175,7 +186,23 @@ async function fetchGeomiSaleEvents(metadataAddr?: string, limit: number = 1000)
     }
   `;
   const data = await graphqlQuery(query);
-  return data?.token_sale_events || [];
+  const events: any[] = data?.token_sale_events || [];
+  if (!events.length || !metadataAddr) return events;
+
+  // Contract emits amount in atomic units; tokens_sold is pre-sell whole tokens.
+  // Normalize amount → whole tokens and convert tokens_sold → post-sell so the
+  // OHLC builder sees a price drop (matching what fetchActivitiesFallback does).
+  const decimals = await getTokenDecimals(metadataAddr);
+  const df = Math.pow(10, decimals);
+  return events.map(e => {
+    const amountWhole = Math.round(parseInt(e.amount || '0') / df);
+    const tokensSoldPreSell = parseInt(e.tokens_sold || '0');
+    return {
+      ...e,
+      amount: String(amountWhole),
+      tokens_sold: String(Math.max(0, tokensSoldPreSell - amountWhole)),
+    };
+  });
 }
 
 // Introspect schema to find correct table names
