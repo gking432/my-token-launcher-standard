@@ -4,6 +4,8 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
+import { useTokenList } from '../data/useTokenList';
+import { useAptPrice } from '../contexts/AptPriceContext';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
@@ -11,11 +13,38 @@ const HomePage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol'>('newest');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   
-  // Use the shared token data hook
-  // Fetches tokens once on mount - no continuous polling
-  // Static data (name, ticker, creator) doesn't change
-  // Price is calculated client-side from tokensSold (only changes on trades)
-  const { tokens: rawTokens, loading, error, refetch } = useTokenData();
+  // Catalog (slow-changing metadata): name, ticker, image, address, creator
+  const { tokens: catalogTokens, loading, error, refetch } = useTokenData();
+
+  // Live state for every token in the catalog. Polls every 5s, server-cached.
+  const catalogAddrs = useMemo(
+    () => catalogTokens.map(t => t.metadataAddress || t.txHash).filter(Boolean) as string[],
+    [catalogTokens]
+  );
+  const { data: liveByAddr } = useTokenList(catalogAddrs);
+  const { aptPrice } = useAptPrice();
+
+  // Merge live vault data over the catalog so price/mcap match the token page exactly.
+  const rawTokens = useMemo(() => {
+    if (!liveByAddr) return catalogTokens;
+    const aptUsd = aptPrice ?? 0;
+    return catalogTokens.map(t => {
+      const key = (t.metadataAddress || t.txHash || '').toLowerCase();
+      const live = liveByAddr[key];
+      if (!live) return t;
+      const priceUSD = aptUsd > 0 ? live.spotPriceAPT * aptUsd : t.priceUSD;
+      const marketCapUSD = aptUsd > 0 ? live.marketCapAPT * aptUsd : t.marketCapUSD;
+      return {
+        ...t,
+        price: live.spotPriceAPT,
+        priceUSD,
+        marketCap: live.marketCapAPT,
+        marketCapUSD,
+        tokensSold: live.tokensSold,
+        aptRaised: live.aptRaisedOctas,
+      };
+    });
+  }, [catalogTokens, liveByAddr, aptPrice]);
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 

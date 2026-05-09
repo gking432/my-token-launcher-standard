@@ -12,6 +12,8 @@ import { useWatchlist } from '../contexts/WatchlistContext';
 import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAptPrice } from '../contexts/AptPriceContext';
+import { useTokenLive } from '../data/useTokenLive';
+import { useQueryClient } from '@tanstack/react-query';
 
 console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
@@ -37,13 +39,17 @@ const TokenPage: React.FC = () => {
   const [chartMode, setChartMode] = useState<ChartMode>('mcap');
   const [activeInsightTab, setActiveInsightTab] = useState<'insights' | 'transactions' | 'holders'>('insights');
   const [isMounted, setIsMounted] = useState(false);
+  // React Query in useTokenLive (3s) and useTokenTrades (8s) handles polling.
+  // After a buy/sell we invalidate those caches so the new state shows
+  // immediately instead of waiting for the next interval.
   const [refreshChart, setRefreshChart] = useState<number>(0);
-
-  // Poll every 15 seconds so trades from any wallet show up without a page refresh
-  useEffect(() => {
-    const id = setInterval(() => setRefreshChart(n => n + 1), 15_000);
-    return () => clearInterval(id);
-  }, []);
+  const queryClient = useQueryClient();
+  const invalidateTokenData = () => {
+    queryClient.invalidateQueries({ queryKey: ['tokenLive'] });
+    queryClient.invalidateQueries({ queryKey: ['tokenTrades'] });
+    queryClient.invalidateQueries({ queryKey: ['tokenList'] });
+    setRefreshChart(n => n + 1);
+  };
   
   // Use global balance context instead of local balance fetching
   const { balances, loading: balanceLoading, getTokenBalance, refreshBalances } = useBalanceContext();
@@ -401,7 +407,7 @@ const TokenPage: React.FC = () => {
       alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
 
       // Refresh token balance and chart
-      setRefreshChart((prev) => prev + 1);
+      invalidateTokenData();
       
       // Wait a bit for blockchain state to propagate before refreshing balances
       // This ensures BuyerStore is updated on-chain before we query it
@@ -519,7 +525,7 @@ const TokenPage: React.FC = () => {
       alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
 
       // Refresh token balance and chart
-      setRefreshChart((prev) => prev + 1);
+      invalidateTokenData();
       
       // Wait a bit for blockchain state to propagate before refreshing balances
       console.log("⏳ Waiting 3 seconds for blockchain state to propagate...");
@@ -778,7 +784,8 @@ const TokenPage: React.FC = () => {
   };
 
   // Helper to find token from tokens array using metadataAddress
-  const tokenData = useMemo(() => {
+  // Static catalog row (name, symbol, image, creator) — slow-changing data
+  const catalogRow = useMemo(() => {
     if (!tokenDetails?.metadataAddress || tokens.length === 0) return null;
     return tokens.find(t =>
       t.metadataAddress?.toLowerCase() === tokenDetails.metadataAddress?.toLowerCase() ||
@@ -790,6 +797,35 @@ const TokenPage: React.FC = () => {
 
   // Resolve metadataAddress for chart & holder data
   const resolvedMetadataAddr = tokenDetails?.metadataAddress || coinHash;
+
+  // Live, canonical state from the on-chain vault (3s polling, server-side cached)
+  const { data: live } = useTokenLive(resolvedMetadataAddr);
+
+  // Single composite tokenData: catalog metadata overridden by live vault state.
+  // Every numeric field below is the same value used everywhere on the page.
+  const tokenData = useMemo(() => {
+    if (!catalogRow && !live) return null;
+    const priceAPT = live?.spotPriceAPT ?? catalogRow?.price;
+    const supply = live?.totalSupply ?? catalogRow?.supply ?? 1_000_000_000;
+    const aptUsd = aptPrice ?? 0;
+    const priceUSD = priceAPT !== undefined && aptUsd > 0 ? priceAPT * aptUsd : catalogRow?.priceUSD;
+    const marketCapAPT = live?.marketCapAPT ?? (priceAPT !== undefined ? priceAPT * supply : undefined);
+    const marketCapUSD = marketCapAPT !== undefined && aptUsd > 0 ? marketCapAPT * aptUsd : catalogRow?.marketCapUSD;
+    return {
+      ...(catalogRow || {}),
+      price: priceAPT,
+      priceUSD,
+      supply,
+      marketCap: marketCapAPT,
+      marketCapUSD,
+      aptRaised: live?.aptRaised ?? catalogRow?.aptRaised,
+      tokensSold: live?.tokensSold ?? catalogRow?.tokensSold,
+      isGraduated: live?.isGraduated ?? (catalogRow as any)?.isGraduated,
+      // volume + change24h still come from the catalog row (trade history) until useTokenTrades lands
+      volume: catalogRow?.volume,
+      change24h: catalogRow?.change24h,
+    } as any;
+  }, [catalogRow, live, aptPrice]);
 
   // Fetch OHLC candles, holder count, apt raised, and raw trades
   const { candles, recentTrades, loading: chartLoading, holderCount, aptRaised } = useOHLCData(
@@ -1873,7 +1909,8 @@ const TokenPage: React.FC = () => {
                       {(() => {
                         const GRADUATION_TARGET_OCTAS = 128_300_000_000; // 1283 APT in Octas
                         const GRAD_TARGET_APT = 1283;
-                        const aptRaisedOctas = aptRaised; // from useOHLCData (sum of liquidity_contribution)
+                        // Use live vault total_apt_spent (nets out sells, single source of truth)
+                        const aptRaisedOctas = live?.aptRaisedOctas ?? aptRaised;
                         const aptRaisedAPT = aptRaisedOctas / 1e8;
                         const progressPct = Math.min((aptRaisedOctas / GRADUATION_TARGET_OCTAS) * 100, 100);
                         return (
