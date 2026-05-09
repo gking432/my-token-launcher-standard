@@ -186,8 +186,28 @@ export function useOHLCData(
       }
 
       const sortedCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
-      console.log('[useOHLCData] candles built:', sortedCandles.length, sortedCandles[0] ?? null);
-      setCandles(sortedCandles);
+
+      // Fill gaps between first trade and now with flat candles (prev close repeated)
+      // so every timeframe shows a continuous price line, not isolated dots.
+      const filled: OHLCCandle[] = [];
+      if (sortedCandles.length > 0) {
+        const intervalSec = Math.floor(intervalMs / 1000);
+        const nowBucketSec = Math.floor(Date.now() / 1000 / intervalSec) * intervalSec;
+        let prevClose = sortedCandles[0].open;
+        let si = 0;
+        for (let t = sortedCandles[0].time; t <= nowBucketSec; t += intervalSec) {
+          if (si < sortedCandles.length && sortedCandles[si].time === t) {
+            filled.push(sortedCandles[si]);
+            prevClose = sortedCandles[si].close;
+            si++;
+          } else {
+            filled.push({ time: t, open: prevClose, high: prevClose, low: prevClose, close: prevClose, volume: 0 });
+          }
+        }
+      }
+
+      console.log('[useOHLCData] candles built:', filled.length, '(', sortedCandles.length, 'traded )', filled[0] ?? null);
+      setCandles(filled);
     } catch (err) {
       console.error('useOHLCData error:', err);
       setCandles([]);
