@@ -38,6 +38,12 @@ const TokenPage: React.FC = () => {
   const [activeInsightTab, setActiveInsightTab] = useState<'insights' | 'transactions' | 'holders'>('insights');
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
+
+  // Poll every 15 seconds so trades from any wallet show up without a page refresh
+  useEffect(() => {
+    const id = setInterval(() => setRefreshChart(n => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
   
   // Use global balance context instead of local balance fetching
   const { balances, loading: balanceLoading, getTokenBalance, refreshBalances } = useBalanceContext();
@@ -974,6 +980,7 @@ const TokenPage: React.FC = () => {
   const timeAgo = (ms: number): string => {
     const diff = Date.now() - ms;
     const s = Math.floor(diff / 1000);
+    if (s <= 0) return 'just now'; // node clock slightly ahead of browser
     if (s < 60)  return `${s}s ago`;
     const m = Math.floor(s / 60);
     if (m < 60)  return `${m}m ago`;

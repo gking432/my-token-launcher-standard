@@ -189,13 +189,18 @@ export function useOHLCData(
 
       // Fill gaps between first trade and now with flat candles (prev close repeated)
       // so every timeframe shows a continuous price line, not isolated dots.
+      // Upper bound: take the larger of "now" and the last traded candle — the Aptos
+      // node clock can run slightly ahead of the browser, which would otherwise drop
+      // the most recent candle if its bucket timestamp is technically in the future.
       const filled: OHLCCandle[] = [];
       if (sortedCandles.length > 0) {
         const intervalSec = Math.floor(intervalMs / 1000);
         const nowBucketSec = Math.floor(Date.now() / 1000 / intervalSec) * intervalSec;
+        const lastCandleSec = sortedCandles[sortedCandles.length - 1].time;
+        const endSec = Math.max(nowBucketSec, lastCandleSec);
         let prevClose = sortedCandles[0].open;
         let si = 0;
-        for (let t = sortedCandles[0].time; t <= nowBucketSec; t += intervalSec) {
+        for (let t = sortedCandles[0].time; t <= endSec; t += intervalSec) {
           if (si < sortedCandles.length && sortedCandles[si].time === t) {
             filled.push(sortedCandles[si]);
             prevClose = sortedCandles[si].close;
