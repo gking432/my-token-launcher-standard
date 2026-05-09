@@ -34,7 +34,7 @@ const TokenPage: React.FC = () => {
   const { aptPrice } = useAptPrice();
   const [amount, setAmount] = useState<number>(0);
   const [timeframe, setTimeframe] = useState<Timeframe>("15m");
-  const [chartMode, setChartMode] = useState<ChartMode>('usd');
+  const [chartMode, setChartMode] = useState<ChartMode>('mcap');
   const [activeInsightTab, setActiveInsightTab] = useState<'insights' | 'transactions' | 'holders'>('insights');
   const [isMounted, setIsMounted] = useState(false);
   const [refreshChart, setRefreshChart] = useState<number>(0);
