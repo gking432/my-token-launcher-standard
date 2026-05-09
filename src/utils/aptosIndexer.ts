@@ -135,7 +135,7 @@ async function fetchGeomiPurchaseEvents(metadataAddr?: string, limit: number = 1
     query GetPurchaseEvents {
       token_purchase_events(
         ${whereClause}
-        order_by: { timestamp: desc }
+        order_by: { timestamp: asc }
         limit: ${limit}
       ) {
         buyer
@@ -145,6 +145,7 @@ async function fetchGeomiPurchaseEvents(metadataAddr?: string, limit: number = 1
         liquidity_contribution
         timestamp
         tokens_sold
+        transaction_version
       }
     }
   `;
@@ -173,7 +174,7 @@ async function fetchGeomiSaleEvents(metadataAddr?: string, limit: number = 1000)
     query GetSaleEvents {
       token_sale_events(
         ${whereClause}
-        order_by: { timestamp: desc }
+        order_by: { timestamp: asc }
         limit: ${limit}
       ) {
         seller
@@ -182,6 +183,7 @@ async function fetchGeomiSaleEvents(metadataAddr?: string, limit: number = 1000)
         apt_returned
         timestamp
         tokens_sold
+        transaction_version
       }
     }
   `;

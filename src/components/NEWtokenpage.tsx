@@ -976,11 +976,20 @@ const TokenPage: React.FC = () => {
          : 'Loading...';
   };
 
-  // Format time-ago for transactions
+  // Compute a reference "now" that compensates for Aptos testnet clock running ahead
+  // of the user's browser. We use whichever is later: browser time or the most recent
+  // trade's timestamp. This makes relative times ("5m ago") correct regardless of
+  // node clock drift.
+  const referenceNow = useMemo(() => {
+    if (recentTrades.length === 0) return Date.now();
+    const latestTrade = Math.max(...recentTrades.map(t => t.timestampMs));
+    return Math.max(Date.now(), latestTrade);
+  }, [recentTrades]);
+
   const timeAgo = (ms: number): string => {
-    const diff = Date.now() - ms;
+    const diff = referenceNow - ms;
     const s = Math.floor(diff / 1000);
-    if (s <= 0) return 'just now'; // node clock slightly ahead of browser
+    if (s <= 5) return 'just now';
     if (s < 60)  return `${s}s ago`;
     const m = Math.floor(s / 60);
     if (m < 60)  return `${m}m ago`;

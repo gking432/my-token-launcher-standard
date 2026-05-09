@@ -145,7 +145,7 @@ export function useOHLCData(
       setRecentTrades(trades);
 
       // ── OHLC candles ──────────────────────────────────────
-      type RawTrade = { timestampMs: number; tokensSold: number; amount: number };
+      type RawTrade = { timestampMs: number; txVersion: number; tokensSold: number; amount: number };
       const raw: RawTrade[] = [];
 
       for (const p of purchases) {
@@ -154,19 +154,23 @@ export function useOHLCData(
         const tokensSoldBefore = parseInt(p.tokens_sold || '0');
         const amount = parseInt(p.amount || '0');
         const tokensSoldAfter = tokensSoldBefore + amount;
-        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold: tokensSoldAfter, amount });
+        const txVersion = parseInt(p.transaction_version || '0');
+        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), txVersion, tokensSold: tokensSoldAfter, amount });
       }
       for (const s of sales) {
         const ts = parseInt(s.timestamp || '0');
         const tokensSold = parseInt(s.tokens_sold || '0');
         const amount = parseInt(s.amount || '0');
-        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), tokensSold, amount });
+        const txVersion = parseInt(s.transaction_version || '0');
+        if (ts > 0 && amount > 0) raw.push({ timestampMs: toMs(ts), txVersion, tokensSold, amount });
       }
 
       console.log('[useOHLCData] raw trades for OHLC:', raw.length);
       if (raw.length === 0) { setCandles([]); return; }
 
-      raw.sort((a, b) => a.timestampMs - b.timestampMs);
+      // Sort by timestamp, then by transaction_version as tiebreaker so buy always
+      // precedes sell when they land in the same millisecond bucket.
+      raw.sort((a, b) => a.timestampMs - b.timestampMs || a.txVersion - b.txVersion);
 
       const intervalMs = TIMEFRAME_MS[timeframe];
       const candleMap = new Map<number, OHLCCandle>();
