@@ -273,13 +273,33 @@ async function fetchGraduationEvents(): Promise<any[]> {
   }
 }
 
+// Fetch the decimals for a fungible asset from the Aptos fullnode.
+// Returns 0 (decimals_factor = 1) on any failure.
+async function getTokenDecimals(metadataAddr: string): Promise<number> {
+  try {
+    const res = await fetch(
+      `https://fullnode.testnet.aptoslabs.com/v1/accounts/${metadataAddr}/resource/0x1::fungible_asset::Metadata`
+    );
+    if (!res.ok) return 0;
+    const json = await res.json();
+    const dec = (json.data ?? json)?.decimals;
+    return parseInt(dec ?? '0', 10);
+  } catch {
+    return 0;
+  }
+}
+
 // Fallback: reconstruct purchase/sale events from fungible_asset_activities.
 // Queries the standard Aptos indexer via the /api/events proxy (server-side, no CORS).
 // Works for ALL buyers — not indexer-dependent. Used when Geomi has no data yet.
 export async function fetchActivitiesFallback(
   metadataAddr: string,
-  decimalsFactor: number = 1,
 ): Promise<{ purchases: any[]; sales: any[] }> {
+  // Fetch decimals first so amounts are normalised to whole-token units
+  const decimals = await getTokenDecimals(metadataAddr);
+  const decimalsFactor = Math.pow(10, decimals);
+  console.log(`[fetchActivitiesFallback] ${metadataAddr} decimals=${decimals} factor=${decimalsFactor}`);
+
   const params = new URLSearchParams({ type: 'activities', addr: metadataAddr, limit: '1000' });
   const response = await fetch(`/api/events?${params}`);
   if (!response.ok) {
@@ -298,7 +318,7 @@ export async function fetchActivitiesFallback(
   );
 
   const RESOURCE_ADDR = '0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5';
-  let tokensSold = 0;
+  let tokensSold = 0; // whole token units
   const purchases: any[] = [];
   const sales: any[] = [];
 
@@ -308,23 +328,23 @@ export async function fetchActivitiesFallback(
 
     const amountAtomic = parseInt(act.amount || '0');
     if (amountAtomic <= 0) continue;
-    const amountTokens = amountAtomic / decimalsFactor;
+    // Normalize to whole tokens so bonding curve formula and display are correct
+    const amountTokens = Math.round(amountAtomic / decimalsFactor);
 
     const type: string = (act.type || '').toLowerCase();
     const tsMs = new Date(act.transaction_timestamp || 0).getTime();
     const tsMicros = String(tsMs * 1000); // microseconds, matching contract timestamp format
 
-    console.log(`[fetchActivitiesFallback] activity type: "${act.type}" owner: ${act.owner_address} amount: ${amountAtomic}`);
+    console.log(`[fetchActivitiesFallback] type="${act.type}" owner=${act.owner_address} atomic=${amountAtomic} tokens=${amountTokens}`);
 
     // Aptos indexer stores types as "0x1::fungible_asset::Deposit" / "Withdraw"
-    // (not "Mint"/"Burn" — those are internal; the recorded events are Deposit/Withdraw)
     if (type.includes('deposit')) {
       purchases.push({
         buyer: act.owner_address,
         metadata_addr: metadataAddr,
-        amount: String(amountAtomic),
-        tokens_sold: String(tokensSold), // pre-purchase state
-        liquidity_contribution: '0',     // approximated by useOHLCData from bonding curve
+        amount: String(amountTokens),      // whole tokens for display + bonding curve
+        tokens_sold: String(tokensSold),   // pre-purchase state, whole tokens
+        liquidity_contribution: '0',
         price: '0',
         timestamp: tsMicros,
         transaction_version: act.transaction_version,
@@ -335,7 +355,7 @@ export async function fetchActivitiesFallback(
       sales.push({
         seller: act.owner_address,
         metadata_addr: metadataAddr,
-        amount: String(amountAtomic),
+        amount: String(amountTokens),      // whole tokens
         tokens_sold: String(tokensSold),
         apt_returned: '0',
         price: '0',
