@@ -122,22 +122,26 @@ export function useOHLCData(
       for (const p of purchases) {
         const ts = parseInt(p.timestamp || '0');
         const amount = parseInt(p.amount || '0');
-        const tokensSold = parseInt(p.tokens_sold || '0');
+        const tokensSoldBefore = parseInt(p.tokens_sold || '0');
         if (ts > 0 && amount > 0) {
-          const aptValue = parseFloat(p.price || '0') > 0
-            ? parseFloat(p.price) / 1e8
-            : approxAptValue(amount, tokensSold);
+          // liquidity_contribution = total APT cost in octas (from contract or bonding curve estimate).
+          // p.price is per-token price — don't use it for total cost.
+          const aptValue = parseFloat(p.liquidity_contribution || '0') > 0
+            ? parseFloat(p.liquidity_contribution) / 1e8
+            : approxAptValue(amount, tokensSoldBefore + amount);
           trades.push({ type: 'buy', wallet: p.buyer || '', amount, aptValue, timestampMs: toMs(ts) });
         }
       }
       for (const s of sales) {
         const ts = parseInt(s.timestamp || '0');
         const amount = parseInt(s.amount || '0');
-        const tokensSold = parseInt(s.tokens_sold || '0');
+        const tokensSoldPost = parseInt(s.tokens_sold || '0'); // post-sell state (our convention)
         if (ts > 0 && amount > 0) {
+          // apt_returned = total APT received in octas (from contract).
+          // Fallback: approxAptValue expects the pre-sell tokensSold (= post + amount).
           const aptValue = parseFloat(s.apt_returned || '0') > 0
             ? parseFloat(s.apt_returned) / 1e8
-            : approxAptValue(amount, tokensSold);
+            : approxAptValue(amount, tokensSoldPost + amount);
           trades.push({ type: 'sell', wallet: s.seller || '', amount, aptValue, timestampMs: toMs(ts) });
         }
       }
