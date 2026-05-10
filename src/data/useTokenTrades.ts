@@ -4,9 +4,11 @@ export interface NormalizedTrade {
   type: 'buy' | 'sell';
   wallet: string;
   amount: number;       // whole tokens
-  aptValue: number;     // APT (computed via bonding curve, deterministic)
+  aptValue: number;     // APT — exact value from the contract event
+                        // (liquidity_contribution for buys, apt_returned for sells)
   timestampMs: number;
   txVersion: number;
+  eventIndex?: number;
   tokensSoldBefore: number;
   tokensSoldAfter: number;
 }
