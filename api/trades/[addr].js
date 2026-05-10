@@ -1,27 +1,28 @@
-// Trade history — indexer account_transactions + fullnode per-tx events.
+// Trade history — Geomi No-Code Indexer (Aptos Labs' managed indexer for
+// custom contract events). One query → all buy/sell events for a token with
+// exact contract APT values.
 //
-// Standard indexer paths for custom contract events are both broken:
-//   - `events` table: deprecated (HTTP 400 since Sep 2024)
-//   - `fungible_asset_activities`: times out (no composite index on testnet)
+// Why Geomi and not the standard Aptos indexer:
+// The standard indexer (api.testnet.aptoslabs.com) indexes generic Aptos
+// primitives (coin transfers, fungible asset balances, NFTs). It does NOT
+// have purpose-built tables for custom contract events. The generic `events`
+// table was deprecated in September 2024. `fungible_asset_activities` doesn't
+// expose APT values per trade and times out on testnet for `asset_type` lookups.
 //
-// Working path:
-//   1. account_transactions(where: { account_address: { _eq: metadataAddr } })
-//      The indexer tracks every account whose resources were touched.
-//      TokenVault is stored AT metadataAddr, so every buy/sell appears here.
-//      account_address is a primary key column — fast indexed lookup.
-//   2. /v1/transactions/by_version/{v} on the fullnode for each version.
-//      Transactions include their events inline. Batched in parallel.
-//      Filters for TokenPurchaseEvent / TokenSaleEvent.
+// Geomi is Aptos Labs' managed processor product — you define tables once
+// (token_purchase_events, token_sale_events) and they index them for you.
+// This is the ecosystem-standard path for custom contract event indexing
+// when you don't want to self-host an Aptos Indexer SDK processor.
 //
-// Exact APT values come from the contract event fields: liquidity_contribution
-// (buy cost) and apt_returned (sell proceeds). No bonding-curve estimation.
+// Together with /api/token (fullnode vault reads) this is the final two-source
+// architecture: fullnode for current state, Geomi for historical events. Both
+// are Aptos Labs products; both read directly from the chain.
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
-const PURCHASE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`;
-const SALE_EVENT_TYPE    = `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`;
-const FULLNODE = 'https://fullnode.testnet.aptoslabs.com/v1';
-const INDEXER  = 'https://api.testnet.aptoslabs.com/v1/graphql';
-const BATCH    = 20; // concurrent fullnode calls per round
+const https = require('https');
+
+const GEOMI_HOST = 'api.testnet.aptoslabs.com';
+const GEOMI_PATH = '/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql';
+const FULLNODE   = 'https://fullnode.testnet.aptoslabs.com/v1';
 
 const CACHE_TTL_MS = 5_000;
 const cache    = new Map();
@@ -32,81 +33,84 @@ function normaliseAddr(a) {
   return String(a).toLowerCase().replace(/^(?:0x)?/, '0x');
 }
 
-function apiKey() {
-  return process.env.APTOS_API_KEY
-      || process.env.REACT_APP_APTOS_API_KEY
-      || process.env.REACT_APP_GEOMI_API_KEY
-      || '';
-}
-
-function authHeaders() {
-  const k = apiKey();
-  return k ? { Authorization: `Bearer ${k}` } : {};
-}
-
-// Step 1 — indexer: get all transaction versions that touched metadataAddr.
-const ACCT_TX_QUERY = `query AcctTx($addr: String!, $limit: Int!) {
-  account_transactions(
-    where: { account_address: { _eq: $addr } }
+const PURCHASE_QUERY = `query GetPurchaseEvents($addr: String!, $limit: Int!) {
+  token_purchase_events(
+    where: { metadata_addr: { _eq: $addr } }
     order_by: { transaction_version: asc }
     limit: $limit
   ) {
+    buyer
+    amount
+    liquidity_contribution
+    timestamp
+    tokens_sold
     transaction_version
   }
 }`;
 
-async function fetchTxVersions(addr) {
-  const headers = { 'Content-Type': 'application/json', ...authHeaders() };
-  const res = await fetch(INDEXER, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query: ACCT_TX_QUERY, variables: { addr, limit: 1000 } }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Indexer ${res.status}: ${body.slice(0, 200)}`);
+const SALE_QUERY = `query GetSaleEvents($addr: String!, $limit: Int!) {
+  token_sale_events(
+    where: { metadata_addr: { _eq: $addr } }
+    order_by: { transaction_version: asc }
+    limit: $limit
+  ) {
+    seller
+    amount
+    apt_returned
+    timestamp
+    tokens_sold
+    transaction_version
   }
-  const json = await res.json();
-  if (json.errors) throw new Error(`Indexer: ${JSON.stringify(json.errors)}`);
-  return (json.data?.account_transactions || []).map(r => String(r.transaction_version));
-}
+}`;
 
-// Step 2 — fullnode: fetch a single transaction by version and return its events.
-async function fetchTxEvents(version) {
-  const res = await fetch(`${FULLNODE}/transactions/by_version/${version}`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) return [];
-  const tx = await res.json();
-  return tx?.events || [];
-}
-
-// Run fetchTxEvents for all versions, BATCH concurrent at a time.
-async function fetchAllTxEvents(versions) {
-  const events = [];
-  for (let i = 0; i < versions.length; i += BATCH) {
-    const slice = versions.slice(i, i + BATCH);
-    const results = await Promise.all(slice.map(fetchTxEvents));
-    for (let j = 0; j < slice.length; j++) {
-      const version = parseInt(slice[j], 10);
-      for (const ev of results[j]) {
-        events.push({ version, ev });
+function postGeomi(query, variables) {
+  const apiKey = process.env.GEOMI_API_KEY || process.env.REACT_APP_GEOMI_API_KEY || '';
+  const payload = JSON.stringify({ query, variables });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    headers['x-api-key'] = apiKey;
+  }
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      { hostname: GEOMI_HOST, path: GEOMI_PATH, method: 'POST', headers },
+      (res) => {
+        let raw = '';
+        res.on('data', (c) => { raw += c; });
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            return reject(new Error(`Geomi ${res.statusCode}: ${raw.slice(0, 200)}`));
+          }
+          try {
+            const json = JSON.parse(raw);
+            if (json.errors) return reject(new Error(`Geomi: ${JSON.stringify(json.errors)}`));
+            resolve(json.data || {});
+          } catch (e) { reject(e); }
+        });
       }
-    }
-  }
-  return events;
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
 }
 
 async function fetchDecimals(addr) {
+  const apiKey = process.env.APTOS_API_KEY || process.env.REACT_APP_APTOS_API_KEY
+              || process.env.REACT_APP_GEOMI_API_KEY || '';
   const res = await fetch(
     `${FULLNODE}/accounts/${addr}/resource/${encodeURIComponent('0x1::fungible_asset::Metadata')}`,
-    { headers: authHeaders() }
+    { headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} }
   );
   if (!res.ok) return 0;
   const json = await res.json();
   return parseInt(json?.data?.decimals ?? '0', 10);
 }
 
+// Contract emits timestamp::now_microseconds() (u64 microseconds) as a string.
 function microsToMs(micros) {
   if (micros == null) return Date.now();
   const n = typeof micros === 'string' ? parseInt(micros, 10) : Number(micros);
@@ -114,48 +118,52 @@ function microsToMs(micros) {
 }
 
 async function buildTrades(addr) {
-  const [decimals, versions] = await Promise.all([
+  const [decimals, purchaseData, saleData] = await Promise.all([
     fetchDecimals(addr),
-    fetchTxVersions(addr),
+    postGeomi(PURCHASE_QUERY, { addr, limit: 1000 }),
+    postGeomi(SALE_QUERY, { addr, limit: 1000 }),
   ]);
+
+  const purchases = purchaseData?.token_purchase_events || [];
+  const sales     = saleData?.token_sale_events || [];
   const decimalsFactor = Math.pow(10, decimals);
 
-  const allEvents = await fetchAllTxEvents(versions);
+  // Buy event: contract emits `amount = tokens_bought * decimals_factor`
+  // (atomic units). `tokens_sold` is the PRE-trade state in whole tokens.
+  // `liquidity_contribution` is the EXACT APT cost in octas (no fees included).
+  const buyTrades = purchases.map(ev => {
+    const amountAtomic     = parseInt(ev.amount || '0', 10);
+    const amountWhole      = decimalsFactor > 1 ? Math.round(amountAtomic / decimalsFactor) : amountAtomic;
+    const tokensSoldBefore = parseInt(ev.tokens_sold || '0', 10);
+    return {
+      type: 'buy',
+      wallet: ev.buyer || '',
+      amount: amountWhole,
+      aptValue: parseInt(ev.liquidity_contribution || '0', 10) / 1e8,
+      timestampMs: microsToMs(ev.timestamp),
+      txVersion: parseInt(ev.transaction_version || '0', 10),
+      tokensSoldBefore,
+      tokensSoldAfter: tokensSoldBefore + amountWhole,
+    };
+  });
 
-  const buyTrades  = [];
-  const sellTrades = [];
-
-  for (const { version, ev } of allEvents) {
-    const d = ev.data || {};
-    if (ev.type === PURCHASE_EVENT_TYPE) {
-      const amountAtomic   = parseInt(d.amount || '0', 10);
-      const amountWhole    = decimalsFactor > 1 ? Math.round(amountAtomic / decimalsFactor) : amountAtomic;
-      const tokensSoldBefore = parseInt(d.tokens_sold || '0', 10);
-      buyTrades.push({
-        type: 'buy',
-        wallet: d.buyer || '',
-        amount: amountWhole,
-        aptValue: parseInt(d.liquidity_contribution || '0', 10) / 1e8,
-        timestampMs: microsToMs(d.timestamp),
-        txVersion: version,
-        tokensSoldBefore,
-        tokensSoldAfter: tokensSoldBefore + amountWhole,
-      });
-    } else if (ev.type === SALE_EVENT_TYPE) {
-      const amountWhole    = parseInt(d.amount || '0', 10);
-      const tokensSoldBefore = parseInt(d.tokens_sold || '0', 10);
-      sellTrades.push({
-        type: 'sell',
-        wallet: d.seller || '',
-        amount: amountWhole,
-        aptValue: parseInt(d.apt_returned || '0', 10) / 1e8,
-        timestampMs: microsToMs(d.timestamp),
-        txVersion: version,
-        tokensSoldBefore,
-        tokensSoldAfter: Math.max(0, tokensSoldBefore - amountWhole),
-      });
-    }
-  }
+  // Sell event: contract takes `amount` in whole tokens and re-emits unchanged
+  // (token_launcher.move L626 sell_tokens(amount: u64), L757 emits `amount: amount`).
+  // `apt_returned` is the EXACT APT proceeds in octas (after fees).
+  const sellTrades = sales.map(ev => {
+    const amountWhole      = parseInt(ev.amount || '0', 10);
+    const tokensSoldBefore = parseInt(ev.tokens_sold || '0', 10);
+    return {
+      type: 'sell',
+      wallet: ev.seller || '',
+      amount: amountWhole,
+      aptValue: parseInt(ev.apt_returned || '0', 10) / 1e8,
+      timestampMs: microsToMs(ev.timestamp),
+      txVersion: parseInt(ev.transaction_version || '0', 10),
+      tokensSoldBefore,
+      tokensSoldAfter: Math.max(0, tokensSoldBefore - amountWhole),
+    };
+  });
 
   const trades = [...buyTrades, ...sellTrades].sort((a, b) => a.txVersion - b.txVersion);
   const finalTokensSold = trades.length > 0 ? trades[trades.length - 1].tokensSoldAfter : 0;
