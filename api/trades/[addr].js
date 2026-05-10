@@ -1,18 +1,24 @@
-// Trade history for a token, sourced from the standard Aptos indexer's `events`
-// table — specifically TokenPurchaseEvent / TokenSaleEvent emitted by the
-// launcher contract. Returns NORMALIZED trades with EXACT APT values from the
-// contract (liquidity_contribution for buys, apt_returned for sells).
+// Trade history for a token, sourced from the Geomi No-Code Indexer's purpose-
+// built `token_purchase_events` / `token_sale_events` tables. These mirror the
+// contract's TokenPurchaseEvent / TokenSaleEvent and carry EXACT APT values
+// (`liquidity_contribution` for buys, `apt_returned` for sells) plus the pre-
+// trade `tokens_sold` state, so we don't need to reconstruct anything.
 //
-// Why not fungible_asset_activities? It accumulates `tokens_sold` from zero,
-// which gives wrong bonding-curve prices when the indexer history is partial,
-// and it can't tell us the real APT amount per trade — only the token amount.
-// Contract events carry both the exact APT and pre-trade tokens_sold state.
+// Why not the standard indexer's `fungible_asset_activities` (the previous
+// approach)? It only knows token amounts. We were estimating APT from a
+// bonding curve fed by `tokens_sold` accumulated from zero — which produces
+// the wrong price when indexer history is partial, off by orders of magnitude.
+//
+// Why not the standard indexer's `events` table? Filtering by JSONB
+// (`data._contains`) is not reliably exposed on the public Aptos indexer, and
+// address normalisation in JSONB is brittle. Geomi's columnar tables filter
+// natively on `metadata_addr` and are already proven via /api/events.
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
-const PURCHASE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`;
-const SALE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`;
+const https = require('https');
+
+const GEOMI_HOST = 'api.testnet.aptoslabs.com';
+const GEOMI_PATH = '/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql';
 const FULLNODE = 'https://fullnode.testnet.aptoslabs.com/v1';
-const INDEXER = 'https://api.testnet.aptoslabs.com/v1/graphql';
 
 const CACHE_TTL_MS = 5_000;
 const cache = new Map(); // addr -> { value, expiresAt }
@@ -24,32 +30,72 @@ function normaliseAddr(a) {
   return lower.startsWith('0x') ? lower : `0x${lower}`;
 }
 
-const EVENTS_QUERY = `query TradeEvents($pType: String!, $sType: String!, $addr: String!, $limit: Int!) {
-  purchases: events(
-    where: {
-      indexed_type: { _eq: $pType }
-      data: { _contains: { metadata_addr: $addr } }
-    }
+const PURCHASE_QUERY = `query GetPurchaseEvents($addr: String!, $limit: Int!) {
+  token_purchase_events(
+    where: { metadata_addr: { _eq: $addr } }
     order_by: { transaction_version: asc }
     limit: $limit
   ) {
+    buyer
+    amount
+    liquidity_contribution
+    timestamp
+    tokens_sold
     transaction_version
-    event_index
-    data
-  }
-  sales: events(
-    where: {
-      indexed_type: { _eq: $sType }
-      data: { _contains: { metadata_addr: $addr } }
-    }
-    order_by: { transaction_version: asc }
-    limit: $limit
-  ) {
-    transaction_version
-    event_index
-    data
   }
 }`;
+
+const SALE_QUERY = `query GetSaleEvents($addr: String!, $limit: Int!) {
+  token_sale_events(
+    where: { metadata_addr: { _eq: $addr } }
+    order_by: { transaction_version: asc }
+    limit: $limit
+  ) {
+    seller
+    amount
+    apt_returned
+    timestamp
+    tokens_sold
+    transaction_version
+  }
+}`;
+
+function postGeomi(query, variables) {
+  const apiKey = process.env.GEOMI_API_KEY || process.env.REACT_APP_GEOMI_API_KEY || '';
+  const payload = JSON.stringify({ query, variables });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    headers['x-api-key'] = apiKey;
+  }
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      { hostname: GEOMI_HOST, path: GEOMI_PATH, method: 'POST', headers },
+      (res) => {
+        let raw = '';
+        res.on('data', (c) => { raw += c; });
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            return reject(new Error(`Geomi ${res.statusCode}: ${raw.slice(0, 200)}`));
+          }
+          try {
+            const json = JSON.parse(raw);
+            if (json.errors) return reject(new Error(`Geomi errors: ${JSON.stringify(json.errors)}`));
+            resolve(json.data || {});
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
 
 async function fetchDecimals(addr) {
   const apiKey = process.env.APTOS_API_KEY || process.env.REACT_APP_APTOS_API_KEY || '';
@@ -62,98 +108,69 @@ async function fetchDecimals(addr) {
   return parseInt(json?.data?.decimals ?? '0', 10);
 }
 
-async function fetchEvents(addr) {
-  const apiKey = process.env.APTOS_API_KEY || process.env.REACT_APP_APTOS_API_KEY || '';
-  const headers = { 'Content-Type': 'application/json' };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-  const res = await fetch(INDEXER, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      query: EVENTS_QUERY,
-      variables: {
-        pType: PURCHASE_EVENT_TYPE,
-        sType: SALE_EVENT_TYPE,
-        addr,
-        limit: 1000,
-      },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Indexer ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const json = await res.json();
-  if (json.errors) throw new Error(`Indexer errors: ${JSON.stringify(json.errors)}`);
-  return {
-    purchases: json.data?.purchases || [],
-    sales: json.data?.sales || [],
-  };
-}
-
-// Aptos serializes timestamps as microseconds (u64). Convert to ms.
+// Geomi serialises the contract's `timestamp::now_microseconds()` as a
+// stringified u64 microseconds. Convert to ms.
 function microsToMs(micros) {
+  if (micros == null) return Date.now();
   const n = typeof micros === 'string' ? parseInt(micros, 10) : Number(micros);
+  if (!Number.isFinite(n) || n <= 0) return Date.now();
   return Math.floor(n / 1000);
 }
 
 async function buildTrades(addr) {
-  const [decimals, { purchases, sales }] = await Promise.all([
+  const [decimals, purchaseData, saleData] = await Promise.all([
     fetchDecimals(addr),
-    fetchEvents(addr),
+    postGeomi(PURCHASE_QUERY, { addr, limit: 1000 }),
+    postGeomi(SALE_QUERY, { addr, limit: 1000 }),
   ]);
+  const purchases = purchaseData?.token_purchase_events || [];
+  const sales = saleData?.token_sale_events || [];
   const decimalsFactor = Math.pow(10, decimals);
 
-  // Buy events: amount is in atomic units (tokens_bought * decimals_factor).
-  // tokens_sold is the PRE-trade state in whole tokens.
+  // Buy event: `amount` is `tokens_bought * decimals_factor` (atomic units).
+  // `tokens_sold` is the PRE-trade state in whole tokens.
   const buyTrades = purchases.map(ev => {
-    const d = ev.data || {};
-    const amountAtomic = parseInt(d.amount || '0', 10);
+    const amountAtomic = parseInt(ev.amount || '0', 10);
     const amountWhole = decimalsFactor > 1
       ? Math.round(amountAtomic / decimalsFactor)
       : amountAtomic;
-    const aptCostOctas = parseInt(d.liquidity_contribution || '0', 10);
-    const tokensSoldBefore = parseInt(d.tokens_sold || '0', 10);
+    const aptCostOctas = parseInt(ev.liquidity_contribution || '0', 10);
+    const tokensSoldBefore = parseInt(ev.tokens_sold || '0', 10);
     return {
       type: 'buy',
-      wallet: d.buyer || '',
+      wallet: ev.buyer || '',
       amount: amountWhole,
       aptValue: aptCostOctas / 1e8,
-      timestampMs: microsToMs(d.timestamp),
+      timestampMs: microsToMs(ev.timestamp),
       txVersion: parseInt(ev.transaction_version || '0', 10),
-      eventIndex: parseInt(ev.event_index || '0', 10),
       tokensSoldBefore,
       tokensSoldAfter: tokensSoldBefore + amountWhole,
     };
   });
 
-  // Sell events: amount is in WHOLE tokens (contract inconsistency — buy emits
-  // atomic, sell emits whole; see token_launcher.move L579 vs L757).
-  // tokens_sold is the PRE-trade state in whole tokens.
+  // Sell event: `amount` is in WHOLE tokens (the entry function's `amount`
+  // parameter is whole; the event re-emits it unchanged — see
+  // token_launcher.move L626 sell_tokens(..., amount: u64, ...) and L757
+  // event::emit(TokenSaleEvent { ..., amount: amount }).
   const sellTrades = sales.map(ev => {
-    const d = ev.data || {};
-    const amountWhole = parseInt(d.amount || '0', 10);
-    const aptReturnedOctas = parseInt(d.apt_returned || '0', 10);
-    const tokensSoldBefore = parseInt(d.tokens_sold || '0', 10);
+    const amountWhole = parseInt(ev.amount || '0', 10);
+    const aptReturnedOctas = parseInt(ev.apt_returned || '0', 10);
+    const tokensSoldBefore = parseInt(ev.tokens_sold || '0', 10);
     return {
       type: 'sell',
-      wallet: d.seller || '',
+      wallet: ev.seller || '',
       amount: amountWhole,
       aptValue: aptReturnedOctas / 1e8,
-      timestampMs: microsToMs(d.timestamp),
+      timestampMs: microsToMs(ev.timestamp),
       txVersion: parseInt(ev.transaction_version || '0', 10),
-      eventIndex: parseInt(ev.event_index || '0', 10),
       tokensSoldBefore,
       tokensSoldAfter: Math.max(0, tokensSoldBefore - amountWhole),
     };
   });
 
-  // Merge by transaction_version, then event_index. Canonical chain-order —
-  // matches what every chain-aware tool sees.
-  const trades = [...buyTrades, ...sellTrades].sort((a, b) => {
-    if (a.txVersion !== b.txVersion) return a.txVersion - b.txVersion;
-    return a.eventIndex - b.eventIndex;
-  });
+  // Merge by transaction_version. Within a single tx the contract only emits
+  // one buy or one sell (single entry function), so this is canonical order.
+  const trades = [...buyTrades, ...sellTrades].sort((a, b) => a.txVersion - b.txVersion);
 
   const finalTokensSold = trades.length > 0
     ? trades[trades.length - 1].tokensSoldAfter
@@ -188,6 +205,7 @@ module.exports = async (req, res) => {
     res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=15');
     return res.json(value);
   } catch (err) {
+    console.error('[/api/trades] error', err.message);
     return res.status(500).json({ error: err.message });
   }
 };
