@@ -234,42 +234,16 @@ async function introspectSchema(): Promise<any> {
   }
 }
 
-// Fetch token creation events from Geomi indexer
+// Fetch token creation events via the server-side /api/catalog proxy.
+// The proxy caches results for 30s and holds the Geomi API key server-side,
+// preventing per-user 429s from direct browser→Geomi calls.
 async function fetchTokenCreatedEvents(): Promise<any[]> {
-  // Query the table directly using the exact name from Hasura
-  const tableName = 'token_created_events';
-  console.log(`🔍 Querying ${tableName} table...`);
-  
-  const query = `
-    query GetTokenCreatedEvents {
-      ${tableName}(order_by: {timestamp: desc}) {
-        event_index
-        sequence_number
-        creator
-        metadata_addr
-        ticker
-        total_supply
-        minted_supply
-        remaining_supply
-        decimals_factor
-        premint_amount
-        timestamp
-      }
-    }
-  `;
-
-  try {
-    const data = await graphqlQuery(query);
-    if (data[tableName]) {
-      console.log(`✅ Successfully queried ${tableName}: ${data[tableName].length} events`);
-      return data[tableName] || [];
-    }
-    console.warn(`⚠️ Query succeeded but no data returned for ${tableName}`);
-    return [];
-  } catch (error: any) {
-    console.error(`❌ Failed to query ${tableName}:`, error);
-    throw error;
-  }
+  const res = await fetch('/api/catalog');
+  if (!res.ok) throw new Error(`/api/catalog failed: ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error);
+  console.log(`✅ /api/catalog: ${(json.tokens || []).length} tokens`);
+  return json.tokens || [];
 }
 
 // Fetch graduation events from Geomi indexer
