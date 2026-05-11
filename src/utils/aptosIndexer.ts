@@ -375,7 +375,20 @@ export async function fetchActivitiesFallback(
 }
 
 export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
-  return fetchGeomiPurchaseEvents(metadataAddr?.toLowerCase(), limit);
+  // No-addr case (homepage 24h volume): use server-side /api/purchases proxy
+  // to avoid per-user 429 rate-limit from direct browser→Geomi calls.
+  if (!metadataAddr) {
+    try {
+      const res = await fetch('/api/purchases');
+      if (!res.ok) throw new Error(`/api/purchases ${res.status}`);
+      const json = await res.json();
+      return json.purchases || [];
+    } catch (err) {
+      console.warn('[fetchPurchaseEvents] /api/purchases failed:', err);
+      return [];
+    }
+  }
+  return fetchGeomiPurchaseEvents(metadataAddr.toLowerCase(), limit);
 }
 
 async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {

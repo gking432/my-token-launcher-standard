@@ -1,14 +1,17 @@
 // Server-side proxy for Geomi token_created_events.
-// Browser calls /api/catalog; this calls Geomi once and caches the result.
-// Prevents per-user rate limiting (429) from direct browser→Geomi calls.
+// - 60s fresh cache, 1 hour stale-on-error window
+// - Retries 429s with exponential backoff
+// - Returns last good data even if Geomi is currently rate-limited
 
 const https = require('https');
 
 const GEOMI_HOST = 'api.testnet.aptoslabs.com';
 const GEOMI_PATH = '/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql';
 
-const CACHE_TTL_MS = 30_000; // 30s — token list changes slowly
-let cache = null; // { value, expiresAt }
+const FRESH_TTL_MS = 60_000;        // serve from cache without hitting Geomi
+const STALE_TTL_MS = 60 * 60_000;   // serve stale data on error within 1 hour
+
+let cache = null;     // { value, freshUntil, staleUntil, cachedAt }
 let inFlight = null;
 
 const CATALOG_QUERY = `query GetTokenCreatedEvents {
@@ -46,7 +49,9 @@ function postGeomi(query) {
         res.on('data', (c) => { raw += c; });
         res.on('end', () => {
           if (res.statusCode >= 400) {
-            return reject(new Error(`Geomi ${res.statusCode}: ${raw.slice(0, 200)}`));
+            const err = new Error(`Geomi ${res.statusCode}: ${raw.slice(0, 200)}`);
+            err.status = res.statusCode;
+            return reject(err);
           }
           try {
             const json = JSON.parse(raw);
@@ -62,9 +67,24 @@ function postGeomi(query) {
   });
 }
 
-async function fetchCatalog() {
-  const data = await postGeomi(CATALOG_QUERY);
-  return data.token_created_events || [];
+async function fetchCatalogWithRetry() {
+  let lastErr;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const data = await postGeomi(CATALOG_QUERY);
+      return data.token_created_events || [];
+    } catch (err) {
+      lastErr = err;
+      // Retry on rate-limit / transient errors with exponential backoff
+      if ((err.status === 429 || err.status >= 500) && attempt < 3) {
+        const delay = 500 * Math.pow(2, attempt); // 500ms, 1s, 2s
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 module.exports = async (req, res) => {
@@ -72,22 +92,37 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const now = Date.now();
-  if (cache && cache.expiresAt > now) {
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-    return res.json({ tokens: cache.value });
+
+  // Serve from fresh cache
+  if (cache && now < cache.freshUntil) {
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return res.json({ tokens: cache.value, cached: true });
   }
 
+  // Coalesce concurrent requests
   if (!inFlight) {
-    inFlight = fetchCatalog().finally(() => { inFlight = null; });
+    inFlight = fetchCatalogWithRetry().finally(() => { inFlight = null; });
   }
 
   try {
     const value = await inFlight;
-    cache = { value, expiresAt: now + CACHE_TTL_MS };
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    cache = {
+      value,
+      freshUntil: now + FRESH_TTL_MS,
+      staleUntil: now + STALE_TTL_MS,
+      cachedAt: now,
+    };
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     return res.json({ tokens: value });
   } catch (err) {
-    console.error('[/api/catalog] error:', err.message);
-    return res.status(500).json({ error: err.message });
+    console.error('[/api/catalog] fetch failed:', err.message);
+    // Serve stale data if we have it
+    if (cache && now < cache.staleUntil) {
+      console.warn('[/api/catalog] serving stale cache');
+      res.setHeader('Cache-Control', 'public, s-maxage=10');
+      return res.json({ tokens: cache.value, stale: true, error: err.message });
+    }
+    // No cache at all — return empty array so frontend doesn't crash
+    return res.status(200).json({ tokens: [], error: err.message });
   }
 };

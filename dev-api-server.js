@@ -42,6 +42,9 @@ app.all('/api/tokens', wrapHandler(require('./api/tokens')));
 // /api/catalog  →  api/catalog.js
 app.all('/api/catalog', wrapHandler(require('./api/catalog')));
 
+// /api/purchases  →  api/purchases.js
+app.all('/api/purchases', wrapHandler(require('./api/purchases')));
+
 // /api/events  →  api/events.js (if present)
 try {
   app.all('/api/events', wrapHandler(require('./api/events')));
