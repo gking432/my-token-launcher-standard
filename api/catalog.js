@@ -26,7 +26,7 @@ const FULLNODE_CONCURRENCY = 8;
 let cache = null;
 let inFlight = null;
 
-const CREATE_TXS_QUERY = `query GetCreateTxs($module: String!, $entryFn: String!, $limit: Int!) {
+const CREATE_TXS_QUERY = `query GetCreateTxs($entryFn: String!, $limit: Int!) {
   user_transactions(
     where: {
       entry_function_id_str: { _eq: $entryFn }
@@ -109,7 +109,6 @@ function hexToUtf8(hex) {
 async function fetchCatalog() {
   // 1. Indexer: find all tx versions that called create_token
   const data = await postIndexer(CREATE_TXS_QUERY, {
-    module: MODULE_ADDRESS,
     entryFn: ENTRY_FUNCTION,
     limit: 500,
   });
