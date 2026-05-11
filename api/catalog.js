@@ -40,16 +40,14 @@ const CREATE_TXS_QUERY = `query GetCreateTxs($module: String!, $entryFn: String!
 }`;
 
 function postIndexer(query, variables) {
-  const apiKey = process.env.APTOS_API_KEY
-              || process.env.REACT_APP_APTOS_API_KEY
-              || process.env.REACT_APP_GEOMI_API_KEY  // shared key works for standard indexer
-              || '';
+  // No API key — the monthly credit cap only applies to authenticated requests.
+  // Public/unauthenticated requests to the standard Aptos indexer use a separate
+  // rate-limit pool that is not subject to the org's MonthlyCredit cap.
   const payload = JSON.stringify({ query, variables });
   const headers = {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(payload),
   };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -76,13 +74,7 @@ function postIndexer(query, variables) {
 }
 
 async function fetchTxByVersion(version) {
-  const apiKey = process.env.APTOS_API_KEY
-              || process.env.REACT_APP_APTOS_API_KEY
-              || process.env.REACT_APP_GEOMI_API_KEY
-              || '';
-  const res = await fetch(`${FULLNODE}/transactions/by_version/${version}`, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-  });
+  const res = await fetch(`${FULLNODE}/transactions/by_version/${version}`);
   if (!res.ok) return null;
   return res.json();
 }
