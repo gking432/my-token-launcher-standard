@@ -948,12 +948,11 @@ const HomePage: React.FC = () => {
           <nav>
             <ul className="nav-links">
               <li><Link to="/marketplace">Marketplace</Link></li>
-              <li><Link to="/learn">Learn</Link></li>
               <li><Link to="/launch">Launch</Link></li>
             </ul>
           </nav>
           <div className="auth-section">
-            <Link to="/connect" className="sign-up">Connect Wallet</Link>
+            <Link to="/launch" className="sign-up">Launch Token</Link>
           </div>
         </div>
       </header>

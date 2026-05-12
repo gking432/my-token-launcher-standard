@@ -612,7 +612,8 @@ const TokenPage: React.FC = () => {
   useEffect(() => {
     const calculatedTotal = calculateTotal(amount);
     setTotal(calculatedTotal.toString());
-  }, [amount]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount, tokenData?.tokensSold]);
 
   // Debug logging to see what's in tokenDetails
   useEffect(() => {
@@ -668,7 +669,7 @@ const TokenPage: React.FC = () => {
     if (!amount || amount <= 0) return 0;
     
     const total_supply = 800_000_000;
-    const tokens_sold_before = 0; // For first purchase
+    const tokens_sold_before = tokenData?.tokensSold ?? 0;
     const tokens_sold_after = tokens_sold_before + amount;
     
     const scale = 100_000_000; // 10^8 for APT Octas

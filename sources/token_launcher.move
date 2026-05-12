@@ -68,6 +68,7 @@ const POST_GRADUATION_LP_FEE_BPS: u128 = 50u128;         // 0.05%
 const E_ALREADY_GRADUATED: u64 = 1019;
 const E_MARKET_CAP_TOO_LOW: u64 = 1020;
 const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
+const E_NOT_GRADUATED: u64 = 1022;
 
 // Production Graduation Threshold
 const GRADUATION_MARKET_CAP_APT: u64 = 1283_00000000; // 1283 APT raised
@@ -988,6 +989,8 @@ public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState 
         let token_metadata = table::borrow(&state.token_metadata, creator_addr);
         let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
         let vault = borrow_global_mut<TokenVault>(metadata_addr);
+
+        assert!(vault.is_graduated, E_NOT_GRADUATED);
 
         let pool_key = create_pool_key(creator_addr, ticker);
         assert!(table::contains(&state.liquidity_pools, pool_key), E_POOL_NOT_FOUND);
