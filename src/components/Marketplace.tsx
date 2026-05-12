@@ -7,6 +7,8 @@ import GlobalSidebar from './GlobalSidebar';
 import GlobalHeaderBar from './GlobalHeaderBar';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
+import { useTokenList } from '../data/useTokenList';
+import { useAptPrice } from '../contexts/AptPriceContext';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,7 +39,36 @@ const Marketplace: React.FC = () => {
   const [tokenBalance, setTokenBalance] = useState<string>('0.000');
 
   // Use the shared token data hook
-  const { tokens: rawTokens, loading, error, refetch } = useTokenData();
+  const { tokens: catalogTokens, loading, error, refetch } = useTokenData();
+  const { aptPrice } = useAptPrice();
+
+  // Live vault state — same merge pattern as HomePage so prices match exactly.
+  const catalogAddrs = useMemo(
+    () => catalogTokens.map(t => t.metadataAddress || t.txHash).filter(Boolean) as string[],
+    [catalogTokens]
+  );
+  const { data: liveByAddr } = useTokenList(catalogAddrs);
+
+  const rawTokens = useMemo(() => {
+    if (!liveByAddr) return catalogTokens;
+    const aptUsd = aptPrice ?? 0;
+    return catalogTokens.map(t => {
+      const key = (t.metadataAddress || t.txHash || '').toLowerCase();
+      const live = liveByAddr[key];
+      if (!live) return t;
+      const priceUSD = aptUsd > 0 ? live.spotPriceAPT * aptUsd : t.priceUSD;
+      const marketCapUSD = aptUsd > 0 ? live.marketCapAPT * aptUsd : t.marketCapUSD;
+      return {
+        ...t,
+        price: live.spotPriceAPT,
+        priceUSD,
+        marketCap: live.marketCapAPT,
+        marketCapUSD,
+        tokensSold: live.tokensSold,
+        aptRaised: live.aptRaisedOctas,
+      };
+    });
+  }, [catalogTokens, liveByAddr, aptPrice]);
 
   // Aptos client setup
   const config = useMemo(() => new AptosConfig({ 

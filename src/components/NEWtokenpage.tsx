@@ -608,12 +608,7 @@ const TokenPage: React.FC = () => {
   // Add useEffect to fetch user's APT balance
   
 
-  // Add useEffect to calculate total when amount changes
-  useEffect(() => {
-    const calculatedTotal = calculateTotal(amount);
-    setTotal(calculatedTotal.toString());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, tokenData?.tokensSold]);
+  // calculateTotal is defined further down; its tokensSold param is passed at call-site.
 
   // Debug logging to see what's in tokenDetails
   useEffect(() => {
@@ -664,12 +659,13 @@ const TokenPage: React.FC = () => {
 
 
 
-  // Function to calculate total cost/return based on amount and current price
-  const calculateTotal = (amount: number) => {
+  // Function to calculate total cost/return based on amount and current price.
+  // tokensSold is passed explicitly so this function can be defined before tokenData.
+  const calculateTotal = (amount: number, tokensSold: number = 0) => {
     if (!amount || amount <= 0) return 0;
-    
+
     const total_supply = 800_000_000;
-    const tokens_sold_before = tokenData?.tokensSold ?? 0;
+    const tokens_sold_before = tokensSold;
     const tokens_sold_after = tokens_sold_before + amount;
     
     const scale = 100_000_000; // 10^8 for APT Octas
@@ -827,6 +823,11 @@ const TokenPage: React.FC = () => {
       change24h: catalogRow?.change24h,
     } as any;
   }, [catalogRow, live, aptPrice]);
+
+  // Recalculate buy total whenever amount or live tokensSold changes.
+  useEffect(() => {
+    setTotal(calculateTotal(amount, tokenData?.tokensSold ?? 0).toString());
+  }, [amount, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch OHLC candles, holder count, apt raised, and raw trades
   const { candles, recentTrades, loading: chartLoading, holderCount, aptRaised } = useOHLCData(

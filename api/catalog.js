@@ -103,6 +103,22 @@ function hexToUtf8(hex) {
   return out;
 }
 
+async function fetchFungibleMetadata(addr) {
+  try {
+    const res = await fetch(
+      `${FULLNODE}/accounts/${addr}/resource/${encodeURIComponent('0x1::fungible_asset::Metadata')}`
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const d = json?.data ?? {};
+    return {
+      name:     d.name     || '',
+      symbol:   d.symbol   || '',
+      icon_uri: d.icon_uri || '',
+    };
+  } catch { return null; }
+}
+
 async function fetchCatalog() {
   // 1. Get all transaction versions that touched the module (fast indexed lookup)
   const data = await postIndexer(ACCOUNT_TXS_QUERY, {
@@ -142,6 +158,21 @@ async function fetchCatalog() {
   }
 
   console.log(`[catalog] found ${tokens.length} TokenCreatedEvents among ${fullTxs.length} txs`);
+
+  // Enrich with fungible asset metadata (name, symbol, icon_uri) — parallel, bounded.
+  const metaList = await mapLimit(
+    tokens.map(t => t.metadata_addr),
+    FULLNODE_CONCURRENCY,
+    fetchFungibleMetadata
+  );
+  for (let i = 0; i < tokens.length; i++) {
+    const m = metaList[i];
+    if (!m) continue;
+    tokens[i].name     = m.name     || tokens[i].ticker_decoded;
+    tokens[i].symbol   = m.symbol   || tokens[i].ticker_decoded;
+    tokens[i].icon_uri = m.icon_uri || '';
+  }
+
   return tokens;
 }
 
