@@ -24,7 +24,7 @@ const GEOMI_HOST = 'api.testnet.aptoslabs.com';
 const GEOMI_PATH = '/nocode/v1/api/cmhtiqv8w005ps601yfd1g4ur/v1/graphql';
 const FULLNODE   = 'https://fullnode.testnet.aptoslabs.com/v1';
 
-const CACHE_TTL_MS = 5_000;
+const CACHE_TTL_MS = 60_000;
 const cache    = new Map();
 const inFlight = new Map();
 

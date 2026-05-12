@@ -17,10 +17,8 @@ function normaliseAddr(a) {
 }
 
 async function fetchVault(addr) {
-  const apiKey = process.env.APTOS_API_KEY || process.env.REACT_APP_APTOS_API_KEY || '';
   const res = await fetch(
-    `${FULLNODE}/accounts/${addr}/resource/${encodeURIComponent(VAULT_TYPE)}`,
-    { headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} }
+    `${FULLNODE}/accounts/${addr}/resource/${encodeURIComponent(VAULT_TYPE)}`
   );
   if (!res.ok) return null;
   const json = await res.json();
