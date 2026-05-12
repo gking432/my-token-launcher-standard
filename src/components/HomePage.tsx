@@ -64,7 +64,9 @@ const HomePage: React.FC = () => {
     creator: string;
     metadataAddress?: string;
     price?: number;
+    priceUSD?: number;
     marketCap?: number;
+    marketCapUSD?: number;
     volume?: number;
     change24h?: number;
   }
@@ -1150,14 +1152,16 @@ const HomePage: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="price">{formatPrice(token.price || 0)}</td>
+                      <td className="price">{token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(8)} APT`}</td>
                       <td>
                         <svg className="chart-mini" viewBox="0 0 80 40">
                           <polyline fill="none" stroke="#00d4aa" strokeWidth="2" points="0,30 20,25 40,15 60,10 80,5"/>
                         </svg>
                       </td>
-                      <td className="change-positive">⬆ {token.change24h?.toFixed(2)}%</td>
-                      <td className="mkt-cap">{formatMarketCap(token.marketCap || 0)}</td>
+                      <td className={token.change24h != null && token.change24h >= 0 ? 'change-positive' : 'change-negative'}>
+                        {token.change24h != null ? `${token.change24h >= 0 ? '⬆' : '⬇'} ${Math.abs(token.change24h).toFixed(2)}%` : '—'}
+                      </td>
+                      <td className="mkt-cap">{token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : `${(token.marketCap || 0).toFixed(2)} APT`}</td>
                       <td className="volume">{formatVolume(token.volume || 0)}</td>
                       <td><button className="trade-btn" onClick={() => handleTradeClick(token)}>Trade</button></td>
                     </tr>
