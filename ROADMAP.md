@@ -1,133 +1,136 @@
 # Token Launcher — Architecture Roadmap
 
-## Current Status
+## Data Architecture Principle
 
-Tokens load on the homepage (catalog working). Chart/trades/24h volume require
-Geomi, which is blocked until the monthly credit cap resets (June 1) or a new
-Aptos Labs account is used.
+All chain data is available for free via two sources:
+- **Standard Aptos Indexer** (`api.testnet/mainnet.aptoslabs.com/v1/graphql`) — indexed
+  tables for account transactions, fungible asset activities, etc. Unauthenticated
+  requests use a public pool with no monthly credit cap.
+- **Aptos Fullnode** (`fullnode.testnet/mainnet.aptoslabs.com`) — raw transaction and
+  resource data. No API key required, no rate cap for normal usage.
+
+These two sources together can answer every question the app needs to ask:
+- Which tokens were created? → `account_transactions` for module address + fullnode events
+- What trades happened for a token? → `account_transactions` for token address + fullnode events
+- What is the current price/supply? → fullnode resource read
+
+**Geomi (Aptos NoCode Indexer) is not required at any stage.** Geomi is a convenience
+product that pre-indexes custom events into typed tables. It costs ~$10/month in
+Transaction Stream fees just to keep the processor running — before any queries.
+For a project without revenue, that fixed cost is not worth it. The standard
+indexer + fullnode pattern achieves identical results for free.
 
 ---
 
-## Prototype (now → ~12 users, testnet demo)
+## Prototype (now → testnet demo, ~dozen users)
 
-**Goal:** Show a working demo. Not production. Not mainnet.
+**Goal:** Working demo on testnet. No revenue, no SLA, just showing it works.
 
 **Architecture:**
 - Frontend: Create React App → Vercel static hosting
-- API: Vercel serverless functions (`/api/*`)
-- Token catalog: Standard Aptos indexer `account_transactions` (unauthenticated,
-  no credit cap) + fullnode `by_version` for event data
-- Trade history / chart: Geomi NoCode Indexer (Aptos Labs managed, free tier)
-- Live vault state: Aptos fullnode directly (no API key needed)
+- API: Vercel serverless functions (`/api/*`) with in-memory caching
+- All data: Standard Aptos indexer (unauthenticated) + Aptos fullnode
+- No Geomi. No paid services. No database.
 
-**To unblock Geomi right now:**
-1. Create a new Aptos Labs account at [aptoslabs.com](https://aptoslabs.com)
-2. Generate a new API key
-3. Update `REACT_APP_GEOMI_API_KEY` in Vercel environment variables
-4. Redeploy — fresh monthly free-tier credits, no code changes needed
+**Data flow:**
+```
+Browser → Vercel /api/* → Standard Indexer (account_transactions)
+                        → Fullnode (by_version, resource reads)
+```
 
-**Credit budget with current caching:**
-- `/api/trades/{addr}`: server cache 60s, client polls 60s → 1 Geomi call/min per token
-- `/api/purchases` (homepage 24h volume): server cache 30s → 2 calls/min flat
-- Catalog: zero Geomi calls (fully migrated to standard indexer)
-- 10 tokens × 1 call/min = ~432,000 Geomi calls/month for a constantly-open app
-- For a real demo with 12 occasional users: well within free tier
+**Cache TTLs:**
+- Token catalog: 5 min (tokens are rarely created)
+- Trade history: 60s (chart/transactions tab)
+- Live vault state: 5s (price, bonding curve — fullnode reads are cheap)
 
-**What's NOT done here:** real-time updates, WebSockets, production monitoring,
-shared cache across serverless instances, mainnet.
+**Cost:** $0/month (Vercel hobby tier is free for low traffic)
+
+**Limitation:** Vercel serverless functions don't share in-memory state between
+instances. Under concurrent load, multiple cold instances can each make indexer
+calls before any cache warms. Acceptable for a demo; fix in Stage 1.
 
 ---
 
 ## Stage 1 — MVP Production (mainnet, ~100-500 users)
 
-**Goal:** Real users, real money (mainnet APT). Reliability matters.
+**Goal:** Real users, real APT. Reliability matters. Still no ops burden.
 
 **Changes from Prototype:**
-- Deploy contract to **mainnet**
-- Switch all API endpoints to mainnet fullnode + mainnet indexer
-- **Vercel KV (Redis)** for shared cache across serverless instances — prevents
-  cold-instance cache stampedes where 10 concurrent requests all hit Geomi before
-  any cache warms
-- **Paid Geomi tier** — pay per usage, no monthly cap cliff
-- Separate API keys: one for Geomi, one for standard indexer (currently shared,
-  causes one exhausted key to break both)
-- Basic error monitoring (Sentry free tier)
-- Rate limiting on `/api/*` endpoints (Vercel middleware or upstash ratelimit)
+- Deploy contract to **mainnet**, switch all endpoints to mainnet URLs
+- **Vercel KV** (managed Redis, ~$0-20/month) — shared cache across all
+  serverless instances. Eliminates the cold-instance stampede problem.
+  One warm cache entry serves all concurrent users for a given token.
+- Basic error monitoring: Sentry free tier
+- Rate limiting on `/api/*`: Vercel middleware or Upstash Ratelimit (free tier)
+- Separate env vars for mainnet vs testnet (staging vs production)
 
-**Cost estimate:** ~$50-150/month (Vercel Pro + Geomi usage + Vercel KV)
+**Cost:** ~$0-30/month (Vercel hobby/pro + Vercel KV starter)
 
-**Limitation still present:** Geomi is a third-party dependency. If Aptos Labs
-changes their NoCode Indexer pricing or sunsets it, everything breaks.
+**Still no Geomi, no database, no self-hosted infrastructure.**
 
 ---
 
-## Stage 2 — Scale (mainnet, ~1k-10k users, own your stack)
+## Stage 2 — Scale (mainnet, ~1k-10k users)
 
-**Goal:** Remove third-party indexer dependency. Predictable costs. Real-time UX.
+**Goal:** Real-time UX, own your data, predictable performance at scale.
 
-**Key change:** Replace Geomi with a self-hosted **Aptos Indexer SDK processor**.
+**Key change:** Replace the indexer + fullnode fan-out pattern with a
+**self-hosted Aptos Indexer SDK processor** writing to your own Postgres.
+
+This is what Geomi does internally — but you own it, it's free to run, and
+you control the schema and query performance.
 
 **Architecture:**
-- **Aptos Indexer SDK** (TypeScript or Rust) — custom processor that reads
-  `TokenCreatedEvent`, `TokenPurchaseEvent`, `TokenSaleEvent` from the chain and
-  writes them to your own Postgres
-- **Postgres** (Supabase, Neon, or AWS RDS) with proper indexes on
-  `metadata_addr`, `timestamp`, `transaction_version`
-- **Hasura** in front of Postgres — instant GraphQL API from your schema, no
-  custom resolver code
-- **Redis** (Upstash or Railway) for hot-path caching (top tokens, recent trades)
-- **WebSocket server** — push price updates to connected clients instead of
-  polling every 60s. Chart updates in real-time.
-- Replace polling architecture (`useTokenTrades`, `useTokenList`) with
-  subscriptions or WebSocket listeners
+- **Aptos Indexer SDK** (TypeScript) — custom processor subscribes to
+  transaction stream, extracts `TokenCreatedEvent`, `TokenPurchaseEvent`,
+  `TokenSaleEvent`, writes to Postgres
+- **Postgres** (Supabase free → paid, or Neon, or Railway) — your event tables
+  with proper indexes on `metadata_addr`, `transaction_version`, `timestamp`
+- **API layer** queries Postgres directly — single fast query, no fullnode fan-out
+- **WebSocket server** — push trade updates to connected clients instead of
+  polling. Chart and transactions tab update in real-time.
+- Drop the `useTokenTrades` polling pattern entirely; replace with subscriptions.
 
-**Indexer SDK reference:** [emojicoin-dot-fun](https://github.com/econia-labs/emojicoin-dot-fun)
-has a full open-source reference implementation on Aptos.
+**Reference implementation:** [emojicoin-dot-fun](https://github.com/econia-labs/emojicoin-dot-fun)
 
-**Cost estimate:** ~$100-200/month fixed (Postgres + Redis + indexer VM), no
-per-query cost.
+**Cost:** ~$50-150/month fixed (Postgres + indexer VM + Redis). No per-query cost,
+no monthly credit cap, scales to any traffic level.
 
-**Why this is better at scale:** Stage 1 costs scale linearly with users
-(each query = money). Stage 2 has fixed infrastructure cost regardless of
-query volume.
+**Why this beats Geomi at this stage:**
+- Geomi Transaction Stream: ~$10-50/month fixed + per-query costs
+- Self-hosted: ~$10-30/month for a small VM, own the data, no vendor dependency
 
 ---
 
-## Stage 3 — Full Production (10k+ users, emojicoin-level)
+## Stage 3 — Full Production (10k+ users)
 
-**Goal:** Own every layer of the stack. Sub-second latency. No external
-dependencies for core data paths.
+**Goal:** Own every layer. No external data dependencies on critical path.
 
 **Additional changes from Stage 2:**
-- **Run your own Aptos fullnode** — eliminates dependency on
-  `fullnode.testnet/mainnet.aptoslabs.com`. Also reduces indexer lag since your
-  processor reads directly from your local node.
-- **Multi-region deployment** — replicate Postgres read replicas, run indexer
-  processors in multiple regions
-- **CDN caching** (Cloudflare) for API responses and static assets
-- **Monitoring stack** — Grafana + Prometheus for indexer lag, query p95,
-  fullnode sync status
-- **Kubernetes** (or similar) for auto-scaling the API layer
-- **Graduation flow** — DEX integration (Liquidswap/Econia), LP position
-  management — requires significant additional smart contract work
+- **Own Aptos fullnode** — eliminates dependency on Aptos Labs fullnode for
+  vault reads. Also reduces indexer lag (processor reads from local node).
+- **Multi-region Postgres** read replicas for low-latency global reads
+- **CDN** (Cloudflare) for API response caching at the edge
+- **Monitoring** — Grafana + Prometheus for indexer lag, query p95, sync status
+- **Kubernetes** or similar for API layer auto-scaling
+- **Graduation DEX integration** — Liquidswap/Econia LP management (significant
+  additional smart contract + backend work)
 
-**Cost estimate:** $500-2000+/month depending on infrastructure provider and
-traffic. Justified only with real traction and revenue.
+**Cost:** $500-2000+/month. Justified only with real traction and revenue.
 
 ---
 
-## Decision Tree
+## Summary
 
 ```
-Are you showing a demo?
-  → Prototype: new Aptos Labs account + existing Vercel setup
-
-Do you have real mainnet users?
-  → Stage 1: Vercel KV + paid Geomi + Sentry
-
-Do you have 1k+ users or need real-time UX?
-  → Stage 2: self-hosted indexer + Postgres + WebSockets
-
-Are you building a serious DeFi product with 10k+ users?
-  → Stage 3: own your fullnode, own every layer
+Prototype  →  $0/month   — Vercel + standard indexer + fullnode
+Stage 1    →  $0-30/mo   — add Vercel KV shared cache, deploy mainnet
+Stage 2    →  $50-150/mo — self-hosted indexer SDK + Postgres + WebSockets
+Stage 3    →  $500+/mo   — own fullnode, multi-region, full observability
 ```
+
+**Geomi is not in any stage.** It costs ~$10/month in Transaction Stream fees
+before any queries, provides no advantage over the standard indexer + fullnode
+pattern for low-to-medium traffic, and introduces a vendor dependency with a
+monthly credit cliff. The self-hosted indexer SDK at Stage 2 is the correct
+upgrade path — you build what Geomi does, own it, and pay only for compute.
