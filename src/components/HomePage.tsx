@@ -360,13 +360,18 @@ const HomePage: React.FC = () => {
           .content { flex: 1; min-width: 0; }
 
           /* ── PAGE HEADER ── */
-          .page-header { margin-bottom: 28px; }
+          .page-header {
+            margin-bottom: 40px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+          }
 
           .page-title {
-            font-size: 26px;
-            font-weight: 700;
+            font-size: 52px;
+            font-weight: 800;
             color: var(--text-primary);
-            letter-spacing: -0.02em;
+            letter-spacing: -0.04em;
+            line-height: 1.08;
           }
 
           .section-subtitle {
@@ -375,7 +380,25 @@ const HomePage: React.FC = () => {
             margin-top: 4px;
           }
 
-          /* ── SORT BAR ── */
+          /* ── TOKEN CARD ── */
+          .token-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            cursor: pointer;
+            transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+          }
+
+          .token-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 24px rgba(0,212,170,0.18), 0 2px 8px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+          }
           .sort-section {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -520,7 +543,7 @@ const HomePage: React.FC = () => {
 
           /* ── SIDEBAR ── */
           .sidebar {
-            width: 280px;
+            width: 300px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
@@ -767,8 +790,11 @@ const HomePage: React.FC = () => {
         <div className="main-container-inner">
         <main className="content">
           <div className="page-header">
-            <h1 className="page-title">Smarter. Faster. Better.</h1>
-            <p style={{ fontSize: '16px', color: 'var(--text-secondary)', marginTop: '10px', maxWidth: '560px', lineHeight: '1.6' }}>
+            <h1 className="page-title">
+              Smarter. Faster.{' '}
+              <span style={{ color: 'var(--accent)' }}>Better.</span>
+            </h1>
+            <p style={{ fontSize: '16px', color: 'var(--text-secondary)', marginTop: '14px', maxWidth: '520px', lineHeight: '1.7' }}>
               Launch in seconds with zero code, instant liquidity, and lightning-fast transactions at minimal fees.
             </p>
           </div>
@@ -930,112 +956,104 @@ const HomePage: React.FC = () => {
                 {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens found.'}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', padding: '4px 0 8px' }}>
-                {tokens.map((token, index) => {
-                  const change = token.change24h;
-                  const isPos = change != null && change >= 0;
-                  const changeColor = change == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => handleTradeClick(token)}
-                      style={{
-                        background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.15s, box-shadow 0.15s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
-                      }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,212,170,0.12)';
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-                      }}
-                    >
-                      {/* Header row: icon + name + change badge */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {token.image ? (
-                          <img
-                            src={token.image}
-                            alt={token.symbol}
-                            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        ) : (
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '14px',
+                padding: '20px',
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {tokens.map((token, index) => {
+                    const change = token.change24h;
+                    const isPos = change != null && change >= 0;
+                    const changeColor = change == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
+                    const displaySymbol = token.symbol.startsWith('$') ? token.symbol : `$${token.symbol}`;
+                    return (
+                      <div
+                        key={index}
+                        className="token-card"
+                        onClick={() => handleTradeClick(token)}
+                      >
+                        {/* Header row: icon + name + change badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {token.image ? (
+                            <img
+                              src={token.image}
+                              alt={token.symbol}
+                              style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
+                              background: getTokenIconBg(token.symbol),
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '20px',
+                            }}>
+                              {getTokenIcon(token.symbol)}
+                            </div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {token.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
+                              {displaySymbol}
+                            </div>
+                          </div>
                           <div style={{
-                            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                            background: getTokenIconBg(token.symbol),
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '20px',
+                            fontSize: '12px', fontWeight: 700, padding: '4px 9px', borderRadius: '6px',
+                            color: changeColor,
+                            background: change == null ? 'transparent' : isPos ? 'rgba(0,212,170,0.1)' : 'rgba(255,71,87,0.1)',
+                            flexShrink: 0,
                           }}>
-                            {getTokenIcon(token.symbol)}
+                            {change == null ? '—' : `${isPos ? '▲' : '▼'} ${Math.abs(change).toFixed(2)}%`}
                           </div>
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {token.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>${token.symbol}</div>
                         </div>
-                        <div style={{
-                          fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px',
-                          color: changeColor,
-                          background: change == null ? 'transparent' : isPos ? 'rgba(0,212,170,0.12)' : 'rgba(255,71,87,0.12)',
-                          flexShrink: 0,
-                        }}>
-                          {change == null ? '—' : `${isPos ? '▲' : '▼'} ${Math.abs(change).toFixed(2)}%`}
-                        </div>
-                      </div>
 
-                      {/* Price + market cap row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(8)} APT`}
+                        {/* Price + market cap row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                          <div>
+                            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Price</div>
+                            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                              {token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(8)} APT`}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Mkt Cap</div>
+                            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.01em' }}>
+                              {token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : `${(token.marketCap || 0).toFixed(2)} APT`}
+                            </div>
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mkt cap</div>
-                          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent)' }}>
-                            {token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : `${(token.marketCap || 0).toFixed(2)} APT`}
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Footer: vol + creator + trade button */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', gap: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '1px' }}>Vol 24h</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{formatVolume(token.volume || 0)}</div>
-                        </div>
-                        {token.creatorAddress && token.creatorAddress !== 'Unknown' && (
-                          <div
-                            style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', cursor: 'pointer' }}
-                            onClick={e => { e.stopPropagation(); navigate(`/profile/${token.creatorAddress}`); }}
-                            title={token.creatorAddress}
+                        {/* Footer: vol + creator + trade button */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '12px', gap: '8px' }}>
+                          <div>
+                            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Vol 24h</div>
+                            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{formatVolume(token.volume || 0)}</div>
+                          </div>
+                          {token.creatorAddress && token.creatorAddress !== 'Unknown' && (
+                            <div
+                              style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', cursor: 'pointer', flexShrink: 0 }}
+                              onClick={e => { e.stopPropagation(); navigate(`/profile/${token.creatorAddress}`); }}
+                              title={token.creatorAddress}
+                            >
+                              by {truncateAddress(token.creatorAddress)}
+                            </div>
+                          )}
+                          <button
+                            className="trade-btn"
+                            style={{ flexShrink: 0 }}
+                            onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
                           >
-                            by {truncateAddress(token.creatorAddress)}
-                          </div>
-                        )}
-                        <button
-                          className="trade-btn"
-                          style={{ padding: '6px 16px', fontSize: '13px', flexShrink: 0 }}
-                          onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
-                        >
-                          Trade
-                        </button>
+                            Trade
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
