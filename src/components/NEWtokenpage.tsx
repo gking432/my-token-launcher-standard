@@ -1227,16 +1227,6 @@ const TokenPage: React.FC = () => {
         </button>
       </div> */}
       
-      {/* Blank white bar - placeholder for future CTA */}
-      <div style={{
-        background: '#ffffff',
-        width: '100%',
-        height: '40px',
-        borderBottom: '1px solid #e7ebee',
-        flexShrink: 0
-      }}>
-      </div>
-
       {/* Main Layout */}
       <div style={{
         display: 'flex',
@@ -1246,7 +1236,7 @@ const TokenPage: React.FC = () => {
         alignSelf: 'stretch',
         minHeight: '100%',
         position: 'relative',
-        background: '#ffffff'
+        background: t.bgPrimary
       }}>
         {/* Sidebar */}
         <div style={{
@@ -1349,10 +1339,10 @@ const TokenPage: React.FC = () => {
                           textAlign: 'left',
                           cursor: 'pointer',
                           fontSize: '14px',
-                          color: '#050f19',
-                          borderBottom: '1px solid #f0f0f0'
+                          color: t.textPrimary,
+                          borderBottom: `1px solid ${t.border}`
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         👤 Profile
@@ -1367,9 +1357,9 @@ const TokenPage: React.FC = () => {
                           textAlign: 'left',
                           cursor: 'pointer',
                           fontSize: '14px',
-                          color: '#dc3545'
+                          color: t.negative
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
                         🚪 Disconnect
@@ -1617,7 +1607,7 @@ const TokenPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#8a9ba8',
+                    color: t.textMuted,
                     fontSize: '14px',
                     pointerEvents: 'none',
                   }}>
@@ -1631,7 +1621,7 @@ const TokenPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#8a9ba8',
+                    color: t.textMuted,
                     fontSize: '14px',
                     pointerEvents: 'none',
                   }}>

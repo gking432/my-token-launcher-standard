@@ -90,11 +90,30 @@ const Marketplace: React.FC = () => {
     creator: string;
     metadataAddress?: string;
     price?: number;
+    priceUSD?: number;
     marketCap?: number;
+    marketCapUSD?: number;
     volume?: number;
     change24h?: number;
     creatorAddress?: string;
   }
+
+  const formatPrice = (price: number) => {
+    if (price < 0.0001) return `$${price.toFixed(8)}`;
+    if (price < 0.01) return `$${price.toFixed(6)}`;
+    if (price < 1) return `$${price.toFixed(4)}`;
+    return `$${price.toFixed(2)}`;
+  };
+
+  const formatMarketCap = (mc: number) => {
+    if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
+    if (mc >= 1e6) return `$${(mc / 1e6).toFixed(1)}M`;
+    if (mc >= 1e3) return `$${(mc / 1e3).toFixed(1)}K`;
+    return `$${mc.toFixed(0)}`;
+  };
+
+  const tokenIconColors = ['#f7931a','#627eea','#50af95','#f0b90b','#1e88e5','#e91e63','#9c27b0','#ff5722','#4caf50','#2196f3'];
+  const getIconBg = (symbol: string) => tokenIconColors[symbol.charCodeAt(0) % tokenIconColors.length];
 
   // Helper functions from NEWtokenpage
   const stringToBytes = (str: string): number[] => {
@@ -476,105 +495,37 @@ const Marketplace: React.FC = () => {
     <>
       <style>
         {`
-          .footer {
-            background: #ffffff;
-            border-top: 1px solid #e7ebee;
-            width: 100%;
-            padding: 40px 24px;
+          .mp-table-row { border-bottom: 1px solid var(--border); transition: background 0.12s; }
+          .mp-table-row:hover { background: var(--bg-hover); }
+          .mp-token-icon-placeholder {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0;
           }
-          
-          .footer-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 40px;
+          .mp-star-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 15px;
+            color: var(--text-muted);
+            transition: color 0.15s, border-color 0.15s;
+            display: flex; align-items: center;
           }
-          
-          .footer-section h4 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #050f19;
-            margin-bottom: 16px;
+          .mp-star-btn.starred { color: #f5c518; border-color: #f5c518; }
+          .mp-slippage-btn {
+            flex: 1; padding: 8px 12px;
+            border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
           }
-          
-          .footer-section p {
-            font-size: 14px;
-            color: #5b616e;
-            line-height: 1.6;
-            margin-bottom: 20px;
-          }
-          
-          .footer-social {
-            display: flex;
-            gap: 16px;
-          }
-          
-          .social-link {
-            color: #5b616e;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            transition: color 0.2s;
-          }
-          
-          .social-link:hover {
-            color: #00d4aa;
-          }
-          
-          .footer-links {
-            list-style: none;
-            padding: 0;
-          }
-          
-          .footer-links li {
-            margin-bottom: 8px;
-          }
-          
-          .footer-links a {
-            color: #5b616e;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.2s;
-          }
-          
-          .footer-links a:hover {
-            color: #00d4aa;
-          }
-          
-          .footer-bottom {
-            border-top: 1px solid #e7ebee;
-            padding: 20px 0;
-            margin-top: 40px;
-          }
-          
-          .footer-bottom-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .footer-bottom p {
-            font-size: 14px;
-            color: #5b616e;
-          }
-          
-          .footer-bottom-links {
-            display: flex;
-            gap: 20px;
-          }
-          
-          .footer-bottom-links a {
-            color: #5b616e;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.2s;
-          }
-          
-          .footer-bottom-links a:hover {
-            color: #00d4aa;
+          .mp-slippage-btn.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
           }
         `}
       </style>
@@ -747,8 +698,8 @@ const Marketplace: React.FC = () => {
               flexShrink: 0
             }}>
               <div style={{
-                fontSize: '32px',
-                fontWeight: '600',
+                fontSize: '22px',
+                fontWeight: '700',
                 color: t.textPrimary,
                 flexShrink: 0
               }}>
@@ -840,9 +791,9 @@ const Marketplace: React.FC = () => {
                             cursor: 'pointer',
                             fontSize: '14px',
                             color: t.textPrimary,
-                            borderBottom: '1px solid #f0f0f0'
+                            borderBottom: `1px solid ${t.border}`
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           👤 Profile
@@ -857,9 +808,9 @@ const Marketplace: React.FC = () => {
                             textAlign: 'left',
                             cursor: 'pointer',
                             fontSize: '14px',
-                            color: '#dc3545'
+                            color: t.negative
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           🚪 Disconnect
@@ -1073,9 +1024,7 @@ const Marketplace: React.FC = () => {
                         </tr>
                       ) : (
                         tokens.map((token, index) => (
-                          <tr key={index} style={{
-                            borderBottom: '1px solid #f0f0f0'
-                          }}>
+                          <tr key={index} className="mp-table-row">
                             <td style={{
                               padding: '12px 8px'
                             }}>
@@ -1084,30 +1033,18 @@ const Marketplace: React.FC = () => {
                                 alignItems: 'center',
                                 gap: '12px'
                               }}>
-                                <div style={{
-                                  width: '40px',
-                                  height: '40px',
-                                  borderRadius: '50%',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontWeight: 'bold',
-                                  fontSize: '16px',
-                                  background: token.image ? 'transparent' : '#e0e0e0',
-                                  overflow: 'hidden'
-                                }}>
-                                  {token.image ? (
-                                    <img 
-                                      src={token.image} 
-                                      alt={`${token.name} logo`}
-                                      style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover'
-                                      }}
-                                    />
-                                  ) : null}
-                                </div>
+                                {token.image ? (
+                                  <img
+                                    src={token.image}
+                                    alt={token.symbol}
+                                    style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="mp-token-icon-placeholder" style={{ background: getIconBg(token.symbol) }}>
+                                    {token.symbol.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
                                 <div>
                                   <div style={{
                                     fontSize: '14px',
@@ -1132,7 +1069,7 @@ const Marketplace: React.FC = () => {
                               color: t.textPrimary,
                               width: '150px'
                             }}>
-                              {token.price?.toFixed(7)}
+                              {token.priceUSD != null ? formatPrice(token.priceUSD) : token.price != null ? `${token.price.toFixed(8)} APT` : '—'}
                             </td>
                             <td style={{
                               textAlign: 'right',
@@ -1147,12 +1084,7 @@ const Marketplace: React.FC = () => {
                               padding: '12px 8px',
                               color: t.textMuted
                             }}>
-                              {token.marketCapUSD
-                                ? (token.marketCapUSD >= 1e9 ? `$${(token.marketCapUSD/1e9).toFixed(2)}B`
-                                  : token.marketCapUSD >= 1e6 ? `$${(token.marketCapUSD/1e6).toFixed(2)}M`
-                                  : token.marketCapUSD >= 1e3 ? `$${(token.marketCapUSD/1e3).toFixed(2)}K`
-                                  : `$${token.marketCapUSD.toFixed(2)}`)
-                                : 'N/A'}
+                              {token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : '—'}
                             </td>
                             <td style={{
                               textAlign: 'right',
@@ -1221,21 +1153,9 @@ const Marketplace: React.FC = () => {
                                 }}>
                                   Verify
                                 </button> */}
-                                <button 
+                                <button
                                   onClick={(e) => handleStarClick(token, e)}
-                                  style={{
-                                    background: '#fff',
-                                    border: `1px solid ${t.border}`,
-                                    color: (token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '#FFD700' : '#666',
-                                    cursor: 'pointer',
-                                    fontSize: '16px',
-                                    padding: '8px 16px',
-                                    borderRadius: '6px',
-                                    height: '36px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    transition: 'all 0.2s'
-                                  }}
+                                  className={`mp-star-btn${(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? ' starred' : ''}`}
                                   title={(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? 'Remove from watchlist' : 'Add to watchlist'}
                                 >
                                   {(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '★' : '☆'}
@@ -1254,7 +1174,7 @@ const Marketplace: React.FC = () => {
               <div style={{
                 width: '400px',
                 background: t.bgPrimary,
-                borderLeft: '1px solid #d3d3d3',
+                borderLeft: `1px solid ${t.border}`,
                 padding: '20px',
                 flexShrink: 0,
                 display: 'flex',
@@ -1343,7 +1263,7 @@ const Marketplace: React.FC = () => {
                       color: t.textPrimary,
                       marginBottom: '8px'
                     }}>
-                      Your Balance {selectedToken && <span style={{ color: '#000000', fontWeight: '600' }}>({selectedToken.symbol})</span>}
+                      Your Balance {selectedToken && <span style={{ color: t.textPrimary, fontWeight: '600' }}>({selectedToken.symbol})</span>}
                     </h3>
                     <div style={{
                       fontSize: '24px',
@@ -1372,7 +1292,7 @@ const Marketplace: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '14px',
                         background: activeTab === 'buy' ? '#00d4aa' : 'transparent',
-                        color: activeTab === 'buy' ? 'white' : '#6c757d'
+                        color: activeTab === 'buy' ? 'white' : t.textMuted
                       }}
                       onClick={() => setActiveTab('buy')}
                     >
@@ -1388,7 +1308,7 @@ const Marketplace: React.FC = () => {
                         fontWeight: '600',
                         fontSize: '14px',
                         background: activeTab === 'sell' ? '#ff4757' : 'transparent',
-                        color: activeTab === 'sell' ? 'white' : '#6c757d'
+                        color: activeTab === 'sell' ? 'white' : t.textMuted
                       }}
                       onClick={() => setActiveTab('sell')}
                     >
@@ -1500,24 +1420,13 @@ const Marketplace: React.FC = () => {
                         marginBottom: '12px',
                         marginTop: '12px'
                       }}>
-                        {['0.5', '1.0', '2.0', '5.0'].map((slippage) => (
+                        {['0.5', '1.0', '2.0', '5.0'].map((slipValue) => (
                           <button
-                            key={slippage}
-                            onClick={() => handleSlippageSelect(slippage)}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              border: `1px solid ${selectedSlippage === slippage ? '#00d4aa' : '#d3d3d3'}`,
-                              background: selectedSlippage === slippage ? '#00d4aa' : '#ffffff',
-                              color: selectedSlippage === slippage ? '#ffffff' : '#5b616e',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
+                            key={slipValue}
+                            onClick={() => handleSlippageSelect(slipValue)}
+                            className={`mp-slippage-btn${selectedSlippage === slipValue ? ' active' : ''}`}
                           >
-                            {slippage}%
+                            {slipValue}%
                           </button>
                         ))}
                       </div>
@@ -1607,7 +1516,7 @@ const Marketplace: React.FC = () => {
             {/* Footer */}
             <div style={{
               background: t.bgPrimary,
-              borderTop: '1px solid #e7ebee',
+              borderTop: `1px solid ${t.border}`,
               padding: '20px 24px',
               width: '100%',
               flexShrink: 0
