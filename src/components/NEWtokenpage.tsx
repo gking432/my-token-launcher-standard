@@ -1045,6 +1045,10 @@ const TokenPage: React.FC = () => {
     return `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},70%,55%))`;
   }, [tokenDetails?.symbol]);
 
+  // Show a "just launched" banner when navigated here directly from the launch page
+  const justLaunched = !!(location.state as any)?.creationDate &&
+    Date.now() - ((location.state as any).creationDate * 1000 || 0) < 5 * 60_000;
+
   return (
     <div style={{
       display: 'flex',
@@ -1059,6 +1063,23 @@ const TokenPage: React.FC = () => {
       color: t.textPrimary,
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>
+      {justLaunched && (
+        <div style={{
+          background: 'linear-gradient(90deg, #00d4aa, #00b894)',
+          color: '#fff',
+          textAlign: 'center',
+          padding: '10px 16px',
+          fontSize: '14px',
+          fontWeight: 600,
+          letterSpacing: '0.01em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}>
+          🚀 Your token is live! Share the link and be the first to trade.
+        </div>
+      )}
       {/* Header */}
       {/* Token Leaderboard - Commented out for future CTA */}
       {/* <div style={{
@@ -2132,10 +2153,15 @@ const TokenPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {recentTrades.slice(0, 50).map((trade, i) => (
+                        {recentTrades.slice(0, 50).map((trade, i) => {
+                          const isYou = account?.address &&
+                            trade.wallet.toLowerCase() === account.address.toString().toLowerCase();
+                          return (
                           <tr key={i} style={{
                             borderBottom: `1px solid ${t.border}`,
-                            background: i % 2 === 0 ? 'transparent' : t.bgSecondary,
+                            background: isYou
+                              ? (trade.type === 'buy' ? 'rgba(0,212,170,0.07)' : 'rgba(255,71,87,0.07)')
+                              : i % 2 === 0 ? 'transparent' : t.bgSecondary,
                           }}>
                             <td style={{ padding: '10px 16px' }}>
                               <span style={{
@@ -2153,7 +2179,16 @@ const TokenPage: React.FC = () => {
                               </span>
                             </td>
                             <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
-                              {trade.wallet ? `${trade.wallet.slice(0, 6)}…${trade.wallet.slice(-4)}` : '—'}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {trade.wallet ? `${trade.wallet.slice(0, 6)}…${trade.wallet.slice(-4)}` : '—'}
+                                {isYou && (
+                                  <span style={{
+                                    fontSize: '10px', fontWeight: 700, padding: '1px 5px',
+                                    borderRadius: '4px', background: 'var(--accent)',
+                                    color: '#fff', letterSpacing: '0.3px',
+                                  }}>YOU</span>
+                                )}
+                              </span>
                             </td>
                             <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
                               {trade.amount.toLocaleString()}
@@ -2165,7 +2200,8 @@ const TokenPage: React.FC = () => {
                               {timeAgo(trade.timestampMs)}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -2485,19 +2521,62 @@ const TokenPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Price-impact warning for buys */}
+                {activeTab === 'buy' && (() => {
+                  const sold = tokenData?.tokensSold ?? 0;
+                  const TOTAL_SUPPLY = 800_000_000;
+                  const spotDenom = TOTAL_SUPPLY - sold;
+                  if (amount > 0 && spotDenom > 0) {
+                    const P_NUM = 19_029_514_756;
+                    const P_CONST = 61.9053276;
+                    const spotPrice = P_NUM / spotDenom + P_CONST;
+                    const afterDenom = TOTAL_SUPPLY - (sold + amount);
+                    if (afterDenom > 0) {
+                      const afterPrice = P_NUM / afterDenom + P_CONST;
+                      const impact = ((afterPrice - spotPrice) / spotPrice) * 100;
+                      if (impact >= 1) {
+                        const color = impact >= 10 ? t.negative : impact >= 3 ? '#f59e0b' : t.textMuted;
+                        return (
+                          <div style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            background: impact >= 10 ? 'rgba(255,71,87,0.08)' : impact >= 3 ? 'rgba(245,158,11,0.08)' : t.bgSecondary,
+                            border: `1px solid ${impact >= 10 ? 'rgba(255,71,87,0.3)' : impact >= 3 ? 'rgba(245,158,11,0.3)' : t.border}`,
+                            fontSize: '13px',
+                            color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}>
+                            <span style={{ fontSize: '16px' }}>{impact >= 10 ? '⚠️' : 'ℹ️'}</span>
+                            <span>
+                              <strong>Price impact: {impact.toFixed(1)}%</strong>
+                              {impact >= 10 && ' — consider buying in smaller amounts'}
+                            </span>
+                          </div>
+                        );
+                      }
+                    }
+                  }
+                  return null;
+                })()}
+
                 <button
                   onClick={handleTrade}
                   style={{
                     width: '100%',
                     padding: '14px 24px',
-                    background: '#00d4aa',
+                    background: activeTab === 'buy' ? '#00d4aa' : t.negative,
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
                     fontSize: '16px',
                     fontWeight: '600',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'opacity 0.15s',
                   }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                 >
                   {activeTab === 'buy' ? 'Buy' : 'Sell'}
                 </button>

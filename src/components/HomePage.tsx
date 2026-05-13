@@ -6,12 +6,15 @@ import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const HomePage: React.FC = () => {
   const { account } = useWallet();
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol'>('newest');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Catalog (slow-changing metadata): name, ticker, image, address, creator
   const { tokens: catalogTokens, loading, error, refetch } = useTokenData();
@@ -71,9 +74,18 @@ const HomePage: React.FC = () => {
     change24h?: number;
   }
 
-  // Sort tokens based on sortOrder
+  // Sort and filter tokens
   const tokens = useMemo(() => {
-    const sortedTokens = [...rawTokens];
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? rawTokens.filter(t =>
+          t.name.toLowerCase().includes(q) ||
+          t.symbol.toLowerCase().includes(q) ||
+          (t.creatorAddress || '').toLowerCase().includes(q)
+        )
+      : rawTokens;
+
+    const sortedTokens = [...filtered];
     sortedTokens.sort((a, b) => {
       switch (sortOrder) {
         case 'newest':
@@ -93,7 +105,7 @@ const HomePage: React.FC = () => {
       }
     });
     return sortedTokens;
-  }, [rawTokens, sortOrder]);
+  }, [rawTokens, sortOrder, searchQuery]);
 
   // No continuous polling - tokens are fetched once on mount
   // Use manual refresh button if user wants to update data
@@ -945,7 +957,13 @@ const HomePage: React.FC = () => {
             <div className="logo-dot"></div>
           </div>
           <div className="nav-search">
-            <input type="text" className="nav-search-input" placeholder="Search for a meme coin..." />
+            <input
+              type="text"
+              className="nav-search-input"
+              placeholder="Search tokens, symbols, creators…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
           </div>
           <nav>
             <ul className="nav-links">
@@ -953,7 +971,18 @@ const HomePage: React.FC = () => {
               <li><Link to="/launch">Launch</Link></li>
             </ul>
           </nav>
-          <div className="auth-section">
+          <div className="auth-section" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={toggleTheme}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                background: 'none', border: '1px solid var(--border)', borderRadius: '8px',
+                padding: '6px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
             <Link to="/launch" className="sign-up">Launch Token</Link>
           </div>
         </div>
@@ -1119,56 +1148,121 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            <table className="crypto-table">
-              <thead>
-                <tr>
-                  <th>Asset</th>
-                  <th>Price</th>
-                  <th>Chart</th>
-                  <th>Change</th>
-                  <th style={{ color: '#00d4aa' }}>Mkt cap</th>
-                  <th>Volume</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Loading tokens...</td>
-                  </tr>
-                ) : tokens.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No tokens found.</td>
-                  </tr>
-                ) : (
-                  tokens.map((token, index) => (
-                    <tr key={index}>
-                      <td>
-                        <div className="asset-cell">
-                          <div className="asset-icon" style={{ background: getTokenIconBg(token.symbol) }}>{getTokenIcon(token.symbol)}</div>
-                          <div className="asset-info">
-                            <div className="asset-name">{token.name}</div>
-                            <div className="asset-symbol">{token.symbol}</div>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>Loading tokens…</div>
+            ) : tokens.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+                {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens found.'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', padding: '4px 0 8px' }}>
+                {tokens.map((token, index) => {
+                  const change = token.change24h;
+                  const isPos = change != null && change >= 0;
+                  const changeColor = change == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => handleTradeClick(token)}
+                      style={{
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                      }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,212,170,0.12)';
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+                      }}
+                    >
+                      {/* Header row: icon + name + change badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {token.image ? (
+                          <img
+                            src={token.image}
+                            alt={token.symbol}
+                            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                            background: getTokenIconBg(token.symbol),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '20px',
+                          }}>
+                            {getTokenIcon(token.symbol)}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {token.name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>${token.symbol}</div>
+                        </div>
+                        <div style={{
+                          fontSize: '12px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px',
+                          color: changeColor,
+                          background: change == null ? 'transparent' : isPos ? 'rgba(0,212,170,0.12)' : 'rgba(255,71,87,0.12)',
+                          flexShrink: 0,
+                        }}>
+                          {change == null ? '—' : `${isPos ? '▲' : '▼'} ${Math.abs(change).toFixed(2)}%`}
+                        </div>
+                      </div>
+
+                      {/* Price + market cap row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</div>
+                          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(8)} APT`}
                           </div>
                         </div>
-                      </td>
-                      <td className="price">{token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(8)} APT`}</td>
-                      <td>
-                        <svg className="chart-mini" viewBox="0 0 80 40">
-                          <polyline fill="none" stroke="#00d4aa" strokeWidth="2" points="0,30 20,25 40,15 60,10 80,5"/>
-                        </svg>
-                      </td>
-                      <td className={token.change24h != null && token.change24h >= 0 ? 'change-positive' : 'change-negative'}>
-                        {token.change24h != null ? `${token.change24h >= 0 ? '⬆' : '⬇'} ${Math.abs(token.change24h).toFixed(2)}%` : '—'}
-                      </td>
-                      <td className="mkt-cap">{token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : `${(token.marketCap || 0).toFixed(2)} APT`}</td>
-                      <td className="volume">{formatVolume(token.volume || 0)}</td>
-                      <td><button className="trade-btn" onClick={() => handleTradeClick(token)}>Trade</button></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mkt cap</div>
+                          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent)' }}>
+                            {token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : `${(token.marketCap || 0).toFixed(2)} APT`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer: vol + creator + trade button */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '10px', gap: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '1px' }}>Vol 24h</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{formatVolume(token.volume || 0)}</div>
+                        </div>
+                        {token.creatorAddress && token.creatorAddress !== 'Unknown' && (
+                          <div
+                            style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace', cursor: 'pointer' }}
+                            onClick={e => { e.stopPropagation(); navigate(`/profile/${token.creatorAddress}`); }}
+                            title={token.creatorAddress}
+                          >
+                            by {truncateAddress(token.creatorAddress)}
+                          </div>
+                        )}
+                        <button
+                          className="trade-btn"
+                          style={{ padding: '6px 16px', fontSize: '13px', flexShrink: 0 }}
+                          onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
+                        >
+                          Trade
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </main>
 
