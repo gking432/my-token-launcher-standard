@@ -1,42 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ── CSS custom properties ─────────────────────────────────── */
+/* ── CSS custom properties — Apple-inspired palette ─────────── */
 :root {
   --bg-primary:      #ffffff;
-  --bg-secondary:    #f8f9fa;
-  --bg-hover:        #f5f5f5;
-  --border:          #e7ebee;
-  --border-secondary:#d3d3d3;
-  --text-primary:    #0a0b0d;
-  --text-secondary:  #5b616e;
-  --text-muted:      #8a9ba8;
-  --accent:          #00d4aa;
-  --accent-hover:    #00b894;
-  --accent-light:    #d6f0ea;
-  --positive:        #00d4aa;
-  --negative:        #ff4757;
+  --bg-secondary:    #fafafa;
+  --bg-tertiary:     #f5f5f7;
+  --bg-hover:        #f0f0f2;
+  --border:          #e5e5e7;
+  --border-secondary:#d2d2d7;
+  --text-primary:    #1d1d1f;
+  --text-secondary:  #6e6e73;
+  --text-muted:      #86868b;
+  --accent:          #0f6f4e;
+  --accent-hover:    #157c58;
+  --accent-light:    #e8f3ee;
+  --positive:        #0f6f4e;
+  --negative:        #d70015;
   --chart-bg:        #fbfbfb;
-  --chart-text:      #5b616e;
+  --chart-text:      #6e6e73;
   --chart-grid:      #f0f0f0;
 }
 
 [data-theme="dark"] {
-  --bg-primary:      #0f1117;
-  --bg-secondary:    #181b25;
-  --bg-hover:        #1e2130;
-  --border:          #252836;
-  --border-secondary:#252836;
-  --text-primary:    #e8eaed;
-  --text-secondary:  #9aa5b4;
-  --text-muted:      #5b6474;
-  --accent:          #00d4aa;
-  --accent-hover:    #00b894;
-  --accent-light:    #0c2b26;
-  --positive:        #00d4aa;
-  --negative:        #ff4757;
-  --chart-bg:        #181b25;
-  --chart-text:      #9aa5b4;
-  --chart-grid:      #252836;
+  --bg-primary:      #000000;
+  --bg-secondary:    #1c1c1e;
+  --bg-tertiary:     #2c2c2e;
+  --bg-hover:        #2c2c2e;
+  --border:          #38383a;
+  --border-secondary:#48484a;
+  --text-primary:    #f5f5f7;
+  --text-secondary:  #a1a1a6;
+  --text-muted:      #6e6e73;
+  --accent:          #30d158;
+  --accent-hover:    #4cd964;
+  --accent-light:    #0f2418;
+  --positive:        #30d158;
+  --negative:        #ff453a;
+  --chart-bg:        #1c1c1e;
+  --chart-text:      #a1a1a6;
+  --chart-grid:      #38383a;
 }
 
 /* ── Reset / Base ───────────────────────────────────────────── */
