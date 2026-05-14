@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTheme } from '../contexts/ThemeContext';
+import AppHeader from './AppHeader';
 
 type SortOrder = 'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol';
 
@@ -27,11 +27,11 @@ interface Token {
 }
 
 const HomePage: React.FC = () => {
-  const { account } = useWallet();
   const navigate = useNavigate();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark } = useTheme();
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const { tokens: catalogTokens, loading } = useTokenData();
   const { aptPrice } = useAptPrice();
@@ -155,61 +155,6 @@ const HomePage: React.FC = () => {
         }
 
         .mm-page { width: 100%; min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
-
-        /* ── HEADER ── */
-        .mm-header {
-          position: sticky; top: 0; z-index: 100;
-          height: 56px;
-          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.78)'};
-          backdrop-filter: saturate(180%) blur(20px);
-          -webkit-backdrop-filter: saturate(180%) blur(20px);
-          border-bottom: 1px solid var(--border);
-        }
-        .mm-nav {
-          max-width: 1280px; margin: 0 auto; height: 100%;
-          padding: 0 24px;
-          display: flex; align-items: center; justify-content: space-between;
-        }
-        .mm-logo {
-          display: flex; align-items: center; gap: 9px;
-          font-size: 19px; font-weight: 700; letter-spacing: -0.025em;
-          color: var(--text-primary); text-decoration: none;
-        }
-        .mm-logo-mark {
-          width: 26px; height: 26px; border-radius: 8px;
-          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
-          display: flex; align-items: center; justify-content: center;
-          color: #fff; font-size: 14px; font-weight: 800;
-          box-shadow: 0 2px 8px rgba(5,150,105,0.35);
-        }
-        .mm-nav-links {
-          display: flex; gap: 30px; list-style: none; margin: 0; padding: 0;
-        }
-        .mm-nav-links a {
-          font-size: 14px; font-weight: 500;
-          color: var(--text-secondary);
-          text-decoration: none; transition: color 0.15s;
-        }
-        .mm-nav-links a:hover { color: var(--text-primary); }
-        .mm-nav-actions { display: flex; align-items: center; gap: 10px; }
-        .mm-theme-btn {
-          background: var(--bg-secondary);
-          border: 1px solid var(--border); cursor: pointer;
-          width: 34px; height: 34px; font-size: 14px; line-height: 1;
-          color: var(--text-secondary); border-radius: 9px;
-          display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s, color 0.15s;
-        }
-        .mm-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .mm-cta-pill {
-          background: var(--accent); color: #fff;
-          padding: 9px 18px; border-radius: 10px;
-          font-size: 14px; font-weight: 600;
-          text-decoration: none; transition: background 0.15s, transform 0.1s;
-          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
-        }
-        .mm-cta-pill:hover { background: var(--accent-hover); }
-        .mm-cta-pill:active { transform: scale(0.97); }
 
         /* ── LIVE TICKER ── */
         .mm-ticker {
@@ -631,29 +576,32 @@ const HomePage: React.FC = () => {
           .mm-search { flex: 1; width: auto; }
           .mm-footer-top { grid-template-columns: 1fr; }
         }
+
+        /* ── VIEW TOGGLE ── */
+        .mm-view-toggle { display: flex; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+        .mm-vt-btn { padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted); background: none; transition: all 0.12s; }
+        .mm-vt-btn:hover { color: var(--text-primary); }
+        .mm-vt-btn.active { background: var(--bg-primary); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,${isDark ? '0.3' : '0.1'}); }
+
+        /* ── LIST VIEW ── */
+        .mm-list-card { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,${isDark ? '0.3' : '0.05'}); }
+        .mm-list-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .mm-list-table thead tr { border-bottom: 1px solid var(--border); }
+        .mm-lt-th { padding: 14px 18px; font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; background: var(--bg-secondary); }
+        .mm-lt-row { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
+        .mm-lt-row:last-child { border-bottom: none; }
+        .mm-lt-row:hover { background: var(--bg-hover); }
+        .mm-lt-td { padding: 14px 18px; vertical-align: middle; }
+        .mm-lt-token { display: flex; align-items: center; gap: 12px; }
+        .mm-lt-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; object-fit: cover; }
+        .mm-lt-name { font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+        .mm-lt-sym { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-top: 1px; }
+        .mm-lt-trade { background: var(--accent); color: #fff; border: none; padding: 7px 16px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+        .mm-lt-trade:hover { background: var(--accent-hover); }
       `}</style>
 
       <div className="mm-page">
-        {/* ── HEADER ── */}
-        <header className="mm-header">
-          <div className="mm-nav">
-            <Link to="/" className="mm-logo">
-              <div className="mm-logo-mark">M</div>
-              MoveMint
-            </Link>
-            <ul className="mm-nav-links">
-              <li><Link to="/marketplace">Marketplace</Link></li>
-              <li><Link to="/launch">Launch</Link></li>
-              {account && <li><Link to={`/profile/${account.address}`}>Profile</Link></li>}
-            </ul>
-            <div className="mm-nav-actions">
-              <button className="mm-theme-btn" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
-                {isDark ? '☀' : '☾'}
-              </button>
-              <Link to="/launch" className="mm-cta-pill">Launch token</Link>
-            </div>
-          </div>
-        </header>
+        <AppHeader />
 
         {/* ── LIVE TICKER ── */}
         {tickerItems.length > 0 && (
@@ -777,6 +725,16 @@ const HomePage: React.FC = () => {
                 <p className="mm-section-sub">Every token below is trading right now on a live bonding curve.</p>
               </div>
               <div className="mm-controls">
+                <div className="mm-view-toggle">
+                  <button
+                    className={`mm-vt-btn${viewMode === 'grid' ? ' active' : ''}`}
+                    onClick={() => setViewMode('grid')}
+                  >Grid</button>
+                  <button
+                    className={`mm-vt-btn${viewMode === 'list' ? ' active' : ''}`}
+                    onClick={() => setViewMode('list')}
+                  >List</button>
+                </div>
                 <input
                   type="text"
                   className="mm-search"
@@ -805,7 +763,7 @@ const HomePage: React.FC = () => {
               <div className="mm-empty">
                 {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens have launched yet. Be the first.'}
               </div>
-            ) : (
+            ) : viewMode === 'grid' ? (
               <div className="mm-grid">
                 {tokens.map((token, i) => {
                   const change = token.change24h;
@@ -876,6 +834,68 @@ const HomePage: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="mm-list-card">
+                <table className="mm-list-table">
+                  <thead>
+                    <tr>
+                      <th className="mm-lt-th" style={{ textAlign: 'left' }}>Token</th>
+                      <th className="mm-lt-th" style={{ textAlign: 'right' }}>Price</th>
+                      <th className="mm-lt-th" style={{ textAlign: 'right' }}>24h</th>
+                      <th className="mm-lt-th" style={{ textAlign: 'right' }}>Market cap</th>
+                      <th className="mm-lt-th"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tokens.map((token, i) => {
+                      const change = token.change24h;
+                      const changeColor = change == null ? 'var(--text-muted)' : change >= 0 ? 'var(--positive)' : 'var(--negative)';
+                      return (
+                        <tr key={i} className="mm-lt-row" onClick={() => handleTradeClick(token)}>
+                          <td className="mm-lt-td">
+                            <div className="mm-lt-token">
+                              {token.image ? (
+                                <img
+                                  src={token.image}
+                                  alt={token.symbol}
+                                  className="mm-lt-icon"
+                                  style={{ objectFit: 'cover' }}
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="mm-lt-icon" style={{ background: getIconBg(token.symbol) }}>
+                                  {token.symbol.replace('$', '').charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div>
+                                <div className="mm-lt-name">{token.name}</div>
+                                <div className="mm-lt-sym">{symbolWithDollar(token.symbol)}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="mm-lt-td" style={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                            {priceLabel(token)}
+                          </td>
+                          <td className="mm-lt-td" style={{ textAlign: 'right', color: changeColor, fontWeight: 700 }}>
+                            {change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}
+                          </td>
+                          <td className="mm-lt-td" style={{ textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                            {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
+                          </td>
+                          <td className="mm-lt-td" style={{ textAlign: 'right' }}>
+                            <button
+                              className="mm-lt-trade"
+                              onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
+                            >
+                              Trade
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

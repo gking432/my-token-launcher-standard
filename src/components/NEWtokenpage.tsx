@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+import AppHeader from './AppHeader';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
@@ -28,7 +29,7 @@ const TokenPage: React.FC = () => {
   const { coinHash } = useParams<{ coinHash?: string }>();
   const { account, signAndSubmitTransaction, connect, wallets, disconnect } = useWallet();
   const [tokenDetails, setTokenDetails] = useState<TokenDetails | null>(null);
-  const { isDark, theme: t, toggleTheme } = useTheme();
+  const { isDark, theme: t } = useTheme();
 
   // Use the shared token data hook
   const { tokens, loading: tokensLoading } = useTokenData();
@@ -1062,54 +1063,6 @@ const TokenPage: React.FC = () => {
 
         .tp-page { width: 100%; min-height: 100vh; background: var(--bg-primary); }
 
-        /* ── HEADER ── */
-        .tp-header {
-          position: sticky; top: 0; z-index: 100; height: 56px;
-          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.78)'};
-          backdrop-filter: saturate(180%) blur(20px);
-          -webkit-backdrop-filter: saturate(180%) blur(20px);
-          border-bottom: 1px solid var(--border);
-        }
-        .tp-nav {
-          max-width: 1280px; margin: 0 auto; height: 100%;
-          padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
-        }
-        .tp-logo {
-          display: flex; align-items: center; gap: 9px;
-          font-size: 19px; font-weight: 700; letter-spacing: -0.025em;
-          color: var(--text-primary); text-decoration: none;
-        }
-        .tp-logo-mark {
-          width: 26px; height: 26px; border-radius: 8px;
-          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
-          display: flex; align-items: center; justify-content: center;
-          color: #fff; font-size: 14px; font-weight: 800;
-          box-shadow: 0 2px 8px rgba(5,150,105,0.35);
-        }
-        .tp-nav-links {
-          display: flex; gap: 30px; list-style: none; margin: 0; padding: 0;
-        }
-        .tp-nav-links a {
-          font-size: 14px; font-weight: 500; color: var(--text-secondary);
-          text-decoration: none; transition: color 0.15s;
-        }
-        .tp-nav-links a:hover { color: var(--text-primary); }
-        .tp-nav-actions { display: flex; align-items: center; gap: 10px; }
-        .tp-theme-btn {
-          background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;
-          width: 34px; height: 34px; font-size: 14px; line-height: 1;
-          color: var(--text-secondary); border-radius: 9px;
-          display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s;
-        }
-        .tp-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .tp-cta-pill {
-          background: var(--accent); color: #fff; padding: 9px 18px; border-radius: 10px;
-          font-size: 14px; font-weight: 600; text-decoration: none;
-          transition: background 0.15s; box-shadow: 0 2px 10px rgba(5,150,105,0.3);
-        }
-        .tp-cta-pill:hover { background: var(--accent-hover); }
-
         /* ── BANNER ── */
         .tp-banner {
           background: linear-gradient(90deg, var(--accent), var(--accent-hover));
@@ -1404,26 +1357,7 @@ const TokenPage: React.FC = () => {
       `}</style>
 
       <div className="tp-page">
-        {/* ── HEADER ── */}
-        <header className="tp-header">
-          <div className="tp-nav">
-            <a href="/" className="tp-logo">
-              <div className="tp-logo-mark">M</div>
-              MoveMint
-            </a>
-            <ul className="tp-nav-links">
-              <li><a href="/marketplace">Marketplace</a></li>
-              <li><a href="/launch">Launch</a></li>
-              {account && <li><a href={`/profile/${account.address}`}>Profile</a></li>}
-            </ul>
-            <div className="tp-nav-actions">
-              <button className="tp-theme-btn" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
-                {isDark ? '☀' : '☾'}
-              </button>
-              <a href="/launch" className="tp-cta-pill">Launch token</a>
-            </div>
-          </div>
-        </header>
+        <AppHeader />
 
         {/* ── JUST LAUNCHED BANNER ── */}
         {justLaunched && (
