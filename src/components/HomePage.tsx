@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useTokenData } from '../hooks/useTokenData';
@@ -107,10 +107,15 @@ const HomePage: React.FC = () => {
     if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
     return `$${n.toFixed(0)}`;
   };
+  const symbolWithDollar = (s: string) => (s.startsWith('$') ? s : `$${s}`);
+  const priceLabel = (t: Token) =>
+    t.priceUSD != null ? formatPrice(t.priceUSD)
+    : t.price != null ? `${t.price.toFixed(6)} APT`
+    : '—';
 
-  // Restrained icon palette — muted, Apple-style. No bright/saturated colors.
-  const iconPalette = ['#5E5CE6', '#0F6F4E', '#FF9F0A', '#BF5AF2', '#64D2FF', '#FF6482', '#A2845E', '#30B0C7'];
-  const getIconBg = (sym: string) => iconPalette[sym.charCodeAt(0) % iconPalette.length];
+  // Restrained icon palette — muted, premium. No bright/saturated colors.
+  const iconPalette = ['#5E5CE6', '#059669', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
+  const getIconBg = (sym: string) => iconPalette[(sym.replace('$', '').charCodeAt(0) || 0) % iconPalette.length];
 
   const handleTradeClick = (t: Token) => {
     const url = t.metadataAddress || t.txHash;
@@ -123,6 +128,23 @@ const HomePage: React.FC = () => {
       },
     });
   };
+
+  // ── Live ticker items — pad short lists so the marquee fills ──
+  const tickerItems = useMemo(() => {
+    if (!rawTokens.length) return [] as Token[];
+    let items = [...rawTokens];
+    while (items.length < 12) items = items.concat(rawTokens);
+    return items.slice(0, 24);
+  }, [rawTokens]);
+
+  // ── Featured token for the hero product-preview card ──
+  const featured = tokens[0] || rawTokens[0] || null;
+  const featuredUp = (featured?.change24h ?? 0) >= 0;
+  // Stylized hero sparkline (decorative product preview)
+  const chartLine = featuredUp
+    ? 'M0,104 C26,98 38,74 64,82 C90,90 100,52 128,58 C156,64 168,38 196,32 C224,26 236,54 264,42 C292,30 306,14 320,8'
+    : 'M0,16 C26,22 38,46 64,38 C90,30 100,68 128,62 C156,56 168,82 196,88 C224,94 236,66 264,78 C292,90 306,106 320,112';
+  const chartArea = chartLine + ' L320,120 L0,120 Z';
 
   return (
     <>
@@ -137,401 +159,479 @@ const HomePage: React.FC = () => {
           -moz-osx-font-smoothing: grayscale;
         }
 
-        .mm-page { min-height: 100vh; background: var(--bg-primary); }
+        .mm-page { min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
 
         /* ── HEADER ── */
         .mm-header {
           position: sticky; top: 0; z-index: 100;
-          height: 52px;
-          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.72)'};
+          height: 56px;
+          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.78)'};
           backdrop-filter: saturate(180%) blur(20px);
           -webkit-backdrop-filter: saturate(180%) blur(20px);
           border-bottom: 1px solid var(--border);
         }
         .mm-nav {
-          max-width: 1140px; margin: 0 auto; height: 100%;
-          padding: 0 22px;
+          max-width: 1180px; margin: 0 auto; height: 100%;
+          padding: 0 24px;
           display: flex; align-items: center; justify-content: space-between;
         }
         .mm-logo {
-          display: flex; align-items: center; gap: 8px;
-          font-size: 20px; font-weight: 600; letter-spacing: -0.022em;
+          display: flex; align-items: center; gap: 9px;
+          font-size: 19px; font-weight: 700; letter-spacing: -0.025em;
           color: var(--text-primary); text-decoration: none;
         }
-        .mm-logo-dot {
-          width: 7px; height: 7px; border-radius: 50%;
-          background: var(--accent);
+        .mm-logo-mark {
+          width: 26px; height: 26px; border-radius: 8px;
+          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 14px; font-weight: 800;
+          box-shadow: 0 2px 8px rgba(5,150,105,0.35);
         }
         .mm-nav-links {
-          display: flex; gap: 36px; list-style: none; margin: 0; padding: 0;
+          display: flex; gap: 30px; list-style: none; margin: 0; padding: 0;
         }
         .mm-nav-links a {
-          font-size: 13px; font-weight: 400;
-          color: var(--text-primary); opacity: 0.86;
-          text-decoration: none; transition: opacity 0.15s;
+          font-size: 14px; font-weight: 500;
+          color: var(--text-secondary);
+          text-decoration: none; transition: color 0.15s;
         }
-        .mm-nav-links a:hover { opacity: 1; }
-        .mm-nav-actions { display: flex; align-items: center; gap: 12px; }
+        .mm-nav-links a:hover { color: var(--text-primary); }
+        .mm-nav-actions { display: flex; align-items: center; gap: 10px; }
         .mm-theme-btn {
-          background: none; border: none; cursor: pointer;
-          padding: 6px; font-size: 14px; line-height: 1;
-          color: var(--text-secondary); border-radius: 6px;
-          transition: background 0.15s;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border); cursor: pointer;
+          width: 34px; height: 34px; font-size: 14px; line-height: 1;
+          color: var(--text-secondary); border-radius: 9px;
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s, color 0.15s;
         }
-        .mm-theme-btn:hover { background: var(--bg-hover); }
+        .mm-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .mm-cta-pill {
           background: var(--accent); color: #fff;
-          padding: 7px 16px; border-radius: 980px;
-          font-size: 13px; font-weight: 500;
-          text-decoration: none; transition: background 0.15s;
+          padding: 9px 18px; border-radius: 10px;
+          font-size: 14px; font-weight: 600;
+          text-decoration: none; transition: background 0.15s, transform 0.1s;
+          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
         }
         .mm-cta-pill:hover { background: var(--accent-hover); }
+        .mm-cta-pill:active { transform: scale(0.97); }
+
+        /* ── LIVE TICKER ── */
+        .mm-ticker {
+          height: 42px; overflow: hidden;
+          background: var(--bg-secondary);
+          border-bottom: 1px solid var(--border);
+          display: flex; align-items: center;
+          position: relative;
+        }
+        .mm-ticker::before, .mm-ticker::after {
+          content: ''; position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2;
+          pointer-events: none;
+        }
+        .mm-ticker::before { left: 0; background: linear-gradient(90deg, var(--bg-secondary), transparent); }
+        .mm-ticker::after { right: 0; background: linear-gradient(270deg, var(--bg-secondary), transparent); }
+        .mm-ticker-track {
+          display: flex; align-items: center; gap: 34px;
+          white-space: nowrap;
+          animation: mm-ticker-scroll 60s linear infinite;
+          padding-left: 34px;
+        }
+        @keyframes mm-ticker-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        .mm-ticker-item { display: inline-flex; align-items: center; gap: 8px; }
+        .mm-ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+        .mm-ticker-sym { font-size: 12.5px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+        .mm-ticker-price { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
         /* ── HERO ── */
         .mm-hero {
-          padding: 120px 22px 100px;
-          text-align: center;
-          background: var(--bg-primary);
-          position: relative;
-          overflow: hidden;
+          position: relative; overflow: hidden;
+          padding: 76px 24px 104px;
         }
-        .mm-hero::before {
-          content: '';
-          position: absolute;
-          top: -20%; left: 50%;
-          transform: translateX(-50%);
-          width: 900px; height: 900px;
-          background: radial-gradient(circle, var(--accent-light) 0%, transparent 60%);
-          opacity: ${isDark ? '0.5' : '0.8'};
-          pointer-events: none;
-          z-index: 0;
+        .mm-hero-bg {
+          position: absolute; inset: 0; pointer-events: none; z-index: 0;
+          background:
+            radial-gradient(ellipse 760px 480px at 78% 18%, var(--accent-light) 0%, transparent 62%),
+            radial-gradient(ellipse 620px 420px at 12% 88%, ${isDark ? 'rgba(16,185,129,0.07)' : 'rgba(5,150,105,0.06)'} 0%, transparent 70%);
+        }
+        .mm-hero-bg::before {
+          content: ''; position: absolute; inset: 0;
+          background-image: radial-gradient(${isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.045)'} 1px, transparent 1px);
+          background-size: 34px 34px;
+          -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 38%, #000 0%, transparent 78%);
+          mask-image: radial-gradient(ellipse 75% 70% at 50% 38%, #000 0%, transparent 78%);
         }
         .mm-hero-inner {
-          max-width: 980px; margin: 0 auto;
           position: relative; z-index: 1;
+          max-width: 1180px; margin: 0 auto;
+          display: grid; grid-template-columns: 1.05fr 0.95fr;
+          gap: 60px; align-items: center;
         }
-        .mm-eyebrow {
-          display: inline-block;
-          font-size: 19px; font-weight: 600;
-          letter-spacing: -0.022em;
+        .mm-badge {
+          display: inline-flex; align-items: center; gap: 7px;
+          font-size: 13px; font-weight: 600;
           color: var(--accent);
-          margin-bottom: 8px;
+          background: var(--accent-light);
+          border: 1px solid ${isDark ? 'rgba(16,185,129,0.25)' : 'rgba(5,150,105,0.18)'};
+          padding: 6px 13px; border-radius: 980px;
+          margin-bottom: 22px;
+        }
+        .mm-badge-dot {
+          width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+          box-shadow: 0 0 0 0 var(--accent);
+          animation: mm-pulse 2s infinite;
+        }
+        @keyframes mm-pulse {
+          0%   { box-shadow: 0 0 0 0 ${isDark ? 'rgba(16,185,129,0.5)' : 'rgba(5,150,105,0.45)'}; }
+          70%  { box-shadow: 0 0 0 8px rgba(5,150,105,0); }
+          100% { box-shadow: 0 0 0 0 rgba(5,150,105,0); }
         }
         .mm-hero-title {
-          font-size: clamp(48px, 7.5vw, 96px);
-          font-weight: 600;
-          letter-spacing: -0.045em;
-          line-height: 1.0357;
+          font-size: clamp(40px, 5vw, 66px);
+          font-weight: 700;
+          letter-spacing: -0.042em;
+          line-height: 1.04;
           color: var(--text-primary);
-          margin: 0 0 22px;
+          margin: 0 0 20px;
         }
-        .mm-hero-title .accent { color: var(--accent); }
+        .mm-hero-title .accent {
+          background: linear-gradient(135deg, var(--accent), ${isDark ? '#5eead4' : '#0ea5e9'});
+          -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
         .mm-hero-sub {
-          font-size: clamp(19px, 1.8vw, 24px);
-          font-weight: 400;
-          line-height: 1.35;
-          letter-spacing: 0.009em;
+          font-size: clamp(16px, 1.5vw, 19px);
+          font-weight: 400; line-height: 1.5;
           color: var(--text-secondary);
-          max-width: 640px;
-          margin: 0 auto 38px;
+          max-width: 480px;
+          margin: 0 0 30px;
         }
         .mm-hero-actions {
-          display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
+          display: flex; gap: 12px; flex-wrap: wrap;
+          margin-bottom: 26px;
         }
         .mm-btn-primary {
           background: var(--accent); color: #fff;
-          padding: 13px 24px; border-radius: 980px;
-          font-size: 17px; font-weight: 400;
+          padding: 13px 26px; border-radius: 12px;
+          font-size: 15px; font-weight: 600;
           text-decoration: none;
-          transition: background 0.18s;
-          display: inline-flex; align-items: center; gap: 6px;
+          transition: background 0.15s, transform 0.1s;
+          display: inline-flex; align-items: center; gap: 7px;
           border: none; cursor: pointer;
+          box-shadow: 0 4px 16px rgba(5,150,105,0.32);
         }
         .mm-btn-primary:hover { background: var(--accent-hover); }
+        .mm-btn-primary:active { transform: scale(0.98); }
         .mm-btn-secondary {
-          background: transparent;
+          background: var(--bg-primary);
           color: var(--text-primary);
-          padding: 12px 24px; border-radius: 980px;
-          font-size: 17px; font-weight: 400;
+          padding: 13px 24px; border-radius: 12px;
+          font-size: 15px; font-weight: 600;
           text-decoration: none;
           border: 1.5px solid var(--border-secondary);
-          display: inline-flex; align-items: center; gap: 6px;
-          transition: background 0.18s, border-color 0.18s;
+          display: inline-flex; align-items: center; gap: 7px;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s;
         }
         .mm-btn-secondary:hover {
           background: var(--bg-hover);
           border-color: var(--text-muted);
         }
         .mm-btn-secondary::after {
-          content: '›'; font-size: 20px; line-height: 0.6;
-          transition: transform 0.2s;
+          content: '→'; font-size: 15px;
+          transition: transform 0.18s;
         }
-        .mm-btn-secondary:hover::after { transform: translateX(2px); }
+        .mm-btn-secondary:hover::after { transform: translateX(3px); }
+        .mm-hero-trust {
+          display: flex; gap: 18px; flex-wrap: wrap;
+          font-size: 13px; color: var(--text-muted);
+        }
+        .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
+        .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── STATS BAR ── */
+        /* ── HERO PRODUCT PREVIEW ── */
+        .mm-hero-visual { position: relative; }
+        .mm-preview-glow {
+          position: absolute; inset: -10% -6%;
+          background: radial-gradient(circle at 55% 45%, var(--accent) 0%, transparent 62%);
+          opacity: ${isDark ? '0.26' : '0.16'};
+          filter: blur(28px);
+          pointer-events: none;
+        }
+        .mm-preview-card {
+          position: relative;
+          background: ${isDark ? 'rgba(28,28,30,0.82)' : 'rgba(255,255,255,0.9)'};
+          backdrop-filter: blur(22px) saturate(180%);
+          -webkit-backdrop-filter: blur(22px) saturate(180%);
+          border: 1px solid var(--border);
+          border-radius: 22px;
+          padding: 22px;
+          box-shadow:
+            0 32px 64px rgba(0,0,0,${isDark ? '0.55' : '0.16'}),
+            0 10px 24px rgba(0,0,0,${isDark ? '0.45' : '0.08'});
+        }
+        .mm-preview-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+        .mm-preview-icon {
+          width: 42px; height: 42px; border-radius: 12px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+          object-fit: cover;
+        }
+        .mm-preview-name { font-size: 15px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+        .mm-preview-sym { font-size: 12.5px; color: var(--text-muted); margin-top: 1px; }
+        .mm-preview-tag {
+          margin-left: auto;
+          font-size: 11px; font-weight: 700;
+          color: var(--accent); background: var(--accent-light);
+          padding: 4px 9px; border-radius: 6px;
+          text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .mm-preview-price {
+          font-size: 34px; font-weight: 700; letter-spacing: -0.03em;
+          color: var(--text-primary); line-height: 1;
+          font-variant-numeric: tabular-nums;
+        }
+        .mm-preview-change {
+          font-size: 13px; font-weight: 600; margin-top: 6px;
+          display: inline-flex; align-items: center; gap: 5px;
+        }
+        .mm-preview-chart { display: block; width: 100%; height: 96px; margin: 14px 0 16px; }
+        .mm-preview-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .mm-preview-buy, .mm-preview-sell {
+          padding: 11px; border-radius: 11px;
+          font-size: 14px; font-weight: 600; cursor: pointer;
+          border: none; font-family: inherit;
+          transition: filter 0.15s, background 0.15s;
+        }
+        .mm-preview-buy { background: var(--accent); color: #fff; }
+        .mm-preview-buy:hover { filter: brightness(1.06); }
+        .mm-preview-sell {
+          background: var(--bg-secondary); color: var(--text-primary);
+          border: 1px solid var(--border);
+        }
+        .mm-preview-sell:hover { background: var(--bg-hover); }
+
+        /* ── STATS PANEL ── */
         .mm-stats {
-          background: var(--bg-secondary);
-          padding: 52px 22px;
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
+          position: relative; z-index: 5;
+          max-width: 1180px; margin: -58px auto 0;
+          padding: 0 24px;
         }
-        .mm-stats-inner {
-          max-width: 1140px; margin: 0 auto;
-          display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;
+        .mm-stats-panel {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          display: grid; grid-template-columns: repeat(4, 1fr);
+          box-shadow: 0 18px 44px rgba(0,0,0,${isDark ? '0.5' : '0.09'});
+          overflow: hidden;
         }
+        .mm-stat {
+          padding: 24px 26px;
+          border-right: 1px solid var(--border);
+        }
+        .mm-stat:last-child { border-right: none; }
         .mm-stat-label {
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--text-muted);
-          font-weight: 600;
-          margin-bottom: 10px;
+          font-size: 11px; text-transform: uppercase;
+          letter-spacing: 0.07em; color: var(--text-muted);
+          font-weight: 700; margin-bottom: 9px;
         }
         .mm-stat-value {
-          font-size: 36px;
-          font-weight: 600;
-          letter-spacing: -0.026em;
-          color: var(--text-primary);
-          line-height: 1.1;
+          font-size: 28px; font-weight: 700;
+          letter-spacing: -0.025em; color: var(--text-primary);
+          line-height: 1.05; font-variant-numeric: tabular-nums;
         }
         .mm-stat-suffix {
-          font-size: 16px; font-weight: 500;
-          color: var(--text-secondary);
-          margin-left: 4px;
+          font-size: 14px; font-weight: 500;
+          color: var(--text-secondary); margin-left: 5px;
         }
 
         /* ── TOKENS SECTION ── */
         .mm-tokens {
-          padding: 100px 22px;
-          background: ${isDark ? 'var(--bg-secondary)' : 'var(--bg-tertiary)'};
+          padding: 88px 24px 100px;
+          background: var(--bg-primary);
         }
         .mm-tokens-inner { max-width: 1180px; margin: 0 auto; }
         .mm-section-head {
           display: flex; justify-content: space-between; align-items: flex-end;
           gap: 24px; flex-wrap: wrap;
-          margin-bottom: 48px;
+          margin-bottom: 36px;
         }
         .mm-section-title {
-          font-size: clamp(36px, 4vw, 48px);
-          font-weight: 600;
-          letter-spacing: -0.032em;
-          line-height: 1.0833;
-          color: var(--text-primary);
-          margin: 0 0 10px;
+          font-size: clamp(28px, 3vw, 38px);
+          font-weight: 700; letter-spacing: -0.03em;
+          line-height: 1.1; color: var(--text-primary);
+          margin: 0 0 8px;
         }
         .mm-section-sub {
-          font-size: 19px;
-          color: var(--text-secondary);
-          margin: 0;
+          font-size: 16px; color: var(--text-secondary); margin: 0;
         }
-        .mm-controls {
-          display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-        }
+        .mm-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         .mm-search {
-          background: ${isDark ? 'var(--bg-hover)' : 'var(--bg-primary)'};
+          background: var(--bg-secondary);
           border: 1.5px solid var(--border);
-          border-radius: 10px;
-          padding: 9px 16px 9px 38px;
-          font-size: 14px;
-          color: var(--text-primary);
-          outline: none;
-          width: 260px;
+          border-radius: 11px;
+          padding: 10px 16px 10px 38px;
+          font-size: 14px; color: var(--text-primary);
+          outline: none; width: 240px;
           transition: border-color 0.15s, box-shadow 0.15s;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: 13px center;
+          background-repeat: no-repeat; background-position: 13px center;
           font-family: inherit;
         }
-        .mm-search:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-light);
-        }
+        .mm-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
         .mm-search::placeholder { color: var(--text-muted); }
         .mm-sort {
-          background: ${isDark ? 'var(--bg-hover)' : 'var(--bg-primary)'};
+          background: var(--bg-secondary);
           border: 1.5px solid var(--border);
-          border-radius: 10px;
-          padding: 9px 36px 9px 16px;
-          font-size: 14px;
-          color: var(--text-primary);
-          cursor: pointer;
-          outline: none;
-          appearance: none;
-          -webkit-appearance: none;
+          border-radius: 11px;
+          padding: 10px 36px 10px 16px;
+          font-size: 14px; color: var(--text-primary);
+          cursor: pointer; outline: none;
+          appearance: none; -webkit-appearance: none;
           font-family: inherit;
           transition: border-color 0.15s, box-shadow 0.15s;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 14px center;
+          background-repeat: no-repeat; background-position: right 14px center;
         }
-        .mm-sort:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-light);
-        }
+        .mm-sort:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
 
         /* ── TOKEN CARDS ── */
         .mm-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
           gap: 16px;
         }
         .mm-card {
-          background: ${isDark ? 'var(--bg-tertiary)' : 'var(--bg-primary)'};
+          background: var(--bg-primary);
           border: 1px solid var(--border);
           border-radius: 16px;
-          padding: 22px;
-          display: flex; flex-direction: column; gap: 18px;
+          padding: 20px;
+          display: flex; flex-direction: column; gap: 16px;
           cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-          transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+          transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
         }
         .mm-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 28px rgba(0,0,0,${isDark ? '0.35' : '0.10'}), 0 3px 8px rgba(0,0,0,${isDark ? '0.25' : '0.06'});
-          border-color: var(--border-secondary);
+          transform: translateY(-3px);
+          box-shadow: 0 14px 32px rgba(0,0,0,${isDark ? '0.4' : '0.11'}), 0 4px 10px rgba(0,0,0,${isDark ? '0.3' : '0.06'});
+          border-color: var(--accent);
         }
-        .mm-card-head { display: flex; align-items: center; gap: 14px; }
+        .mm-card-head { display: flex; align-items: center; gap: 13px; }
         .mm-card-icon {
-          width: 44px; height: 44px;
-          border-radius: 50%;
+          width: 44px; height: 44px; border-radius: 12px;
           display: flex; align-items: center; justify-content: center;
-          font-size: 16px; font-weight: 600; color: #fff;
-          flex-shrink: 0;
-          letter-spacing: -0.01em;
+          font-size: 16px; font-weight: 700; color: #fff;
+          flex-shrink: 0; letter-spacing: -0.01em;
         }
         .mm-card-name-wrap { flex: 1; min-width: 0; }
         .mm-card-name {
-          font-size: 17px; font-weight: 600;
-          letter-spacing: -0.012em;
+          font-size: 16px; font-weight: 700; letter-spacing: -0.012em;
           color: var(--text-primary);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
           line-height: 1.2;
         }
-        .mm-card-symbol {
-          font-size: 13px; color: var(--text-muted);
-          font-weight: 400; margin-top: 2px;
-        }
+        .mm-card-symbol { font-size: 12.5px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
         .mm-card-badge {
-          font-size: 12px; font-weight: 600;
-          padding: 4px 10px; border-radius: 980px;
-          flex-shrink: 0;
+          font-size: 12px; font-weight: 700;
+          padding: 4px 9px; border-radius: 7px; flex-shrink: 0;
         }
         .mm-card-stats {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-          padding: 16px 0;
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
+          display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+          padding: 15px; margin: 0 -2px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
         }
         .mm-card-stat-label {
-          font-size: 10px; font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 5px;
+          font-size: 10px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
         }
         .mm-card-stat-value {
-          font-size: 18px; font-weight: 600;
-          color: var(--text-primary);
-          letter-spacing: -0.014em;
-          line-height: 1.1;
+          font-size: 16px; font-weight: 700; color: var(--text-primary);
+          letter-spacing: -0.014em; line-height: 1.1;
+          font-variant-numeric: tabular-nums;
         }
         .mm-card-foot {
-          display: flex; align-items: center; justify-content: space-between;
-          gap: 10px;
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
         }
         .mm-card-creator {
-          font-size: 11px;
-          color: var(--text-muted);
-          font-family: -apple-system-mono, 'SF Mono', ui-monospace, monospace;
-          cursor: pointer;
-          transition: color 0.15s;
+          font-size: 11.5px; color: var(--text-muted);
+          font-family: 'SF Mono', ui-monospace, monospace;
+          cursor: pointer; transition: color 0.15s;
         }
         .mm-card-creator:hover { color: var(--text-secondary); }
         .mm-card-trade {
-          background: var(--accent);
-          color: #fff;
-          border: none;
-          padding: 8px 18px;
-          border-radius: 980px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s, opacity 0.15s;
+          background: var(--accent); color: #fff; border: none;
+          padding: 8px 18px; border-radius: 9px;
+          font-size: 13px; font-weight: 600;
+          cursor: pointer; transition: background 0.15s;
           font-family: inherit;
         }
-        .mm-card-trade:hover {
-          background: var(--accent-hover);
-        }
+        .mm-card-trade:hover { background: var(--accent-hover); }
 
         .mm-empty {
-          text-align: center; padding: 80px 20px;
-          color: var(--text-muted); font-size: 16px;
+          text-align: center; padding: 72px 20px;
+          color: var(--text-muted); font-size: 15px;
+          border: 1px dashed var(--border); border-radius: 16px;
         }
 
         /* ── FOOTER ── */
         .mm-footer {
           background: var(--bg-secondary);
           border-top: 1px solid var(--border);
-          padding: 56px 22px 28px;
+          padding: 54px 24px 26px;
         }
-        .mm-footer-inner { max-width: 1140px; margin: 0 auto; }
+        .mm-footer-inner { max-width: 1180px; margin: 0 auto; }
         .mm-footer-top {
-          padding-bottom: 36px;
-          border-bottom: 1px solid var(--border);
-          display: grid;
-          grid-template-columns: 2fr 1fr 1fr 1fr;
-          gap: 48px;
+          padding-bottom: 34px; border-bottom: 1px solid var(--border);
+          display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 44px;
         }
         .mm-footer-brand {
-          font-size: 17px; font-weight: 600;
-          letter-spacing: -0.022em;
-          color: var(--text-primary);
-          margin-bottom: 10px;
-          display: flex; align-items: center; gap: 8px;
+          font-size: 17px; font-weight: 700; letter-spacing: -0.022em;
+          color: var(--text-primary); margin-bottom: 10px;
+          display: flex; align-items: center; gap: 9px;
         }
         .mm-footer-desc {
-          font-size: 13px;
-          color: var(--text-secondary);
-          line-height: 1.55;
-          max-width: 320px;
+          font-size: 13px; color: var(--text-secondary);
+          line-height: 1.55; max-width: 300px;
         }
         .mm-footer-section h4 {
-          font-size: 12px; font-weight: 600;
-          color: var(--text-secondary);
+          font-size: 12px; font-weight: 700; color: var(--text-primary);
           margin: 0 0 14px;
         }
         .mm-footer-section ul { list-style: none; margin: 0; padding: 0; }
         .mm-footer-section li { margin-bottom: 10px; }
         .mm-footer-section a {
-          font-size: 12px;
-          color: var(--text-secondary);
-          text-decoration: none;
-          transition: color 0.15s;
+          font-size: 13px; color: var(--text-secondary);
+          text-decoration: none; transition: color 0.15s;
         }
         .mm-footer-section a:hover { color: var(--text-primary); }
         .mm-footer-bottom {
           padding-top: 22px;
           display: flex; justify-content: space-between; align-items: center;
-          font-size: 12px;
-          color: var(--text-muted);
+          font-size: 12px; color: var(--text-muted);
           flex-wrap: wrap; gap: 16px;
         }
-        .mm-footer-bottom a {
-          color: var(--text-muted);
-          text-decoration: none;
-          margin-left: 24px;
-        }
+        .mm-footer-bottom a { color: var(--text-muted); text-decoration: none; margin-left: 22px; }
         .mm-footer-bottom a:hover { color: var(--text-secondary); }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 900px) {
-          .mm-stats-inner { grid-template-columns: repeat(2, 1fr); gap: 28px; }
+          .mm-hero-inner { grid-template-columns: 1fr; gap: 44px; }
+          .mm-hero-visual { max-width: 420px; }
+          .mm-stats-panel { grid-template-columns: repeat(2, 1fr); }
+          .mm-stat:nth-child(2) { border-right: none; }
+          .mm-stat:nth-child(1), .mm-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
           .mm-nav-links { display: none; }
-          .mm-footer-top { grid-template-columns: 1fr 1fr; gap: 36px; }
+          .mm-footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
         }
         @media (max-width: 600px) {
-          .mm-hero { padding: 80px 18px 60px; }
-          .mm-tokens { padding: 60px 18px; }
+          .mm-hero { padding: 52px 18px 84px; }
+          .mm-tokens { padding: 60px 18px 72px; }
+          .mm-stats-panel { grid-template-columns: 1fr; }
+          .mm-stat { border-right: none; border-bottom: 1px solid var(--border); }
+          .mm-stat:last-child { border-bottom: none; }
           .mm-controls { width: 100%; }
           .mm-search { flex: 1; width: auto; }
           .mm-footer-top { grid-template-columns: 1fr; }
@@ -543,7 +643,7 @@ const HomePage: React.FC = () => {
         <header className="mm-header">
           <div className="mm-nav">
             <Link to="/" className="mm-logo">
-              <div className="mm-logo-dot" />
+              <div className="mm-logo-mark">M</div>
               MoveMint
             </Link>
             <ul className="mm-nav-links">
@@ -560,40 +660,144 @@ const HomePage: React.FC = () => {
           </div>
         </header>
 
+        {/* ── LIVE TICKER ── */}
+        {tickerItems.length > 0 && (
+          <div className="mm-ticker">
+            <div className="mm-ticker-track">
+              {[...tickerItems, ...tickerItems].map((t, i) => (
+                <span className="mm-ticker-item" key={i}>
+                  <span className="mm-ticker-dot" />
+                  <span className="mm-ticker-sym">{symbolWithDollar(t.symbol)}</span>
+                  <span className="mm-ticker-price">{priceLabel(t)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── HERO ── */}
         <section className="mm-hero">
+          <div className="mm-hero-bg" />
           <div className="mm-hero-inner">
-            <div className="mm-eyebrow">MoveMint</div>
-            <h1 className="mm-hero-title">
-              Token launching,<br />
-              <span className="accent">reimagined.</span>
-            </h1>
-            <p className="mm-hero-sub">
-              Built on Aptos. Designed for speed. Launch a token in seconds — no code, no fuss, just markets.
-            </p>
-            <div className="mm-hero-actions">
-              <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
-              <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
+            {/* Copy */}
+            <div className="mm-hero-copy">
+              <div className="mm-badge">
+                <span className="mm-badge-dot" />
+                Live on Aptos testnet
+              </div>
+              <h1 className="mm-hero-title">
+                The token engine<br />
+                built for <span className="accent">serious markets.</span>
+              </h1>
+              <p className="mm-hero-sub">
+                Launch, price, and trade tokens on Aptos with a bonding curve that
+                works the moment you deploy. No code. No setup. Just markets.
+              </p>
+              <div className="mm-hero-actions">
+                <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
+                <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
+              </div>
+              <div className="mm-hero-trust">
+                <span><span className="check">✓</span> Instant liquidity</span>
+                <span><span className="check">✓</span> 0% launch fee</span>
+                <span><span className="check">✓</span> Non-custodial</span>
+              </div>
+            </div>
+
+            {/* Product preview card */}
+            <div className="mm-hero-visual">
+              <div className="mm-preview-glow" />
+              <div
+                className="mm-preview-card"
+                onClick={() => featured ? handleTradeClick(featured) : navigate('/marketplace')}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="mm-preview-head">
+                  {featured && featured.image ? (
+                    <img
+                      src={featured.image}
+                      alt={featured.symbol}
+                      className="mm-preview-icon"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="mm-preview-icon" style={{ background: getIconBg(featured?.symbol || 'M') }}>
+                      {(featured?.symbol || 'M').replace('$', '').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <div className="mm-preview-name">{featured?.name || 'Your token, live'}</div>
+                    <div className="mm-preview-sym">{symbolWithDollar(featured?.symbol || 'MINT')}</div>
+                  </div>
+                  <div className="mm-preview-tag">Live</div>
+                </div>
+
+                <div className="mm-preview-price">
+                  {featured ? priceLabel(featured) : '$0.0021'}
+                </div>
+                <div
+                  className="mm-preview-change"
+                  style={{ color: featuredUp ? 'var(--positive)' : 'var(--negative)' }}
+                >
+                  {featuredUp ? '▲' : '▼'}{' '}
+                  {featured?.change24h != null
+                    ? `${Math.abs(featured.change24h).toFixed(2)}% · 24h`
+                    : 'Bonding curve active'}
+                </div>
+
+                <svg className="mm-preview-chart" viewBox="0 0 320 120" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="mm-chart-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent)" stopOpacity={isDark ? '0.34' : '0.22'} />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={chartArea} fill="url(#mm-chart-fill)" />
+                  <path
+                    d={chartLine}
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+
+                <div className="mm-preview-actions">
+                  <button
+                    className="mm-preview-buy"
+                    onClick={e => { e.stopPropagation(); featured ? handleTradeClick(featured) : navigate('/marketplace'); }}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    className="mm-preview-sell"
+                    onClick={e => { e.stopPropagation(); featured ? handleTradeClick(featured) : navigate('/marketplace'); }}
+                  >
+                    Sell
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ── STATS ── */}
+        {/* ── STATS PANEL ── */}
         <section className="mm-stats">
-          <div className="mm-stats-inner">
-            <div>
+          <div className="mm-stats-panel">
+            <div className="mm-stat">
               <div className="mm-stat-label">Tokens launched</div>
               <div className="mm-stat-value">{rawTokens.length}</div>
             </div>
-            <div>
+            <div className="mm-stat">
               <div className="mm-stat-label">24h volume</div>
               <div className="mm-stat-value">{totalVolume24h > 0 ? formatBig(totalVolume24h) : '$0'}</div>
             </div>
-            <div>
+            <div className="mm-stat">
               <div className="mm-stat-label">Total market cap</div>
               <div className="mm-stat-value">{totalMarketCap > 0 ? formatBig(totalMarketCap) : '$0'}</div>
             </div>
-            <div>
+            <div className="mm-stat">
               <div className="mm-stat-label">Network</div>
               <div className="mm-stat-value">Aptos<span className="mm-stat-suffix">testnet</span></div>
             </div>
@@ -605,8 +809,8 @@ const HomePage: React.FC = () => {
           <div className="mm-tokens-inner">
             <div className="mm-section-head">
               <div>
-                <h2 className="mm-section-title">Live on MoveMint.</h2>
-                <p className="mm-section-sub">Real-time markets, sorted by you.</p>
+                <h2 className="mm-section-title">Live markets</h2>
+                <p className="mm-section-sub">Every token below is trading right now on a live bonding curve.</p>
               </div>
               <div className="mm-controls">
                 <input
@@ -644,11 +848,11 @@ const HomePage: React.FC = () => {
                   const isPos = change != null && change >= 0;
                   const badgeColor = change == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
                   const badgeBg = change == null
-                    ? 'transparent'
+                    ? 'var(--bg-secondary)'
                     : isPos
-                      ? (isDark ? 'rgba(48,209,88,0.15)' : 'rgba(15,111,78,0.10)')
-                      : (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.10)');
-                  const displaySymbol = token.symbol.startsWith('$') ? token.symbol : `$${token.symbol}`;
+                      ? (isDark ? 'rgba(16,185,129,0.16)' : 'rgba(5,150,105,0.10)')
+                      : (isDark ? 'rgba(255,69,58,0.16)' : 'rgba(215,0,21,0.10)');
+                  const displaySymbol = symbolWithDollar(token.symbol);
 
                   return (
                     <div key={i} className="mm-card" onClick={() => handleTradeClick(token)}>
@@ -670,20 +874,15 @@ const HomePage: React.FC = () => {
                           <div className="mm-card-name">{token.name}</div>
                           <div className="mm-card-symbol">{displaySymbol}</div>
                         </div>
-                        <div
-                          className="mm-card-badge"
-                          style={{ color: badgeColor, background: badgeBg }}
-                        >
-                          {change == null ? '—' : `${isPos ? '↑' : '↓'} ${Math.abs(change).toFixed(2)}%`}
+                        <div className="mm-card-badge" style={{ color: badgeColor, background: badgeBg }}>
+                          {change == null ? 'New' : `${isPos ? '↑' : '↓'} ${Math.abs(change).toFixed(2)}%`}
                         </div>
                       </div>
 
                       <div className="mm-card-stats">
                         <div>
                           <div className="mm-card-stat-label">Price</div>
-                          <div className="mm-card-stat-value">
-                            {token.priceUSD != null ? formatPrice(token.priceUSD) : `${(token.price || 0).toFixed(6)} APT`}
-                          </div>
+                          <div className="mm-card-stat-value">{priceLabel(token)}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div className="mm-card-stat-label">Market cap</div>
@@ -724,7 +923,7 @@ const HomePage: React.FC = () => {
             <div className="mm-footer-top">
               <div>
                 <div className="mm-footer-brand">
-                  <div className="mm-logo-dot" /> MoveMint
+                  <div className="mm-logo-mark">M</div> MoveMint
                 </div>
                 <p className="mm-footer-desc">
                   A token launchpad built for the Aptos network. Launch in seconds, trade instantly.
