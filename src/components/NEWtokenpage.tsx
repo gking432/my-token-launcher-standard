@@ -4,7 +4,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time, ColorType } from "lightweight-charts";
-import GlobalSidebar from './GlobalSidebar';
+
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
@@ -15,7 +15,6 @@ import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
 import { useQueryClient } from '@tanstack/react-query';
 
-console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
   devnet: MODULE_ADDRESS,
@@ -29,7 +28,7 @@ const TokenPage: React.FC = () => {
   const { coinHash } = useParams<{ coinHash?: string }>();
   const { account, signAndSubmitTransaction, connect, wallets, disconnect } = useWallet();
   const [tokenDetails, setTokenDetails] = useState<TokenDetails | null>(null);
-  const { isDark, theme: t } = useTheme();
+  const { isDark, theme: t, toggleTheme } = useTheme();
 
   // Use the shared token data hook
   const { tokens, loading: tokensLoading } = useTokenData();
@@ -621,7 +620,7 @@ const TokenPage: React.FC = () => {
 
   // Helper function to get percentage change color
   const getPercentageColor = (percentage: string) => {
-    if (percentage.startsWith('+')) return '#00d4aa'; // Green for positive
+    if (percentage.startsWith('+')) return t.accent; // Green for positive
     if (percentage.startsWith('-')) return '#ff6b6b'; // Red for negative
     return '#5b616e'; // Default color for neutral
   };
@@ -878,12 +877,12 @@ const TokenPage: React.FC = () => {
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#00d4aa',
-      downColor: '#ff4757',
-      borderUpColor: '#00d4aa',
-      borderDownColor: '#ff4757',
-      wickUpColor: '#00d4aa',
-      wickDownColor: '#ff4757',
+      upColor: t.accent,
+      downColor: t.negative,
+      borderUpColor: t.accent,
+      borderDownColor: t.negative,
+      wickUpColor: t.accent,
+      wickDownColor: t.negative,
       priceFormat: {
         type: 'custom',
         formatter: (price: number) => {
@@ -899,7 +898,7 @@ const TokenPage: React.FC = () => {
     });
 
     const volSeries = chart.addHistogramSeries({
-      color: '#00d4aa',
+      color: t.accent,
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     });
@@ -953,7 +952,7 @@ const TokenPage: React.FC = () => {
     volumeSeriesRef.current.setData(displayCandles.map(c => ({
       time: c.time as Time,
       value: c.volume,
-      color: c.close >= c.open ? '#00d4aa44' : '#ff475744',
+      color: c.close >= c.open ? t.accent + '44' : t.negative + '44',
     })));
 
     chartRef.current?.timeScale().fitContent();
@@ -1049,1567 +1048,744 @@ const TokenPage: React.FC = () => {
   const justLaunched = !!(location.state as any)?.creationDate &&
     Date.now() - ((location.state as any).creationDate * 1000 || 0) < 5 * 60_000;
 
+
+  const symbolWithDollar = (s: string) => (s.startsWith('$') ? s : `$${s}`);
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100vh',
-      width: '100vw',
-      fontFamily: "'Inter', sans-serif",
-      margin: 0,
-      padding: 0,
-      overflow: 'visible',
-      background: t.bgPrimary,
-      color: t.textPrimary,
-      transition: 'background 0.2s ease, color 0.2s ease',
-    }}>
-      {justLaunched && (
-        <div style={{
-          background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-          color: '#fff',
-          textAlign: 'center',
-          padding: '10px 16px',
-          fontSize: '14px',
-          fontWeight: 600,
-          letterSpacing: '0.01em',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-        }}>
-          🚀 Your token is live! Share the link and be the first to trade.
-        </div>
-      )}
-      {/* Header */}
-      {/* Token Leaderboard - Commented out for future CTA */}
-      {/* <div style={{
-        background: '#ffffff',
-        borderBottom: '1px solid #e7ebee',
-        padding: headerMinimized ? '4px 24px' : '8px 24px',
-        width: '100%',
-        flexShrink: 0,
-        position: 'relative',
-        transition: 'all 0.3s ease',
-        height: headerMinimized ? '30px' : 'auto',
-        overflow: headerMinimized ? 'hidden' : 'visible'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginBottom: headerMinimized ? '0' : '8px'
-        }}>
-          <div style={{
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#5b616e',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            TOKEN LEADERBOARD
+    <>
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .tp-page { width: 100%; min-height: 100vh; background: var(--bg-primary); }
+
+        /* ── HEADER ── */
+        .tp-header {
+          position: sticky; top: 0; z-index: 100; height: 56px;
+          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.78)'};
+          backdrop-filter: saturate(180%) blur(20px);
+          -webkit-backdrop-filter: saturate(180%) blur(20px);
+          border-bottom: 1px solid var(--border);
+        }
+        .tp-nav {
+          max-width: 1280px; margin: 0 auto; height: 100%;
+          padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .tp-logo {
+          display: flex; align-items: center; gap: 9px;
+          font-size: 19px; font-weight: 700; letter-spacing: -0.025em;
+          color: var(--text-primary); text-decoration: none;
+        }
+        .tp-logo-mark {
+          width: 26px; height: 26px; border-radius: 8px;
+          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 14px; font-weight: 800;
+          box-shadow: 0 2px 8px rgba(5,150,105,0.35);
+        }
+        .tp-nav-links {
+          display: flex; gap: 30px; list-style: none; margin: 0; padding: 0;
+        }
+        .tp-nav-links a {
+          font-size: 14px; font-weight: 500; color: var(--text-secondary);
+          text-decoration: none; transition: color 0.15s;
+        }
+        .tp-nav-links a:hover { color: var(--text-primary); }
+        .tp-nav-actions { display: flex; align-items: center; gap: 10px; }
+        .tp-theme-btn {
+          background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;
+          width: 34px; height: 34px; font-size: 14px; line-height: 1;
+          color: var(--text-secondary); border-radius: 9px;
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s;
+        }
+        .tp-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-cta-pill {
+          background: var(--accent); color: #fff; padding: 9px 18px; border-radius: 10px;
+          font-size: 14px; font-weight: 600; text-decoration: none;
+          transition: background 0.15s; box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+        }
+        .tp-cta-pill:hover { background: var(--accent-hover); }
+
+        /* ── BANNER ── */
+        .tp-banner {
+          background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+          color: #fff; text-align: center;
+          padding: 10px 20px; font-size: 13px; font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+
+        /* ── MAIN ── */
+        .tp-main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+
+        /* ── TOKEN HEADER ── */
+        .tp-token-head {
+          display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+          margin-bottom: 28px; padding-bottom: 24px;
+          border-bottom: 1px solid var(--border);
+        }
+        .tp-token-identity { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+        .tp-token-avatar {
+          width: 48px; height: 48px; border-radius: 14px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 20px; font-weight: 800; color: #fff; flex-shrink: 0;
+          object-fit: cover;
+        }
+        .tp-token-label { min-width: 0; }
+        .tp-token-name {
+          font-size: 22px; font-weight: 800; color: var(--text-primary);
+          letter-spacing: -0.025em; line-height: 1.1;
+        }
+        .tp-token-sym { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+
+        .tp-price-block { display: flex; align-items: baseline; gap: 10px; }
+        .tp-price {
+          font-size: 28px; font-weight: 800; color: var(--text-primary);
+          letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+        }
+        .tp-change {
+          font-size: 14px; font-weight: 700;
+          padding: 4px 9px; border-radius: 7px;
+        }
+
+        .tp-head-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+        .tp-head-stat-label {
+          font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px;
+        }
+        .tp-head-stat-value {
+          font-size: 14px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .tp-star-btn {
+          margin-left: auto; background: var(--bg-secondary);
+          border: 1.5px solid var(--border); border-radius: 10px;
+          width: 40px; height: 40px; font-size: 18px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: color 0.15s, border-color 0.15s; flex-shrink: 0;
+          color: var(--text-muted);
+        }
+        .tp-star-btn.starred { color: #f5c518; border-color: #f5c518; }
+        .tp-star-btn:hover { border-color: var(--text-muted); }
+
+        /* ── TWO-COLUMN LAYOUT ── */
+        .tp-layout {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 20px; align-items: start;
+        }
+
+        /* ── CHART AREA ── */
+        .tp-chart-controls {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+        }
+        .tp-tf-group, .tp-mode-group { display: flex; gap: 4px; }
+        .tp-tf-btn, .tp-mode-btn {
+          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-size: 12.5px; font-weight: 600; cursor: pointer;
+          font-family: inherit; transition: all 0.12s;
+        }
+        .tp-tf-btn:hover, .tp-mode-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-tf-btn.active, .tp-mode-btn.active {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+
+        .tp-chart-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 16px; overflow: hidden; position: relative;
+          box-shadow: 0 1px 4px rgba(0,0,0,${isDark ? '0.3' : '0.05'});
+        }
+        .tp-chart-inner { height: 360px; width: 100%; }
+        .tp-chart-overlay {
+          position: absolute; inset: 0; display: flex;
+          align-items: center; justify-content: center;
+          font-size: 14px; color: var(--text-muted); pointer-events: none;
+          background: var(--bg-primary);
+        }
+
+        /* ── INFO TABS ── */
+        .tp-tabs {
+          display: flex; gap: 0; margin-top: 20px;
+          border-bottom: 1px solid var(--border);
+        }
+        .tp-tab {
+          padding: 10px 20px; font-size: 14px; font-weight: 600;
+          color: var(--text-muted); background: none; border: none; cursor: pointer;
+          border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+          font-family: inherit; transition: color 0.15s, border-color 0.15s;
+        }
+        .tp-tab:hover { color: var(--text-primary); }
+        .tp-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+        .tp-tab-panel { padding: 20px 0; }
+
+        /* Insights grid */
+        .tp-insight-grid {
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+        }
+        .tp-insight-card {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px;
+        }
+        .tp-insight-label {
+          font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px;
+        }
+        .tp-insight-value {
+          font-size: 18px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* Transactions table */
+        .tp-tx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .tp-tx-table thead tr { border-bottom: 1px solid var(--border); }
+        .tp-tx-th {
+          padding: 8px 10px; font-size: 11px; font-weight: 700;
+          color: var(--text-muted); text-transform: uppercase;
+          letter-spacing: 0.06em; text-align: left;
+        }
+        .tp-tx-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+        .tp-tx-table tbody tr:last-child { border-bottom: none; }
+        .tp-tx-table tbody tr:hover { background: var(--bg-hover); }
+        .tp-tx-td { padding: 10px 10px; vertical-align: middle; font-variant-numeric: tabular-nums; }
+        .tp-tx-you {
+          font-size: 10px; font-weight: 700; background: var(--accent);
+          color: #fff; padding: 2px 7px; border-radius: 5px; margin-left: 6px;
+        }
+
+        /* ── TRADING PANEL ── */
+        .tp-right { display: flex; flex-direction: column; gap: 14px; }
+
+        .tp-trade-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 18px; padding: 20px; position: sticky; top: 72px;
+          box-shadow: 0 4px 14px rgba(0,0,0,${isDark ? '0.35' : '0.07'});
+        }
+        .tp-trade-tabs {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 18px;
+        }
+        .tp-trade-tab {
+          padding: 11px; border-radius: 11px; font-size: 15px; font-weight: 700;
+          cursor: pointer; border: 1.5px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-family: inherit; transition: all 0.15s;
+        }
+        .tp-trade-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-trade-tab.buy-active {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+          box-shadow: 0 3px 12px rgba(5,150,105,0.3);
+        }
+        .tp-trade-tab.sell-active {
+          background: var(--negative); color: #fff; border-color: var(--negative);
+        }
+
+        .tp-balance {
+          font-size: 12.5px; color: var(--text-muted); font-weight: 600;
+          margin-bottom: 14px; padding: 10px 14px;
+          background: var(--bg-secondary); border-radius: 10px;
+        }
+        .tp-balance strong { color: var(--text-primary); }
+
+        .tp-field { margin-bottom: 12px; }
+        .tp-field-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;
+          display: block;
+        }
+        .tp-input {
+          width: 100%; background: var(--bg-secondary); border: 1.5px solid var(--border);
+          border-radius: 11px; padding: 12px 14px; font-size: 16px;
+          color: var(--text-primary); outline: none; font-family: inherit;
+          transition: border-color 0.15s, box-shadow 0.15s; font-variant-numeric: tabular-nums;
+        }
+        .tp-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .tp-input::placeholder { color: var(--text-muted); }
+        .tp-total-val {
+          width: 100%; padding: 12px 14px; font-size: 16px;
+          font-weight: 600; color: var(--text-primary);
+          background: var(--bg-secondary); border-radius: 11px;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .tp-slippage-header {
+          display: flex; align-items: center; justify-content: space-between;
+          margin: 14px 0 0;
+        }
+        .tp-slippage-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em;
+        }
+        .tp-slippage-toggle {
+          background: none; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 600; color: var(--accent);
+          font-family: inherit; padding: 0;
+        }
+        .tp-slippage-options {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px;
+        }
+        .tp-slip-btn {
+          padding: 8px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+          cursor: pointer; border: 1.5px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-family: inherit; transition: all 0.12s;
+        }
+        .tp-slip-btn:hover { background: var(--bg-hover); }
+        .tp-slip-btn.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+        .tp-impact-warn {
+          margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+          font-size: 12.5px; font-weight: 600;
+        }
+
+        .tp-trade-action {
+          width: 100%; padding: 14px; border-radius: 12px;
+          font-size: 16px; font-weight: 700; cursor: pointer;
+          border: none; font-family: inherit; margin-top: 14px;
+          transition: filter 0.15s, transform 0.1s;
+        }
+        .tp-trade-action:active { transform: scale(0.98); }
+        .tp-trade-action.buy { background: var(--accent); color: #fff; box-shadow: 0 4px 16px rgba(5,150,105,0.3); }
+        .tp-trade-action.buy:hover { filter: brightness(1.06); }
+        .tp-trade-action.sell { background: var(--negative); color: #fff; }
+        .tp-trade-action.sell:hover { filter: brightness(0.92); }
+        .tp-trade-action.disabled { background: var(--bg-secondary); color: var(--text-muted); cursor: not-allowed; }
+
+        /* ── TOKEN INFO CARD ── */
+        .tp-info-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 16px; padding: 18px;
+        }
+        .tp-info-title {
+          font-size: 12px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px;
+        }
+        .tp-info-row {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border);
+          font-size: 13px;
+        }
+        .tp-info-row:last-child { border-bottom: none; }
+        .tp-info-key { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        .tp-info-val { color: var(--text-primary); font-weight: 600; text-align: right; min-width: 0; }
+        .tp-ca-row { display: flex; align-items: center; gap: 8px; }
+        .tp-ca-code {
+          font-family: 'SF Mono', ui-monospace, monospace;
+          font-size: 12px; color: var(--text-secondary);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tp-copy-btn {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 7px; padding: 4px 10px; font-size: 11px;
+          font-weight: 700; cursor: pointer; color: var(--text-secondary);
+          font-family: inherit; transition: background 0.12s, color 0.12s; flex-shrink: 0;
+        }
+        .tp-copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1000px) {
+          .tp-layout { grid-template-columns: 1fr; }
+          .tp-trade-card { position: static; }
+          .tp-right { order: -1; }
+        }
+        @media (max-width: 700px) {
+          .tp-main { padding: 20px 16px 60px; }
+          .tp-token-head { gap: 12px; }
+          .tp-head-stats { display: none; }
+          .tp-nav-links { display: none; }
+          .tp-tf-group .tp-tf-btn:nth-child(n+5) { display: none; }
+        }
+      `}</style>
+
+      <div className="tp-page">
+        {/* ── HEADER ── */}
+        <header className="tp-header">
+          <div className="tp-nav">
+            <a href="/" className="tp-logo">
+              <div className="tp-logo-mark">M</div>
+              MoveMint
+            </a>
+            <ul className="tp-nav-links">
+              <li><a href="/marketplace">Marketplace</a></li>
+              <li><a href="/launch">Launch</a></li>
+              {account && <li><a href={`/profile/${account.address}`}>Profile</a></li>}
+            </ul>
+            <div className="tp-nav-actions">
+              <button className="tp-theme-btn" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
+                {isDark ? '☀' : '☾'}
+              </button>
+              <a href="/launch" className="tp-cta-pill">Launch token</a>
+            </div>
           </div>
-                            <div style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#00d4aa'
-                  }}>
-                    1:00
-                  </div>
-                  
+        </header>
 
-        </div>
-        <div style={{
-          display: 'flex',
-          gap: '0px',
-          overflowX: 'auto',
-          paddingBottom: '4px',
-          width: '100%',
-          justifyContent: 'space-between',
-          opacity: headerMinimized ? '0' : '1',
-          transition: 'opacity 0.3s ease'
-        }}>
-          {[
-            { rank: 1, name: 'DogeMax', apt: 420, icon: '₿', iconBg: '#f7931a' },
-            { rank: 2, name: 'PepeCoin', apt: 234, icon: 'Ξ', iconBg: '#627eea' },
-            { rank: 3, name: 'ShibaMax', apt: 189, icon: '₮', iconBg: '#50af95' },
-            { rank: 4, name: 'FlokiInu', apt: 156, icon: '◉', iconBg: '#f0b90b' },
-            { rank: 5, name: 'SafeMoon', apt: 123, icon: '◆', iconBg: '#1e88e5' },
-            { rank: 6, name: 'MoonToken', apt: 98, icon: '🌸', iconBg: '#e91e63' },
-            { rank: 7, name: 'LunaCoin', apt: 87, icon: '🌙', iconBg: '#9c27b0' },
-            { rank: 8, name: 'FireToken', apt: 76, icon: '🔥', iconBg: '#ff5722' },
-            { rank: 9, name: 'EcoCoin', apt: 65, icon: '🌿', iconBg: '#4caf50' },
-            { rank: 10, name: 'Diamond', apt: 54, icon: '💎', iconBg: '#2196f3' }
-          ].map((token) => (
-            <div
-              key={token.rank}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                flex: 1,
-                minWidth: 0
-              }}
-              onClick={() => handleTokenSelect(token)}
-            >
-              <span style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#5b616e',
-                minWidth: '16px'
-              }}>
-                {token.rank}
-              </span>
-              <div
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  background: token.iconBg
-                }}
-              >
-                {token.icon}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#0a0b0d',
-                  lineHeight: '1.2',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {token.name}
-                </div>
-                <div style={{
-                  fontSize: '10px',
-                  color: '#5b616e',
-                  marginTop: '1px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {token.apt} APT
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* ── JUST LAUNCHED BANNER ── */}
+        {justLaunched && (
+          <div className="tp-banner">
+            Token just launched — you're early. Be the first buyer.
+          </div>
+        )}
 
-        Toggle Button
-        <button
-          onClick={handleHeaderToggle}
-          style={{
-            position: 'absolute',
-            bottom: '2px',
-            right: '10px',
-            background: '#ffffff',
-            border: '0px solid #d3d3d3',
-            borderRadius: '4px',
-            padding: '6px 12px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            color: headerMinimized ? '#00d4aa' : '#878788',
-            transition: 'all 0.2s ease',
-            zIndex: 10
-          }}
-        >
-          {headerMinimized ? 'View Token Leaderboard' : '__'}
-        </button>
-      </div> */}
-      
-      {/* Main Layout */}
-      <div style={{
-        display: 'flex',
-        flex: 1,
-        width: '100%',
-        overflow: 'visible',
-        alignSelf: 'stretch',
-        minHeight: '100%',
-        position: 'relative',
-        background: t.bgPrimary
-      }}>
-        {/* Sidebar */}
-        <div style={{
-          position: 'relative',
-          alignSelf: 'stretch',
-          minHeight: '100%'
-        }}>
-          <GlobalSidebar 
-            activeTab="trade"
-          />
-        </div>
-
-        {/* Main Content */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0,
-          width: '100%',
-          background: t.bgPrimary,
-        }}>
-          {/* Token Title Bar */}
-          <div style={{
-            background: t.bgPrimary,
-            borderBottom: `1px solid ${t.border}`,
-            padding: '14px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div style={{
-              fontSize: '22px',
-              fontWeight: 700,
-              color: t.textPrimary,
-              flexShrink: 0,
-              letterSpacing: '-0.3px',
-            }}>
-                              {tokenDetails ? tokenDetails.name.replace('$', '') : 'Token Page'}
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              fontSize: '14px',
-              flexShrink: 0
-            }}>
-              <span>⚙️</span>
-              <a href="#" style={{
-                color: '#5b616e',
-                textDecoration: 'none'
-              }}>
-                Launch
-              </a>
-              {account ? (
-                <div style={{ position: 'relative' }} data-wallet-dropdown>
-                  <button
-                    onClick={toggleWalletDropdown}
-                    style={{
-                      background: '#00d4aa',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <span style={{ fontSize: '12px' }}>
-                      {String(account.address).slice(0, 6)}...{String(account.address).slice(-4)}
-                    </span>
-                  </button>
-                  
-                  {walletDropdownOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      right: 0,
-                      background: 'white',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                      zIndex: 1000,
-                      minWidth: '200px',
-                      marginTop: '4px'
-                    }}>
-                      <button
-                        onClick={() => {
-                          // Navigate to profile
-                          window.location.href = `/profile/${account.address}`;
-                          setWalletDropdownOpen(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: t.textPrimary,
-                          borderBottom: `1px solid ${t.border}`
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        👤 Profile
-                      </button>
-                      <button
-                        onClick={handleDisconnect}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: t.negative
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        🚪 Disconnect
-                      </button>
-                    </div>
-                  )}
-                </div>
+        <main className="tp-main">
+          {/* ── TOKEN IDENTITY HEADER ── */}
+          <div className="tp-token-head">
+            <div className="tp-token-identity">
+              {catalogRow?.image ? (
+                <img
+                  src={catalogRow.image}
+                  alt={tokenDetails?.symbol}
+                  className="tp-token-avatar"
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
               ) : (
-                <div style={{
-                  display: 'flex',
-                  gap: '8px'
-                }}>
-                  {wallets.map((wallet: any) => (
-                    <button
-                      key={wallet.name}
-                      onClick={() => connect(wallet.name)}
-                      style={{
-                        background: '#00d4aa',
-                        color: 'white',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Connect Wallet
-                    </button>
-                  ))}
+                <div className="tp-token-avatar" style={{ background: tokenAvatarBg }}>
+                  {(tokenDetails?.symbol || '?').replace('$', '').charAt(0).toUpperCase()}
                 </div>
               )}
+              <div className="tp-token-label">
+                <div className="tp-token-name">{tokenDetails?.name || 'Loading…'}</div>
+                <div className="tp-token-sym">{tokenDetails?.symbol ? symbolWithDollar(tokenDetails.symbol) : '—'}</div>
+              </div>
             </div>
+
+            <div>
+              <div className="tp-price-block">
+                <div className="tp-price">{formatCurrentPrice()}</div>
+                {tokenData?.change24h != null && (
+                  <span
+                    className="tp-change"
+                    style={{
+                      color: tokenData.change24h >= 0 ? 'var(--positive)' : 'var(--negative)',
+                      background: tokenData.change24h >= 0
+                        ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.10)')
+                        : (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.10)'),
+                    }}
+                  >
+                    {tokenData.change24h >= 0 ? '+' : ''}{tokenData.change24h.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="tp-head-stats">
+              <div>
+                <div className="tp-head-stat-label">Market cap</div>
+                <div className="tp-head-stat-value">{formatLargeNumber(tokenData?.marketCapUSD)}</div>
+              </div>
+              <div>
+                <div className="tp-head-stat-label">APT raised</div>
+                <div className="tp-head-stat-value">
+                  {aptRaised ? `${(aptRaised / 1e8).toFixed(2)} APT` : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="tp-head-stat-label">Holders</div>
+                <div className="tp-head-stat-value">{holderCount ?? '—'}</div>
+              </div>
+            </div>
+
+            <button
+              className={`tp-star-btn${currentTokenInWatchlist ? ' starred' : ''}`}
+              onClick={handleStarClick}
+              title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            >
+              {currentTokenInWatchlist ? '★' : '☆'}
+            </button>
           </div>
 
-          {/* Content Area */}
-          <div style={{
-            display: 'flex',
-            flex: 1,
-            minHeight: 0,
-            width: '100%',
-            overflowY: 'auto',
-            position: 'relative'
-          }}>
-            {/* Content Left */}
-            <div style={{
-              flex: 1,
-              padding: '20px',
-              background: t.bgPrimary,
-              minWidth: 0
-            }}>
-              {/* Token Header */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                marginBottom: '8px',
-                background: t.bgPrimary,
-                width: '100%',
-              }}>
-                {/* Price */}
-                <div style={{
-                  fontSize: '32px',
-                  fontWeight: 700,
-                  color: t.textPrimary,
-                  marginBottom: '4px',
-                  lineHeight: 1,
-                  letterSpacing: '-0.5px',
-                }}>
-                  {formatCurrentPrice()}
-                </div>
-                {/* 24h change */}
-                <div style={{
-                  color: tokenData?.change24h !== undefined
-                    ? (tokenData.change24h >= 0 ? t.positive : t.negative)
-                    : t.textMuted,
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '16px',
-                  fontWeight: 600,
-                  fontSize: '15px',
-                  gap: '4px',
-                }}>
-                  <span>{tokenData?.change24h !== undefined ? (tokenData.change24h >= 0 ? '▲' : '▼') : ''}</span>
-                  <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : t.textMuted ? '' : ''}</span>
-                  {tokenData?.change24h === undefined && <span style={{ color: t.textMuted, fontWeight: 400, fontSize: '13px' }}>24h</span>}
-                </div>
-
-                {/* Controls row: timeframe + mode toggle + actions */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '12px',
-                  width: '100%',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}>
-                  {/* Left: timeframe + chart mode */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    {/* Timeframe buttons */}
-                    <div style={{
-                      display: 'flex',
-                      background: t.bgSecondary,
-                      borderRadius: '8px',
-                      padding: '3px',
-                      gap: '2px',
-                      border: `1px solid ${t.border}`,
-                    }}>
-                      {(['1m', '15m', '1H', '4H', '1D', 'ALL'] as Timeframe[]).map((time) => (
-                        <button
-                          key={time}
-                          onClick={() => setTimeframe(time)}
-                          style={{
-                            padding: '5px 11px',
-                            border: 'none',
-                            borderRadius: '6px',
-                            background: timeframe === time ? t.accent : 'transparent',
-                            color: timeframe === time ? '#fff' : t.textSecondary,
-                            fontSize: '13px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                            fontFamily: "'Inter', sans-serif",
-                          }}
-                        >
-                          {time}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Chart mode toggle: APT / USD / MCap */}
-                    <div style={{
-                      display: 'flex',
-                      background: t.bgSecondary,
-                      borderRadius: '8px',
-                      padding: '3px',
-                      gap: '2px',
-                      border: `1px solid ${t.border}`,
-                    }}>
-                      {(['apt', 'usd', 'mcap'] as ChartMode[]).map((mode) => {
-                        const labels: Record<ChartMode, string> = { apt: 'APT', usd: 'USD', mcap: 'MCap' };
-                        return (
-                          <button
-                            key={mode}
-                            onClick={() => setChartMode(mode)}
-                            style={{
-                              padding: '5px 11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              background: chartMode === mode ? t.accentLight : 'transparent',
-                              color: chartMode === mode ? t.accent : t.textSecondary,
-                              fontSize: '13px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
-                              fontFamily: "'Inter', sans-serif",
-                            }}
-                          >
-                            {labels[mode]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Right: star + share */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* ── TWO-COLUMN LAYOUT ── */}
+          <div className="tp-layout">
+            {/* ── LEFT: Chart + Tabs ── */}
+            <div className="tp-left">
+              {/* Chart controls */}
+              <div className="tp-chart-controls">
+                <div className="tp-tf-group">
+                  {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
                     <button
-                      onClick={handleStarClick}
-                      style={{
-                        background: t.bgSecondary,
-                        border: `1px solid ${t.border}`,
-                        color: currentTokenInWatchlist ? '#FFD700' : t.textSecondary,
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        height: '34px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        transition: 'all 0.15s',
-                      }}
-                      title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-                    >
-                      {currentTokenInWatchlist ? '★' : '☆'}
-                    </button>
-                    <button style={{
-                      padding: '6px 16px',
-                      background: t.bgSecondary,
-                      color: t.textSecondary,
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      height: '34px',
-                    }}>
-                      Share
-                    </button>
-                    {/* <button style={{
-                      padding: '8px 16px',
-                      background: 'linear-gradient(135deg, #FF6B35, #FF8C42)',
-                      color: '#ffffff',
-                      border: '1px solid #FF6B35',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 2px 8px rgba(255, 107, 53, 0.3)',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}>
-                      Boost Token
-                    </button> */}
-                  </div>
+                      key={tf}
+                      className={`tp-tf-btn${timeframe === tf ? ' active' : ''}`}
+                      onClick={() => setTimeframe(tf)}
+                    >{tf}</button>
+                  ))}
+                </div>
+                <div className="tp-mode-group">
+                  {(['mcap','usd','apt'] as ChartMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      className={`tp-mode-btn${chartMode === mode ? ' active' : ''}`}
+                      onClick={() => setChartMode(mode)}
+                    >{mode === 'mcap' ? 'MCap' : mode.toUpperCase()}</button>
+                  ))}
                 </div>
               </div>
 
-              {/* Chart Container */}
-              <div style={{
-                background: t.bgPrimary,
-                border: `1px solid ${t.border}`,
-                borderRadius: '10px',
-                marginBottom: '24px',
-                height: '340px',
-                position: 'relative',
-              }}>
-                {/* lightweight-charts mounts here */}
-                <div
-                  ref={chartContainerRef}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                  }}
-                />
-                {/* Overlay when no data yet */}
-                {!chartLoading && candles.length === 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: t.textMuted,
-                    fontSize: '14px',
-                    pointerEvents: 'none',
-                  }}>
-                    No trades yet — be the first to buy!
-                  </div>
+              {/* Chart */}
+              <div className="tp-chart-card">
+                <div ref={chartContainerRef} className="tp-chart-inner" />
+                {chartLoading && displayCandles.length === 0 && (
+                  <div className="tp-chart-overlay">Loading chart…</div>
                 )}
-                {chartLoading && (
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: t.textMuted,
-                    fontSize: '14px',
-                    pointerEvents: 'none',
-                  }}>
-                    Loading chart…
-                  </div>
+                {!chartLoading && displayCandles.length === 0 && (
+                  <div className="tp-chart-overlay">No trades yet — be the first to buy</div>
                 )}
               </div>
 
-              {/* Tabs: Insights / Transactions / Top Holders */}
-              <div style={{ marginTop: '16px' }}>
-                <div style={{
-                  display: 'flex',
-                  borderBottom: `1px solid ${t.border}`,
-                  justifyContent: 'flex-start',
-                }}>
-                  {(['insights', 'transactions', 'holders'] as const).map((tab) => {
-                    const labels = { insights: 'Insights', transactions: 'Transactions', holders: 'Top Holders' };
-                    const active = activeInsightTab === tab;
-                    return (
-                      <div
-                        key={tab}
-                        onClick={() => setActiveInsightTab(tab)}
-                        style={{
-                          padding: '10px 0',
-                          marginRight: '24px',
-                          color: active ? t.accent : t.textMuted,
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          borderBottom: `2px solid ${active ? t.accent : 'transparent'}`,
-                          transition: 'all 0.15s',
-                          userSelect: 'none',
-                        }}
-                      >
-                        {labels[tab]}
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Tabs */}
+              <div className="tp-tabs">
+                {(['insights','transactions','holders'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    className={`tp-tab${activeInsightTab === tab ? ' active' : ''}`}
+                    onClick={() => setActiveInsightTab(tab)}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
 
-                {/* ── INSIGHTS TAB ───────────────────────────────────── */}
+              <div className="tp-tab-panel">
+                {/* ── INSIGHTS ── */}
                 {activeInsightTab === 'insights' && (
-                <div style={{
-                  border: `1px solid ${t.border}`,
-                  borderTop: 'none',
-                  borderBottomLeftRadius: '12px',
-                  borderBottomRightRadius: '12px',
-                }}>
-                  {/* Token Info Section */}
-                  <div style={{
-                    display: 'flex',
-                    marginBottom: '0',
-                    background: t.bgSecondary,
-                    borderBottomLeftRadius: '12px',
-                    borderBottomRightRadius: '12px',
-                    minHeight: '200px',
-                  }}>
-                    {/* Token image / avatar */}
-                    <div style={{
-                      width: '220px',
-                      flexShrink: 0,
-                      borderBottomLeftRadius: '12px',
-                      overflow: 'hidden',
-                      position: 'relative',
-                    }}>
-                      {tokenDetails?.image ? (
-                        <img
-                          src={tokenDetails.image}
-                          alt={`${tokenDetails.name} logo`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: '100%', height: '100%', minHeight: '200px',
-                          background: tokenAvatarBg,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <span style={{ fontSize: '72px', fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '-2px' }}>
-                            {tokenDetails?.symbol?.charAt(0) ?? '?'}
-                          </span>
-                        </div>
-                      )}
+                  <div className="tp-insight-grid">
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Price (USD)</div>
+                      <div className="tp-insight-value">{formatPrice(tokenData?.priceUSD)}</div>
                     </div>
-                    <div style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                      padding: '20px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '16px'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px'
-                        }}>
-                          <div style={{
-                            fontSize: '24px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                          }}>
-                            {tokenDetails ? tokenDetails.name.replace('$', '') : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            fontWeight: '500'
-                          }}>
-                            {tokenDetails ? tokenDetails.symbol : 'Loading...'}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          gap: '30px'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Launched:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {tokenDetails ? formatTimeAgo(new Date(tokenDetails.creationDate * 1000).toISOString()) : 'Loading...'}
-                            </span>
-                          </div>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Holders:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {holderCount > 0 ? `${holderCount.toLocaleString()} wallets` : 'Loading...'}
-                            </span>
-                          </div>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Created by:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {tokenDetails ? truncateAddress(tokenDetails.creatorAddress || '') : 'Loading...'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{
-                        fontSize: '14px',
-                        color: t.textSecondary,
-                        fontWeight: '400',
-                        lineHeight: '1.5',
-                        marginTop: '4px',
-                        maxWidth: '400px'
-                      }}>
-                        {tokenDetails?.description || 'No description available for this token.'}
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Price (APT)</div>
+                      <div className="tp-insight-value">{formatApt(tokenData?.price)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Market cap</div>
+                      <div className="tp-insight-value">{formatLargeNumber(tokenData?.marketCapUSD)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">APT raised</div>
+                      <div className="tp-insight-value">{aptRaised ? `${(aptRaised / 1e8).toFixed(4)} APT` : '—'}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Holders</div>
+                      <div className="tp-insight-value">{holderCount ?? '—'}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">24h change</div>
+                      <div
+                        className="tp-insight-value"
+                        style={{ color: (tokenData?.change24h ?? 0) >= 0 ? 'var(--positive)' : 'var(--negative)' }}
+                      >
+                        {tokenData?.change24h != null ? `${tokenData.change24h >= 0 ? '+' : ''}${tokenData.change24h.toFixed(2)}%` : '—'}
                       </div>
                     </div>
                   </div>
-
-
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '100px',
-                    width: '100%',
-                    margin: '40px 0px'
-                  }}>
-                    <div style={{
-                      flex: 1,
-                      maxWidth: '50%',
-                      marginLeft: '20px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '20px',
-                        width: '100%'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                            lineHeight: '1',
-                            marginBottom: '10px'
-                          }}>
-                            {tokenData?.marketCapUSD !== undefined ? formatLargeNumber(tokenData.marketCapUSD) : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Market Cap
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                            lineHeight: '1',
-                            marginBottom: '10px'
-                          }}>
-                            {tokenData?.volume !== undefined ? formatLargeNumber(tokenData.volume) : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Volume (24h)
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? t.positive : t.negative,
-                            lineHeight: '1',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            marginBottom: '10px'
-                          }}>
-                            <span style={{ fontSize: '16px' }}>{tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? '↑' : '↓'}</span>
-                            <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : '0%'}</span>
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Change % (24h)
-                          </div>
-                        </div>
-                      </div>
-
-                      {(() => {
-                        const GRADUATION_TARGET_OCTAS = 128_300_000_000; // 1283 APT in Octas
-                        const GRAD_TARGET_APT = 1283;
-                        // Use live vault total_apt_spent (nets out sells, single source of truth)
-                        const aptRaisedOctas = live?.aptRaisedOctas ?? aptRaised;
-                        const aptRaisedAPT = aptRaisedOctas / 1e8;
-                        const progressPct = Math.min((aptRaisedOctas / GRADUATION_TARGET_OCTAS) * 100, 100);
-                        return (
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            marginTop: '20px',
-                            width: '100%'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              marginBottom: '8px'
-                            }}>
-                              <div style={{
-                                fontSize: '22px',
-                                fontWeight: '700',
-                                color: t.textPrimary,
-                                lineHeight: '1'
-                              }}>
-                                {aptRaisedAPT.toFixed(2)} / {GRAD_TARGET_APT} APT
-                              </div>
-                              <div style={{
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                color: t.accent,
-                                letterSpacing: '0.5px'
-                              }}>
-                                {progressPct.toFixed(1)}% Complete
-                              </div>
-                            </div>
-                            <div style={{
-                              width: '100%',
-                              height: '14px',
-                              background: t.bgSecondary,
-                              borderRadius: '7px',
-                              overflow: 'hidden',
-                              marginBottom: '8px',
-                              border: `1px solid ${t.border}`,
-                            }}>
-                              <div style={{
-                                height: '100%',
-                                background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-                                borderRadius: '7px',
-                                width: `${progressPct}%`,
-                                transition: 'width 0.5s ease',
-                                boxShadow: progressPct > 85 ? '0 0 10px rgba(0, 212, 170, 0.6)' : 'none',
-                              }}></div>
-                            </div>
-                            <div style={{
-                              fontSize: '13px',
-                              fontWeight: '500',
-                              color: t.textMuted,
-                              marginTop: '6px',
-                              letterSpacing: '0.4px'
-                            }}>
-                              Graduation Progress — reaches DEX at {GRAD_TARGET_APT} APT raised
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <div style={{
-                      flex: 1,
-                      maxWidth: '50%'
-                    }}>
-                      <div style={{
-                        background: t.bgPrimary,
-                        borderRadius: '12px',
-                        padding: '20px',
-                        marginTop: '-20px',
-                        border: `1px solid ${t.border}`,
-                      }}>
-                        <p style={{
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          paddingBottom: '8px',
-                          margin: 0,
-                        }}>
-                          Links
-                        </p>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          marginTop: '10px',
-                        }}>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            <button
-                              onClick={handleCopyCA}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '10px 14px',
-                                border: `1px solid ${t.border}`,
-                                borderRadius: '8px',
-                                background: t.bgSecondary,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: t.textPrimary,
-                                flex: 1,
-                                minWidth: 0,
-                              }}
-                            >
-                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🔗</span>
-                              <span style={{ flex: 1 }}>{copied ? 'Copied!' : 'Copy CA'}</span>
-                            </button>
-                            {tokenDetails?.websiteLink ? (
-                              <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  padding: '10px 14px', border: `1px solid ${t.border}`,
-                                  borderRadius: '8px', background: t.bgSecondary,
-                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
-                                  color: t.textPrimary, flex: 1, minWidth: 0,
-                                }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
-                                <span>Website</span>
-                              </a>
-                            ) : (
-                              <button disabled style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '10px 14px', border: `1px solid ${t.border}`,
-                                borderRadius: '8px', background: t.bgSecondary,
-                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                              }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
-                                <span>Website</span>
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            {tokenDetails?.twitterLink ? (
-                              <a href={tokenDetails.twitterLink} target="_blank" rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  padding: '10px 14px', border: `1px solid ${t.border}`,
-                                  borderRadius: '8px', background: t.bgSecondary,
-                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
-                                  color: t.textPrimary, flex: 1, minWidth: 0,
-                                }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
-                                <span>Twitter</span>
-                              </a>
-                            ) : (
-                              <button disabled style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '10px 14px', border: `1px solid ${t.border}`,
-                                borderRadius: '8px', background: t.bgSecondary,
-                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                              }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
-                                <span>Twitter</span>
-                              </button>
-                            )}
-                            <button disabled style={{
-                              display: 'flex', alignItems: 'center', gap: '8px',
-                              padding: '10px 14px', border: `1px solid ${t.border}`,
-                              borderRadius: '8px', background: t.bgSecondary,
-                              fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                              flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                            }}>
-                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>💬</span>
-                              <span>Telegram</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 )}
 
-                {/* ── TRANSACTIONS TAB ─────────────────────────────── */}
+                {/* ── TRANSACTIONS ── */}
                 {activeInsightTab === 'transactions' && (
-                <div style={{
-                  border: `1px solid ${t.border}`,
-                  borderTop: 'none',
-                  borderBottomLeftRadius: '12px',
-                  borderBottomRightRadius: '12px',
-                  overflow: 'hidden',
-                }}>
-                  {recentTrades.length === 0 ? (
-                    <div style={{
-                      padding: '40px 20px',
-                      textAlign: 'center',
-                      color: t.textMuted,
-                      fontSize: '14px',
-                    }}>
-                      No trades yet — be the first to buy!
+                  recentTrades.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>
+                      No trades yet — be the first buyer
                     </div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <table className="tp-tx-table">
                       <thead>
-                        <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
-                          {['Type', 'Wallet', 'Tokens', 'APT Value', 'Time'].map(h => (
-                            <th key={h} style={{
-                              padding: '10px 16px',
-                              textAlign: 'left',
-                              fontWeight: 600,
-                              fontSize: '11px',
-                              color: t.textMuted,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
-                            }}>{h}</th>
-                          ))}
+                        <tr>
+                          <th className="tp-tx-th">Type</th>
+                          <th className="tp-tx-th">Amount</th>
+                          <th className="tp-tx-th">APT</th>
+                          <th className="tp-tx-th">Price</th>
+                          <th className="tp-tx-th">Time</th>
                         </tr>
                       </thead>
                       <tbody>
                         {recentTrades.slice(0, 50).map((trade, i) => {
-                          const isYou = account?.address &&
-                            trade.wallet.toLowerCase() === account.address.toString().toLowerCase();
+                          const isBuy = trade.type === 'buy';
+                          const isYou = trade.wallet?.toLowerCase() === account?.address?.toString().toLowerCase();
                           return (
-                          <tr key={i} style={{
-                            borderBottom: `1px solid ${t.border}`,
-                            background: isYou
-                              ? (trade.type === 'buy' ? 'rgba(0,212,170,0.07)' : 'rgba(255,71,87,0.07)')
-                              : i % 2 === 0 ? 'transparent' : t.bgSecondary,
-                          }}>
-                            <td style={{ padding: '10px 16px' }}>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                background: trade.type === 'buy' ? 'rgba(0,212,170,0.12)' : 'rgba(255,71,87,0.12)',
-                                color: trade.type === 'buy' ? t.positive : t.negative,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.3px',
-                              }}>
-                                {trade.type}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {trade.wallet ? `${trade.wallet.slice(0, 6)}…${trade.wallet.slice(-4)}` : '—'}
-                                {isYou && (
-                                  <span style={{
-                                    fontSize: '10px', fontWeight: 700, padding: '1px 5px',
-                                    borderRadius: '4px', background: 'var(--accent)',
-                                    color: '#fff', letterSpacing: '0.3px',
-                                  }}>YOU</span>
-                                )}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                              {trade.amount.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                              {trade.aptValue.toFixed(4)} APT
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textMuted, fontSize: '12px' }}>
-                              {timeAgo(trade.timestampMs)}
-                            </td>
-                          </tr>
+                            <tr key={i}>
+                              <td className="tp-tx-td" style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 700 }}>
+                                {isBuy ? 'Buy' : 'Sell'}
+                                {isYou && <span className="tp-tx-you">YOU</span>}
+                              </td>
+                              <td className="tp-tx-td">{Number(trade.amount).toLocaleString()}</td>
+                              <td className="tp-tx-td">{(trade.aptValue / 1e8).toFixed(4)} APT</td>
+                              <td className="tp-tx-td">—</td>
+                              <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{timeAgo(trade.timestampMs)}</td>
+                            </tr>
                           );
                         })}
                       </tbody>
                     </table>
-                  )}
-                </div>
+                  )
                 )}
 
-                {/* ── TOP HOLDERS TAB ───────────────────────────────── */}
-                {activeInsightTab === 'holders' && (() => {
-                  // Aggregate total tokens bought per wallet from recentTrades
-                  const holderMap = new Map<string, number>();
-                  for (const t2 of recentTrades) {
-                    if (t2.type === 'buy' && t2.wallet) {
-                      holderMap.set(t2.wallet, (holderMap.get(t2.wallet) ?? 0) + t2.amount);
-                    }
-                  }
-                  const sorted = Array.from(holderMap.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 20);
-                  return (
-                    <div style={{
-                      border: `1px solid ${t.border}`,
-                      borderTop: 'none',
-                      borderBottomLeftRadius: '12px',
-                      borderBottomRightRadius: '12px',
-                      overflow: 'hidden',
-                    }}>
-                      {sorted.length === 0 ? (
-                        <div style={{ padding: '40px 20px', textAlign: 'center', color: t.textMuted, fontSize: '14px' }}>
-                          No holder data yet.
-                        </div>
-                      ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                          <thead>
-                            <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
-                              {['Rank', 'Wallet', 'Tokens Bought', '% of Supply'].map(h => (
-                                <th key={h} style={{
-                                  padding: '10px 16px',
-                                  textAlign: 'left',
-                                  fontWeight: 600,
-                                  fontSize: '11px',
-                                  color: t.textMuted,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.5px',
-                                }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sorted.map(([wallet, amount], i) => (
-                              <tr key={wallet} style={{ borderBottom: `1px solid ${t.border}`, background: i % 2 === 0 ? 'transparent' : t.bgSecondary }}>
-                                <td style={{ padding: '10px 16px', color: t.textMuted, fontWeight: 600 }}>#{i + 1}</td>
-                                <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
-                                  {`${wallet.slice(0, 8)}…${wallet.slice(-6)}`}
-                                </td>
-                                <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                                  {amount.toLocaleString()}
-                                </td>
-                                <td style={{ padding: '10px 16px', color: t.textMuted }}>
-                                  {((amount / 1_000_000_000) * 100).toFixed(3)}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
+                {/* ── HOLDERS ── */}
+                {activeInsightTab === 'holders' && (
+                  <div className="tp-insight-grid">
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Total holders</div>
+                      <div className="tp-insight-value">{holderCount ?? 'Loading…'}</div>
                     </div>
-                  );
-                })()}
-
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Tokens sold</div>
+                      <div className="tp-insight-value">
+                        {tokenData?.tokensSold != null ? Number(tokenData.tokensSold).toLocaleString() : '—'}
+                      </div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Total supply</div>
+                      <div className="tp-insight-value">
+                        {tokenData?.supply != null ? Number(tokenData.supply).toLocaleString() : '—'}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Trading Panel */}
-            <div style={{
-              width: '400px',
-              background: t.bgPrimary,
-              borderLeft: `1px solid ${t.border}`,
-              padding: '20px',
-              flexShrink: 0,
-              position: 'sticky',
-              top: 0,
-              alignSelf: 'flex-start',
-              maxHeight: '100vh',
-              overflowY: 'auto'
-            }}>
-              <div style={{
-                background: t.bgSecondary,
-                borderRadius: '12px',
-                padding: '20px',
-                border: `1px solid ${t.border}`,
-                height: '100%'
-              }}>
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Your Balance
-                  </h3>
-                  <div style={{
-                    fontSize: '24px',
-                    fontWeight: '700',
-                    color: '#00d4aa'
-                  }}>
-                    {tokenDetails?.metadataAddress ? getTokenBalance(tokenDetails.metadataAddress) : '0.000'}
-                  </div>
-                </div>
-
-                <ul style={{
-                  display: 'flex',
-                  background: t.bgPrimary,
-                  borderRadius: '8px',
-                  padding: '4px',
-                  marginBottom: '20px',
-                  listStyle: 'none',
-                  border: `1px solid ${t.border}`,
-                }}>
-                  <li
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      background: activeTab === 'buy' ? t.positive : 'transparent',
-                      color: activeTab === 'buy' ? 'white' : t.textSecondary,
-                    }}
+            {/* ── RIGHT: Trade Panel + Info ── */}
+            <div className="tp-right">
+              {/* Trading card */}
+              <div className="tp-trade-card">
+                <div className="tp-trade-tabs">
+                  <button
+                    className={`tp-trade-tab${activeTab === 'buy' ? ' buy-active' : ''}`}
                     onClick={() => setActiveTab('buy')}
-                  >
-                    Buy
-                  </li>
-                  <li
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      background: activeTab === 'sell' ? t.negative : 'transparent',
-                      color: activeTab === 'sell' ? 'white' : t.textSecondary,
-                    }}
+                  >Buy</button>
+                  <button
+                    className={`tp-trade-tab${activeTab === 'sell' ? ' sell-active' : ''}`}
                     onClick={() => setActiveTab('sell')}
-                  >
-                    Sell
-                  </li>
-                </ul>
+                  >Sell</button>
+                </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Amount
-                  </label>
+                {account && (
+                  <div className="tp-balance">
+                    Balance: <strong>{getTokenBalance(tokenDetails?.metadataAddress || '')} {tokenDetails?.symbol?.replace('$', '') || 'tokens'}</strong>
+                  </div>
+                )}
+
+                <div className="tp-field">
+                  <label className="tp-field-label">Amount (tokens)</label>
                   <input
-                    type="text"
+                    type="number"
+                    className="tp-input"
                     value={amountString}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmountString(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: t.bgPrimary,
-                      color: t.textPrimary,
-                    }}
+                    onChange={e => setAmountString(e.target.value)}
+                    placeholder="0"
+                    min="1"
+                    step="1"
                   />
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Total (APT)
-                  </label>
-                  <input
-                    type="text"
-                    value={total}
-                    readOnly
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: t.bgSecondary,
-                      color: t.textSecondary,
-                    }}
-                  />
+                <div className="tp-field">
+                  <label className="tp-field-label">Total (APT)</label>
+                  <div className="tp-total-val">{total} APT</div>
                 </div>
 
-                {/* Slippage Protection Section */}
-                <div style={{
-                  margin: '20px 0',
-                  padding: '15px',
-                  background: t.bgPrimary,
-                  borderRadius: '8px',
-                  border: `1px solid ${t.border}`,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease'
-                }}>
+                {/* Slippage */}
+                <div className="tp-slippage-header">
+                  <span className="tp-slippage-label">Slippage protection</span>
+                  <button className="tp-slippage-toggle" onClick={() => setSlippageExpanded(!slippageExpanded)}>
+                    {slippage / 100}% {slippageExpanded ? '▲' : '▼'}
+                  </button>
+                </div>
+                {slippageExpanded && (
+                  <div className="tp-slippage-options">
+                    {['0.5','1.0','2.0','5.0'].map(val => (
+                      <button
+                        key={val}
+                        className={`tp-slip-btn${selectedSlippage === val ? ' active' : ''}`}
+                        onClick={() => handleSlippageSelect(val)}
+                      >{val}%</button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Price impact */}
+                {priceImpact > 5 && (
                   <div
+                    className="tp-impact-warn"
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: slippageExpanded ? '12px' : '0',
-                      transition: 'margin-bottom 0.3s ease'
+                      background: priceImpact > 15
+                        ? (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.08)')
+                        : (isDark ? 'rgba(255,159,10,0.15)' : 'rgba(255,159,10,0.10)'),
+                      color: priceImpact > 15 ? 'var(--negative)' : '#c77d00',
                     }}
-                    onClick={handleSlippageToggle}
                   >
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: t.textPrimary,
-                    }}>
-                      Slippage Protection
-                    </span>
-                    <span style={{
-                      fontSize: '12px',
-                      color: t.textMuted,
-                      cursor: 'pointer',
-                      transition: 'transform 0.3s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '20px',
-                      height: '20px',
-                      transform: slippageExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
-                    }}>
-                      ▼
-                    </span>
+                    Price impact: ~{priceImpact.toFixed(1)}% — consider a smaller trade
                   </div>
-                  <div style={{
-                    maxHeight: slippageExpanded ? '200px' : '0',
-                    overflow: 'hidden',
-                    transition: 'max-height 0.3s ease'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      gap: '8px',
-                      marginBottom: '12px',
-                      marginTop: '12px'
-                    }}>
-                      {['0.5', '1.0', '2.0', '5.0'].map((slippage) => (
-                        <button
-                          key={slippage}
-                          onClick={() => handleSlippageSelect(slippage)}
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: `1px solid ${selectedSlippage === slippage ? t.accent : t.border}`,
-                            background: selectedSlippage === slippage ? t.accent : t.bgSecondary,
-                            color: selectedSlippage === slippage ? '#ffffff' : t.textSecondary,
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          {slippage}%
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <input
-                        type="number"
-                        placeholder="Custom"
-                        min="0.1"
-                        max="50"
-                        step="0.1"
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          border: `1px solid ${t.border}`,
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          background: t.bgSecondary,
-                          color: t.textPrimary,
-                        }}
-                      />
-                      <span style={{
-                        fontSize: '12px',
-                        color: t.textMuted,
-                        fontWeight: '500'
-                      }}>
-                        %
-                      </span>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: t.negative,
-                      marginTop: '8px',
-                      display: parseFloat(selectedSlippage) > 5.0 ? 'block' : 'none'
-                    }}>
-                      High slippage may result in unfavorable trade execution
-                    </div>
-                  </div>
-                </div>
-
-                {/* Price-impact warning for buys */}
-                {activeTab === 'buy' && (() => {
-                  const sold = tokenData?.tokensSold ?? 0;
-                  const TOTAL_SUPPLY = 800_000_000;
-                  const spotDenom = TOTAL_SUPPLY - sold;
-                  if (amount > 0 && spotDenom > 0) {
-                    const P_NUM = 19_029_514_756;
-                    const P_CONST = 61.9053276;
-                    const spotPrice = P_NUM / spotDenom + P_CONST;
-                    const afterDenom = TOTAL_SUPPLY - (sold + amount);
-                    if (afterDenom > 0) {
-                      const afterPrice = P_NUM / afterDenom + P_CONST;
-                      const impact = ((afterPrice - spotPrice) / spotPrice) * 100;
-                      if (impact >= 1) {
-                        const color = impact >= 10 ? t.negative : impact >= 3 ? '#f59e0b' : t.textMuted;
-                        return (
-                          <div style={{
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            background: impact >= 10 ? 'rgba(255,71,87,0.08)' : impact >= 3 ? 'rgba(245,158,11,0.08)' : t.bgSecondary,
-                            border: `1px solid ${impact >= 10 ? 'rgba(255,71,87,0.3)' : impact >= 3 ? 'rgba(245,158,11,0.3)' : t.border}`,
-                            fontSize: '13px',
-                            color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}>
-                            <span style={{ fontSize: '16px' }}>{impact >= 10 ? '⚠️' : 'ℹ️'}</span>
-                            <span>
-                              <strong>Price impact: {impact.toFixed(1)}%</strong>
-                              {impact >= 10 && ' — consider buying in smaller amounts'}
-                            </span>
-                          </div>
-                        );
-                      }
-                    }
-                  }
-                  return null;
-                })()}
+                )}
 
                 <button
-                  onClick={handleTrade}
-                  style={{
-                    width: '100%',
-                    padding: '14px 24px',
-                    background: activeTab === 'buy' ? '#00d4aa' : t.negative,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'opacity 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  className={`tp-trade-action${account ? (activeTab === 'buy' ? ' buy' : ' sell') : ' disabled'}`}
+                  onClick={account ? handleTrade : undefined}
                 >
-                  {activeTab === 'buy' ? 'Buy' : 'Sell'}
+                  {account
+                    ? `${activeTab === 'buy' ? 'Buy' : 'Sell'} ${tokenDetails?.symbol?.replace('$', '') || 'tokens'}`
+                    : 'Connect wallet to trade'
+                  }
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* Footer */}
-          <div style={{
-            background: t.bgPrimary,
-            borderTop: `1px solid ${t.border}`,
-            padding: '16px 24px',
-            width: '100%',
-            flexShrink: 0
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{ display: 'flex', gap: '20px' }}>
-                {['Careers', 'Privacy & Legal', 'Docs', 'Accessibility'].map(label => (
-                  <a key={label} href="#" style={{
-                    color: t.textMuted,
-                    textDecoration: 'none',
-                    fontSize: '13px',
-                    transition: 'color 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.color = t.textSecondary)}
-                  onMouseLeave={e => (e.currentTarget.style.color = t.textMuted)}
-                  >
-                    {label}
-                  </a>
-                ))}
+              {/* Token info card */}
+              <div className="tp-info-card">
+                <div className="tp-info-title">Token info</div>
+
+                {tokenDetails?.metadataAddress && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Contract</span>
+                    <div className="tp-ca-row">
+                      <span className="tp-ca-code">{truncateAddress(tokenDetails.metadataAddress)}</span>
+                      <button
+                        className={`tp-copy-btn${copied ? ' copied' : ''}`}
+                        onClick={handleCopyCA}
+                      >{copied ? 'Copied' : 'Copy'}</button>
+                    </div>
+                  </div>
+                )}
+                {tokenDetails?.creatorAddress && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Creator</span>
+                    <span className="tp-info-val" style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+                      {truncateAddress(tokenDetails.creatorAddress)}
+                    </span>
+                  </div>
+                )}
+                {tokenDetails?.creationDate && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Launched</span>
+                    <span className="tp-info-val">{new Date(tokenDetails.creationDate * 1000).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {tokenDetails?.twitterLink && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Twitter</span>
+                    <a href={tokenDetails.twitterLink} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      View
+                    </a>
+                  </div>
+                )}
+                {tokenDetails?.websiteLink && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Website</span>
+                    <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      Visit
+                    </a>
+                  </div>
+                )}
               </div>
-              <p style={{ fontSize: '13px', color: t.textMuted, margin: 0 }}>
-                &copy; 2025 MoveMint
-              </p>
             </div>
           </div>
-        </div>
+        </main>
       </div>
-    </div>
+    </>
   );
 };
 

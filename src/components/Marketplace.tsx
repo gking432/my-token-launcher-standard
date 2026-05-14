@@ -1,48 +1,45 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { MODULE_ADDRESS } from "../config";
-import GlobalSidebar from './GlobalSidebar';
-import GlobalHeaderBar from './GlobalHeaderBar';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
-import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-const Marketplace: React.FC = () => {
-  const { theme: t } = useTheme();
-  const { account, signAndSubmitTransaction } = useWallet();
-  const { metadataAddress } = useParams<{ metadataAddress?: string }>();
-  const navigate = useNavigate();
-  const [selectedToken, setSelectedToken] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
-  const [amount, setAmount] = useState(0.001);
-  const [amountString, setAmountString] = useState('0.001');
-  const [total, setTotal] = useState('0.000');
-  const [slippageExpanded, setSlippageExpanded] = useState(false);
-  const [selectedSlippage, setSelectedSlippage] = useState('1.0');
-  const [slippage, setSlippage] = useState(100);
-  const [headerMinimized, setHeaderMinimized] = useState(false);
-  const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
-  // Use the global balance context
-  const { balances: tokenBalanceMap, loading: isLoadingBalances, getTokenBalance, refreshBalances } = useBalanceContext();
-  
-  // Use watchlist context
-  const { isInWatchlist, toggleWatchlist } = useWatchlist();
-  
-  // Local state for current token balance display
-  const [tokenBalance, setTokenBalance] = useState<string>('0.000');
+type SortKey = 'newest' | 'price' | 'change' | 'mc';
+type SortDir = 'desc' | 'asc';
 
-  // Use the shared token data hook
+interface Token {
+  name: string;
+  symbol: string;
+  supply: number;
+  txHash: string;
+  image: string | null;
+  launchDate: string;
+  creator: string;
+  metadataAddress?: string;
+  price?: number;
+  priceUSD?: number;
+  marketCap?: number;
+  marketCapUSD?: number;
+  volume?: number;
+  change24h?: number;
+  creatorAddress?: string;
+}
+
+const Marketplace: React.FC = () => {
+  const { isDark, toggleTheme } = useTheme();
+  const { account } = useWallet();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
   const { tokens: catalogTokens, loading, error, refetch } = useTokenData();
   const { aptPrice } = useAptPrice();
 
-  // Live vault state — same merge pattern as HomePage so prices match exactly.
   const catalogAddrs = useMemo(
     () => catalogTokens.map(t => t.metadataAddress || t.txHash).filter(Boolean) as string[],
     [catalogTokens]
@@ -56,1522 +53,453 @@ const Marketplace: React.FC = () => {
       const key = (t.metadataAddress || t.txHash || '').toLowerCase();
       const live = liveByAddr[key];
       if (!live) return t;
-      const priceUSD = aptUsd > 0 ? live.spotPriceAPT * aptUsd : t.priceUSD;
-      const marketCapUSD = aptUsd > 0 ? live.marketCapAPT * aptUsd : t.marketCapUSD;
       return {
         ...t,
         price: live.spotPriceAPT,
-        priceUSD,
+        priceUSD: aptUsd > 0 ? live.spotPriceAPT * aptUsd : t.priceUSD,
         marketCap: live.marketCapAPT,
-        marketCapUSD,
+        marketCapUSD: aptUsd > 0 ? live.marketCapAPT * aptUsd : t.marketCapUSD,
         tokensSold: live.tokensSold,
         aptRaised: live.aptRaisedOctas,
       };
     });
   }, [catalogTokens, liveByAddr, aptPrice]);
 
-  // Aptos client setup
-  const config = useMemo(() => new AptosConfig({ 
-    network: Network.TESTNET,
-    fullnode: "https://fullnode.testnet.aptoslabs.com/v1",
-  }), []);
-  const client = useMemo(() => new Aptos(config), [config]);
-  const tokenLauncherAddress = MODULE_ADDRESS;
+  const tokens = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? rawTokens.filter(t =>
+          t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q)
+        )
+      : rawTokens;
 
-
-
-  interface Token {
-    name: string;
-    symbol: string;
-    supply: number;
-    txHash: string;
-    image: string | null;
-    launchDate: string;
-    creator: string;
-    metadataAddress?: string;
-    price?: number;
-    priceUSD?: number;
-    marketCap?: number;
-    marketCapUSD?: number;
-    volume?: number;
-    change24h?: number;
-    creatorAddress?: string;
-  }
-
-  const formatPrice = (price: number) => {
-    if (price < 0.0001) return `$${price.toFixed(8)}`;
-    if (price < 0.01) return `$${price.toFixed(6)}`;
-    if (price < 1) return `$${price.toFixed(4)}`;
-    return `$${price.toFixed(2)}`;
-  };
-
-  const formatMarketCap = (mc: number) => {
-    if (mc >= 1e9) return `$${(mc / 1e9).toFixed(1)}B`;
-    if (mc >= 1e6) return `$${(mc / 1e6).toFixed(1)}M`;
-    if (mc >= 1e3) return `$${(mc / 1e3).toFixed(1)}K`;
-    return `$${mc.toFixed(0)}`;
-  };
-
-  const tokenIconColors = ['#f7931a','#627eea','#50af95','#f0b90b','#1e88e5','#e91e63','#9c27b0','#ff5722','#4caf50','#2196f3'];
-  const getIconBg = (symbol: string) => tokenIconColors[symbol.charCodeAt(0) % tokenIconColors.length];
-
-  // Helper functions from NEWtokenpage
-  const stringToBytes = (str: string): number[] => {
-    return Array.from(Buffer.from(str, 'utf8'));
-  };
-
-  const stringToHex = (str: string): string => {
-    return Buffer.from(str, 'utf8').toString('hex');
-  };
-
-  // Helper function to convert hex string to readable string
-  const hexToString = (hex: string) => {
-    if (!hex || !hex.startsWith("0x")) return "";
-    try {
-      const hexWithoutPrefix = hex.replace("0x", "");
-      const bytes = [];
-      for (let i = 0; i < hexWithoutPrefix.length; i += 2) {
-        bytes.push(parseInt(hexWithoutPrefix.substr(i, 2), 16));
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case 'newest': cmp = new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime(); break;
+        case 'price':  cmp = (b.priceUSD ?? b.price ?? 0) - (a.priceUSD ?? a.price ?? 0); break;
+        case 'change': cmp = (b.change24h ?? 0) - (a.change24h ?? 0); break;
+        case 'mc':     cmp = (b.marketCapUSD ?? 0) - (a.marketCapUSD ?? 0); break;
       }
-      return String.fromCharCode(...bytes);
-    } catch (error) {
-      console.error("Error converting hex to string:", error, "Hex:", hex);
-      return "";
-    }
+      return sortDir === 'asc' ? -cmp : cmp;
+    });
+  }, [rawTokens, searchQuery, sortKey, sortDir]);
+
+  const formatPrice = (n: number) => {
+    if (n < 0.0001) return `$${n.toFixed(8)}`;
+    if (n < 0.01)   return `$${n.toFixed(6)}`;
+    if (n < 1)      return `$${n.toFixed(4)}`;
+    return `$${n.toFixed(2)}`;
+  };
+  const formatBig = (n: number) => {
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+    return `$${n.toFixed(0)}`;
+  };
+  const priceLabel = (t: Token) =>
+    t.priceUSD != null ? formatPrice(t.priceUSD) : t.price != null ? `${t.price.toFixed(8)} APT` : '—';
+  const symbolWithDollar = (s: string) => (s.startsWith('$') ? s : `$${s}`);
+
+  const iconPalette = ['#5E5CE6', '#059669', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
+  const getIconBg = (sym: string) => iconPalette[(sym.replace('$', '').charCodeAt(0) || 0) % iconPalette.length];
+
+  const handleTradeClick = (t: Token) => {
+    navigate(`/newtoken/${t.metadataAddress || t.txHash}`, {
+      state: {
+        name: t.name, symbol: t.symbol, supply: t.supply, txHash: t.txHash,
+        metadataAddress: t.metadataAddress || t.txHash,
+        creatorAddress: t.creator,
+        creationDate: new Date(t.launchDate).getTime() / 1000,
+      },
+    });
   };
 
-
-
-  // Use tokens directly from the shared hook (they're already processed)
-  const tokens = rawTokens;
-
-  // Auto-select token based on URL parameter
-  useEffect(() => {
-    console.log('🔍 URL metadataAddress:', metadataAddress);
-    console.log('🔍 Available tokens:', tokens.map(t => ({ symbol: t.symbol, metadataAddress: t.metadataAddress })));
-    
-    // Log data source for debugging
-    if (tokens.length > 0) {
-      console.log(`✅ Marketplace loaded ${tokens.length} tokens successfully`);
-    } else if (loading) {
-      console.log('⏳ Marketplace is loading tokens...');
-    } else if (error) {
-      console.log('❌ Marketplace failed to load tokens due to error:', error);
-    } else {
-      console.log('⚠️ Marketplace has no tokens and is not loading');
-    }
-    
-    if (metadataAddress && tokens.length > 0) {
-      const token = tokens.find(t => t.metadataAddress === metadataAddress);
-      if (token) {
-        setSelectedToken(token);
-        console.log('✅ Auto-selected token from URL:', token);
-      } else {
-        console.log('❌ Token not found for metadata address:', metadataAddress);
-        console.log('🔍 Available metadata addresses:', tokens.map(t => t.metadataAddress));
-      }
-    }
-  }, [metadataAddress, tokens]);
-
-  // Fetch balance when selected token changes
-  useEffect(() => {
-    if (selectedToken && account?.address) {
-      refreshBalances();
-    }
-  }, [selectedToken, account?.address]); // Remove refreshBalances dependency
-
-  // Fetch all token balances when account changes or component mounts
-  useEffect(() => {
-    if (account?.address) {
-      refreshBalances();
-    }
-  }, [account?.address]); // Remove refreshBalances dependency
-
-  // Update current token balance when selected token changes
-  useEffect(() => {
-    if (selectedToken?.metadataAddress && tokenBalanceMap.size > 0) {
-      const currentBalance = getTokenBalance(selectedToken.metadataAddress);
-      setTokenBalance(currentBalance);
-    }
-  }, [selectedToken, tokenBalanceMap, getTokenBalance]);
-
-
-
-
-
-  // Trading functions from NEWtokenpage
-  const handleBuy = async () => {
-    console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", selectedToken?.creatorAddress, "symbol:", selectedToken?.symbol, "slippage:", slippage);
-    if (!account || amount <= 0 || !selectedToken?.creatorAddress || !selectedToken?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
-      return;
-    }
-
-    try {
-      const tokenAmount = Math.floor(amount);
-      const tickerBytes = stringToBytes(selectedToken.symbol);
-
-      console.log("Buying tokens with params:", {
-        creatorAddress: selectedToken.creatorAddress,
-        ticker: tickerBytes,
-        tokenAmount: tokenAmount,
-        maxSlippageBps: slippage
-      });
-
-      const buyTransaction: InputTransactionData = {
-        data: {
-          function: `${tokenLauncherAddress}::token_launcher::buy_tokens`,
-          typeArguments: [],
-          functionArguments: [
-            selectedToken.creatorAddress,
-            tickerBytes,
-            tokenAmount,
-            slippage
-          ],
-        },
-      };
-
-      const response = await signAndSubmitTransaction(buyTransaction);
-      console.log("Buy response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
-      alert(`Bought ${amount} ${selectedToken.symbol}! Tx: ${response.hash}`);
-
-      // Refresh all token balances (force refresh after trade)
-      await refreshBalances(true);
-    } catch (error: any) {
-      console.error("Buy error:", error);
-      
-      // Enhanced error handling for slippage protection
-      if (error.errorCode === '1012' || error.message?.includes('1012')) {
-        const currentSlippage = slippage / 100;
-        const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
-      } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
-      } else {
-        alert("Failed to buy tokens. Check console.");
-      }
-    }
-  };
-
-  const handleSell = async () => {
-    if (!account || amount <= 0 || !selectedToken?.creatorAddress || !selectedToken?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
-      return;
-    }
-
-    // Check if user has no enough tokens to sell
-      const currentTokenBalance = parseFloat(tokenBalance || '0');
-      if (amount > currentTokenBalance) {
-        alert(`Insufficient token balance. You have ${currentTokenBalance.toFixed(6)} tokens, but trying to sell ${amount.toFixed(6)} tokens.`);
-        return;
-      }
-
-    try {
-      const tokenAmount = Math.floor(amount);
-      const tickerBytes = stringToBytes(selectedToken.symbol);
-
-      console.log("Selling tokens with params:", {
-        creatorAddress: selectedToken.creatorAddress,
-        ticker: tickerBytes,
-        tokenAmount: tokenAmount,
-        maxSlippageBps: slippage
-      });
-
-      const sellTransaction: InputTransactionData = {
-        data: {
-          function: `${tokenLauncherAddress}::token_launcher::sell_tokens`,
-          typeArguments: [],
-          functionArguments: [
-            selectedToken.creatorAddress,
-            tickerBytes,
-            tokenAmount,
-            slippage
-          ],
-        },
-      };
-      const response = await signAndSubmitTransaction(sellTransaction);
-      console.log("Sell response:", response);
-      await client.waitForTransaction({ transactionHash: response.hash });
-      alert(`Sold ${amount} ${selectedToken.symbol}! Tx: ${response.hash}`);
-
-      // Refresh all token balances (force refresh after trade)
-      await refreshBalances(true);
-    } catch (error: any) {
-      console.error("Sell error:", error);
-      
-      // Enhanced error handling for slippage protection
-      if (error.errorCode === '1012' || error.message?.includes('1012')) {
-        const currentSlippage = slippage / 100;
-        const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
-      } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
-      } else {
-        alert("Failed to sell tokens. Check console.");
-      }
-    }
-  };
-
-  const handleTrade = () => {
-    if (activeTab === 'buy') {
-      handleBuy();
-    } else {
-      handleSell();
-    }
-  };
-
-  const handleSlippageToggle = () => {
-    setSlippageExpanded(!slippageExpanded);
-  };
-
-  const handleSlippageSelect = (slippageValue: string) => {
-    setSelectedSlippage(slippageValue);
-    // Convert percentage to basis points for the contract
-    const percentage = parseFloat(slippageValue);
-    const basisPoints = Math.round(percentage * 100);
-    setSlippage(basisPoints);
-  };
-
-  const toggleWalletDropdown = () => {
-    setWalletDropdownOpen(!walletDropdownOpen);
-  };
-
-  const handleDisconnect = () => {
-    // This will be handled by the wallet adapter
-    setWalletDropdownOpen(false);
-  };
-
-  // Function to calculate total cost/return based on amount and current price (from NEWtokenpage)
-  const calculateTotal = (amount: number) => {
-    if (!amount || amount <= 0) return 0;
-    
-    const total_supply = 800_000_000;
-    const tokens_sold_before = 0; // For first purchase
-    const tokens_sold_after = tokens_sold_before + amount;
-    
-    const scale = 100_000_000; // 10^8 for APT Octas
-    const price_scale = 1_000_000; // 10^6 for price scaling
-    const price_numerator = 19_029_514_756; // New price numerator
-    const price_constant = 6_190_532_760; // 61.9053276 * 10^8
-
-    // For large purchases (over 100M tokens), use segmented approximation
-    if (amount > 100_000_000) {
-      const segments = 10; // Divide the purchase into 10 segments
-      const segment_size = amount / segments;
-      let total_cost = 0;
-
-      for (let i = 0; i < segments; i++) {
-        const segment_start = tokens_sold_before + (i * segment_size);
-        const segment_end = segment_start + segment_size;
-        
-        // Calculate price at start and end of segment
-        const denominator_start = total_supply - segment_start;
-        const denominator_end = total_supply - segment_end;
-        
-        const hyperbolic_start = (price_numerator * price_scale) / denominator_start;
-        const hyperbolic_end = (price_numerator * price_scale) / denominator_end;
-        
-        const constant_term = price_constant / (scale / price_scale);
-        
-        const price_start = hyperbolic_start + constant_term;
-        const price_end = hyperbolic_end + constant_term;
-        
-        // Use average price for this segment
-        const segment_avg_price = (price_start + price_end) / 2;
-        const segment_cost = (segment_avg_price * segment_size * 100) / scale;
-        
-        total_cost += segment_cost;
-      }
-      
-      return (total_cost / 10 ** 8).toFixed(6); // Convert to APT
-    }
-    
-    // For smaller purchases, use the original average price method
-    const denominator_before = total_supply - tokens_sold_before;
-    const denominator_after = total_supply - tokens_sold_after;
-    
-    const hyperbolic_before = (price_numerator * price_scale) / denominator_before;
-    const hyperbolic_after = (price_numerator * price_scale) / denominator_after;
-    
-    const constant_term = price_constant / (scale / price_scale);
-    
-    const price_before = hyperbolic_before + constant_term;
-    const price_after = hyperbolic_after + constant_term;
-    const average_price = (price_before + price_after) / 2;
-    
-    const apt_cost = (average_price * amount * 100) / scale;
-    
-    return (apt_cost / 10 ** 8).toFixed(6); // Convert to APT
-  };
-
-  // Calculate total based on amount
-  useEffect(() => {
-    if (selectedToken && amount) {
-      const calculatedTotal = calculateTotal(amount);
-      setTotal(calculatedTotal.toString());
-    }
-  }, [amount, selectedToken]);
-
-  // Update amount when amountString changes
-  useEffect(() => {
-    const numAmount = parseFloat(amountString) || 0;
-    setAmount(numAmount);
-  }, [amountString]);
-
-  // Tokens are now fetched by the shared useTokenData hook
-  // No need for local fetching logic
-
-  // Handle click outside wallet dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (walletDropdownOpen) {
-        setWalletDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [walletDropdownOpen]);
-
-  const handleTokenSelect = (token: any) => {
-    console.log('🔄 handleTokenSelect called with token:', token);
-    console.log('🔄 Token metadataAddress:', token.metadataAddress);
-    
-    // Navigate to the token's trading URL
-    if (token.metadataAddress) {
-      const url = `/marketplace/${token.metadataAddress}`;
-      console.log('🔄 Navigating to:', url);
-      navigate(url);
-    } else {
-      setSelectedToken(token);
-      console.log('Selected token (no metadata address):', token);
-    }
-  };
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    console.log('Search query:', query);
-  };
-
-  const handleHeaderToggle = () => {
-    setHeaderMinimized(!headerMinimized);
-  };
-
-  // Generate a consistent color based on token symbol
-  const generateColorFromString = (str: string): string => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const hue = hash % 360;
-    return `hsl(${hue}, 70%, 50%)`;
-  };
-
-  // Handle star button click for watchlist
   const handleStarClick = (token: Token, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from triggering
-    
-    // Generate icon and color based on token symbol
-    const firstLetter = token.symbol.charAt(0).toUpperCase();
-    const iconBg = generateColorFromString(token.symbol);
-    
-    const watchlistItem = {
+    e.stopPropagation();
+    const id = token.metadataAddress || token.txHash;
+    toggleWatchlist({
       name: token.name.replace('$', ''),
       symbol: token.symbol,
-      icon: firstLetter,
-      iconBg: iconBg,
-      metadataAddress: token.metadataAddress || token.txHash,
-      creatorAddress: token.creatorAddress
-    };
-    
-    toggleWatchlist(watchlistItem);
+      icon: token.symbol.charAt(0).toUpperCase(),
+      iconBg: getIconBg(token.symbol),
+      metadataAddress: id,
+      creatorAddress: token.creatorAddress,
+    });
   };
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const sortIcon = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : '';
 
   return (
     <>
-      <style>
-        {`
-          .mp-table-row { border-bottom: 1px solid var(--border); transition: background 0.12s; }
-          .mp-table-row:hover { background: var(--bg-hover); }
-          .mp-token-icon-placeholder {
-            width: 36px; height: 36px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0;
-          }
-          .mp-star-btn {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 15px;
-            color: var(--text-muted);
-            transition: color 0.15s, border-color 0.15s;
-            display: flex; align-items: center;
-          }
-          .mp-star-btn.starred { color: #f5c518; border-color: #f5c518; }
-          .mp-slippage-btn {
-            flex: 1; padding: 8px 12px;
-            border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
-            transition: all 0.15s;
-            border: 1px solid var(--border);
-            background: var(--bg-primary);
-            color: var(--text-secondary);
-          }
-          .mp-slippage-btn.active {
-            border-color: var(--accent);
-            background: var(--accent);
-            color: #fff;
-          }
-        `}
-      </style>
-              <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100vh',
-          width: '100vw',
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          margin: 0,
-          padding: 0,
-          overflow: 'hidden',
-          background: t.bgPrimary,
-          color: t.textPrimary,
-          transition: 'background 0.2s ease, color 0.2s ease',
-        }}>
-                            {/* Header */}
-        {/* Token Leaderboard - Commented out for future CTA */}
-        {/* <div style={{
-          background: t.bgPrimary,
-          borderBottom: `1px solid ${t.border}`,
-          padding: headerMinimized ? '4px 24px' : '8px 24px',
-          width: '100%',
-          flexShrink: 0,
-          position: 'relative',
-          transition: 'all 0.3s ease',
-          height: headerMinimized ? '30px' : 'auto',
-          overflow: headerMinimized ? 'hidden' : 'visible'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: headerMinimized ? '0' : '8px'
-          }}>
-            <div style={{
-              fontSize: '14px',
-              fontWeight: '600',
-              color: t.textSecondary,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              TOKEN LEADERBOARD
-            </div>
-            <div style={{
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#00d4aa'
-            }}>
-              1:00
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .mp-page { width: 100%; min-height: 100vh; background: var(--bg-primary); }
+
+        /* ── HEADER ── */
+        .mp-header {
+          position: sticky; top: 0; z-index: 100; height: 56px;
+          background: ${isDark ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.78)'};
+          backdrop-filter: saturate(180%) blur(20px);
+          -webkit-backdrop-filter: saturate(180%) blur(20px);
+          border-bottom: 1px solid var(--border);
+        }
+        .mp-nav {
+          max-width: 1280px; margin: 0 auto; height: 100%;
+          padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .mp-logo {
+          display: flex; align-items: center; gap: 9px;
+          font-size: 19px; font-weight: 700; letter-spacing: -0.025em;
+          color: var(--text-primary); text-decoration: none;
+        }
+        .mp-logo-mark {
+          width: 26px; height: 26px; border-radius: 8px;
+          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 14px; font-weight: 800;
+          box-shadow: 0 2px 8px rgba(5,150,105,0.35);
+        }
+        .mp-nav-links {
+          display: flex; gap: 30px; list-style: none; margin: 0; padding: 0;
+        }
+        .mp-nav-links a {
+          font-size: 14px; font-weight: 500; color: var(--text-secondary);
+          text-decoration: none; transition: color 0.15s;
+        }
+        .mp-nav-links a:hover, .mp-nav-links a.active { color: var(--text-primary); }
+        .mp-nav-actions { display: flex; align-items: center; gap: 10px; }
+        .mp-theme-btn {
+          background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;
+          width: 34px; height: 34px; font-size: 14px; line-height: 1;
+          color: var(--text-secondary); border-radius: 9px;
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s;
+        }
+        .mp-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .mp-cta-pill {
+          background: var(--accent); color: #fff; padding: 9px 18px; border-radius: 10px;
+          font-size: 14px; font-weight: 600; text-decoration: none;
+          transition: background 0.15s; box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+        }
+        .mp-cta-pill:hover { background: var(--accent-hover); }
+
+        /* ── MAIN ── */
+        .mp-main { max-width: 1280px; margin: 0 auto; padding: 52px 24px 80px; }
+
+        .mp-page-head {
+          display: flex; align-items: flex-end; justify-content: space-between;
+          flex-wrap: wrap; gap: 18px; margin-bottom: 32px;
+        }
+        .mp-title {
+          font-size: clamp(28px, 3vw, 36px); font-weight: 700;
+          letter-spacing: -0.03em; color: var(--text-primary); margin: 0 0 6px;
+        }
+        .mp-sub { font-size: 15px; color: var(--text-secondary); margin: 0; }
+
+        .mp-search-wrap { position: relative; }
+        .mp-search {
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          border-radius: 11px; padding: 10px 16px 10px 38px;
+          font-size: 14px; color: var(--text-primary); outline: none;
+          width: 260px; transition: border-color 0.15s, box-shadow 0.15s;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+          background-repeat: no-repeat; background-position: 13px center;
+          font-family: inherit;
+        }
+        .mp-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .mp-search::placeholder { color: var(--text-muted); }
+
+        /* ── TABLE CARD ── */
+        .mp-table-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 18px; overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,${isDark ? '0.3' : '0.05'});
+        }
+        .mp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+        .mp-table thead tr { border-bottom: 1px solid var(--border); }
+        .mp-th {
+          padding: 14px 18px; font-size: 11.5px; font-weight: 700;
+          color: var(--text-muted); text-transform: uppercase;
+          letter-spacing: 0.06em; white-space: nowrap; background: var(--bg-secondary);
+        }
+        .mp-th.sortable { cursor: pointer; user-select: none; transition: color 0.15s; }
+        .mp-th.sortable:hover { color: var(--text-primary); }
+        .mp-th.sorted { color: var(--text-primary); }
+
+        .mp-table tbody tr {
+          border-bottom: 1px solid var(--border);
+          cursor: pointer; transition: background 0.12s;
+        }
+        .mp-table tbody tr:last-child { border-bottom: none; }
+        .mp-table tbody tr:hover { background: var(--bg-hover); }
+
+        .mp-td { padding: 14px 18px; vertical-align: middle; }
+        .mp-td-rank {
+          font-size: 13px; font-weight: 600; color: var(--text-muted);
+          width: 48px; text-align: center;
+        }
+        .mp-token-cell { display: flex; align-items: center; gap: 13px; min-width: 0; }
+        .mp-token-icon {
+          width: 38px; height: 38px; border-radius: 10px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0;
+          object-fit: cover;
+        }
+        .mp-token-name {
+          font-size: 14px; font-weight: 700; color: var(--text-primary);
+          letter-spacing: -0.01em; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
+        }
+        .mp-token-sym { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-top: 1px; }
+
+        .mp-td-price {
+          text-align: right; font-size: 14px; font-weight: 700;
+          color: var(--text-primary); font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+        .mp-td-change {
+          text-align: right; font-size: 13.5px; font-weight: 700;
+          font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .mp-td-mc {
+          text-align: right; font-size: 14px; font-weight: 600;
+          color: var(--text-secondary); font-variant-numeric: tabular-nums;
+        }
+        .mp-td-actions {
+          text-align: right; white-space: nowrap;
+          display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+        }
+        .mp-trade-btn {
+          background: var(--accent); color: #fff; border: none;
+          padding: 8px 18px; border-radius: 9px;
+          font-size: 13px; font-weight: 600; cursor: pointer;
+          transition: background 0.15s; font-family: inherit;
+        }
+        .mp-trade-btn:hover { background: var(--accent-hover); }
+        .mp-star-btn {
+          background: transparent; border: 1.5px solid var(--border);
+          border-radius: 8px; width: 34px; height: 34px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 16px; color: var(--text-muted); cursor: pointer;
+          transition: color 0.15s, border-color 0.15s;
+        }
+        .mp-star-btn:hover { border-color: var(--text-muted); }
+        .mp-star-btn.starred { color: #f5c518; border-color: #f5c518; }
+
+        .mp-empty {
+          text-align: center; padding: 72px 20px;
+          color: var(--text-muted); font-size: 15px;
+        }
+        .mp-retry-btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          background: var(--accent); color: #fff; border: none;
+          padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+          cursor: pointer; font-family: inherit; margin-top: 18px;
+          transition: background 0.15s;
+        }
+        .mp-retry-btn:hover { background: var(--accent-hover); }
+
+        /* ── FOOTER ── */
+        .mp-footer {
+          border-top: 1px solid var(--border);
+          padding: 24px; text-align: center;
+          font-size: 12px; color: var(--text-muted);
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 900px) { .mp-nav-links { display: none; } }
+        @media (max-width: 680px) {
+          .mp-main { padding: 32px 16px 60px; }
+          .mp-td-mc, .mp-th:nth-child(5) { display: none; }
+          .mp-search { width: 100%; }
+        }
+      `}</style>
+
+      <div className="mp-page">
+        {/* ── HEADER ── */}
+        <header className="mp-header">
+          <div className="mp-nav">
+            <Link to="/" className="mp-logo">
+              <div className="mp-logo-mark">M</div>
+              MoveMint
+            </Link>
+            <ul className="mp-nav-links">
+              <li><Link to="/marketplace" className="active">Marketplace</Link></li>
+              <li><Link to="/launch">Launch</Link></li>
+              {account && <li><Link to={`/profile/${account.address}`}>Profile</Link></li>}
+            </ul>
+            <div className="mp-nav-actions">
+              <button className="mp-theme-btn" onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}>
+                {isDark ? '☀' : '☾'}
+              </button>
+              <Link to="/launch" className="mp-cta-pill">Launch token</Link>
             </div>
           </div>
-          <div style={{
-            display: 'flex',
-            gap: '0px',
-            overflowX: 'auto',
-            paddingBottom: '4px',
-            width: '100%',
-            justifyContent: 'space-between',
-            opacity: headerMinimized ? '0' : '1',
-            transition: 'opacity 0.3s ease'
-          }}>
-            {[
-              { rank: 1, name: 'DogeMax', apt: 420, icon: '₿', iconBg: '#f7931a' },
-              { rank: 2, name: 'PepeCoin', apt: 234, icon: 'Ξ', iconBg: '#627eea' },
-              { rank: 3, name: 'ShibaMax', apt: 189, icon: '₮', iconBg: '#50af95' },
-              { rank: 4, name: 'FlokiInu', apt: 156, icon: '◉', iconBg: '#f0b90b' },
-              { rank: 5, name: 'SafeMoon', apt: 123, icon: '◆', iconBg: '#1e88e5' },
-              { rank: 6, name: 'MoonToken', apt: 98, icon: '🌸', iconBg: '#e91e63' },
-              { rank: 7, name: 'LunaCoin', apt: 87, icon: '🌙', iconBg: '#9c27b0' },
-              { rank: 8, name: 'FireToken', apt: 76, icon: '🔥', iconBg: '#ff5722' },
-              { rank: 9, name: 'EcoCoin', apt: 65, icon: '🌿', iconBg: '#4caf50' },
-              { rank: 10, name: 'Diamond', apt: 54, icon: '💎', iconBg: '#2196f3' }
-            ].map((token) => (
-              <div 
-                key={token.rank}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  flex: 1,
-                  minWidth: 0
-                }}
-                onClick={() => handleTokenSelect(token)}
-              >
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: t.textSecondary,
-                  minWidth: '16px'
-                }}>
-                  {token.rank}
-                </span>
-                <div 
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    background: token.iconBg
-                  }}
-                >
-                  {token.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {token.name}
-                  </div>
-                  <div style={{
-                    fontSize: '10px',
-                    color: t.textSecondary,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {token.apt} APT
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div> */}
-        
-        {/* Global Header Bar */}
-        <GlobalHeaderBar />
+        </header>
 
-        <div style={{
-          display: 'flex',
-          flex: 1,
-          width: '100%',
-          overflow: 'hidden'
-        }}>
-          {/* Sidebar */}
-          <GlobalSidebar 
-            activeTab="marketplace"
-          />
-
-          {/* Main Content */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-            width: '100%'
-          }}>
-            {/* Token Title Bar */}
-            <div style={{
-              background: t.bgPrimary,
-              borderBottom: `1px solid ${t.border}`,
-              padding: '18px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              flexShrink: 0
-            }}>
-              <div style={{
-                fontSize: '22px',
-                fontWeight: '700',
-                color: t.textPrimary,
-                flexShrink: 0
-              }}>
-                Marketplace
-              </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                margin: '0 20px'
-              }}>
-                <input 
-                  type="text" 
-                  placeholder="Search"
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  style={{
-                    width: '400px',
-                    padding: '8px 12px',
-                    border: `1px solid ${t.border}`,
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    background: t.bgSecondary,
-                    color: t.textPrimary
-                  }}
-                />
-              </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                marginLeft: 'auto'
-              }}>
-                <span>⚙️</span>
-                <a href="#" style={{
-                  color: t.textSecondary,
-                  textDecoration: 'none'
-                }}>
-                  Launch
-                </a>
-                {account ? (
-                  <div style={{ position: 'relative' }} data-wallet-dropdown>
-                    <button
-                      onClick={toggleWalletDropdown}
-                      style={{
-                        background: '#00d4aa',
-                        color: 'white',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                    >
-                      <span style={{ fontSize: '12px' }}>
-                        {String(account.address).slice(0, 6)}...{String(account.address).slice(-4)}
-                      </span>
-                    </button>
-                    
-                    {walletDropdownOpen && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        background: t.bgPrimary,
-                        border: `1px solid ${t.border}`,
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                        zIndex: 1000,
-                        minWidth: '200px',
-                        marginTop: '4px'
-                      }}>
-                        <button
-                          onClick={() => {
-                            // Navigate to profile
-                            window.location.href = `/profile/${account.address}`;
-                            setWalletDropdownOpen(false);
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'transparent',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                            color: t.textPrimary,
-                            borderBottom: `1px solid ${t.border}`
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          👤 Profile
-                        </button>
-                        <button
-                          onClick={handleDisconnect}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'transparent',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                            color: t.negative
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = t.bgHover}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          🚪 Disconnect
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px'
-                  }}>
-                    {/* This section is now handled by the wallet adapter */}
-                  </div>
-                )}
-              </div>
+        {/* ── MAIN CONTENT ── */}
+        <main className="mp-main">
+          <div className="mp-page-head">
+            <div>
+              <h1 className="mp-title">Markets</h1>
+              <p className="mp-sub">
+                {rawTokens.length > 0 ? `${rawTokens.length} token${rawTokens.length !== 1 ? 's' : ''} live on Aptos testnet` : 'All tokens on MoveMint'}
+              </p>
             </div>
+            <div className="mp-search-wrap">
+              <input
+                type="text"
+                className="mp-search"
+                placeholder="Search tokens"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
 
-            {/* Content Area */}
-            <div style={{
-              display: 'flex',
-              flex: 1,
-              minHeight: 0,
-              width: '100%',
-              background: t.bgPrimary,
-            }}>
-              {/* Content Left */}
-              <div style={{
-                flex: 1,
-                padding: '20px',
-                background: t.bgPrimary,
-                overflowY: 'auto',
-                minWidth: 0
-              }}>
-
-
-                {/* Trading Section */}
-                <div style={{
-                  background: t.bgSecondary,
-                  borderRadius: '12px',
-                  padding: '20px',
-                  border: `1px solid ${t.border}`,
-                }}>
-                  <div style={{
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '20px'
-                  }}>
-                    Tokens
-                  </div>
-
-                  {/* Controls */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '12px',
-                    marginBottom: '20px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <input
-                      type="text"
-                      placeholder="Filter by name"
-                      style={{
-                        padding: '8px 12px',
-                        border: `1px solid ${t.border}`,
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        minWidth: '200px',
-                        background: t.bgPrimary,
-                        color: t.textPrimary,
-                      }}
-                    />
-                    <select style={{
-                      padding: '8px 12px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      background: t.bgPrimary
-                    }}>
-                      <option>1h</option>
-                      <option>4h</option>
-                      <option>12h</option>
-                      <option>1D</option>
-                      <option>All</option>
-                    </select>
-                    <select style={{
-                      padding: '8px 12px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      background: t.bgPrimary,
-                      color: t.textPrimary,
-                    }}>
-                      <option>All Status</option>
-                      <option>Verified</option>
-                      <option>Unverified</option>
-                    </select>
-                  </div>
-
-                  {/* Trading Table */}
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: '14px'
-                  }}>
-                    <thead>
-                      <tr style={{
-                        borderBottom: `1px solid ${t.border}`,
-                      }}>
-                        <th style={{
-                          textAlign: 'left',
-                          padding: '12px 8px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                        }}>
-                          Name
-                        </th>
-                        <th style={{
-                          textAlign: 'right',
-                          padding: '12px 8px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                          width: '150px'
-                        }}>
-                          Price
-                        </th>
-                        <th style={{
-                          textAlign: 'right',
-                          padding: '12px 8px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                        }}>
-                          Change
-                        </th>
-                        <th style={{
-                          textAlign: 'right',
-                          padding: '12px 8px',
-                          fontWeight: '600',
-                          color: t.textMuted
-                        }}>
-                          Market cap
-                        </th>
-                        <th style={{
-                          textAlign: 'right',
-                          padding: '12px 8px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                          width: '200px'
-                        }}>
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>
-                            <div style={{ padding: '20px' }}>
-                              <div style={{ fontSize: '16px', fontWeight: '600', color: t.textPrimary, marginBottom: '8px' }}>
-                                Loading tokens...
-                              </div>
-                              <div style={{ fontSize: '14px', color: t.textMuted }}>
-                                {error ? 'Retrying after rate limit...' : 'Fetching from Aptos network...'}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : tokens.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>
-                            <div style={{ padding: '20px' }}>
-                              <div style={{ fontSize: '16px', fontWeight: '600', color: t.textPrimary, marginBottom: '8px' }}>
-                                Unable to load tokens
-                              </div>
-                              <div style={{ fontSize: '14px', color: t.textMuted, marginBottom: '16px' }}>
-                                The Aptos network is experiencing high traffic. This usually resolves in a few minutes.
-                                <br />
-                                <strong>Tip:</strong> Try refreshing the page or wait a moment before retrying.
-                              </div>
-                              <button 
-                                onClick={() => refetch()} 
-                                style={{
-                                  background: '#00d4aa',
-                                  color: 'white',
-                                  border: 'none',
-                                  padding: '8px 16px',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  marginRight: '8px'
-                                }}
-                              >
-                                Retry
-                              </button>
-                              <button 
-                                onClick={() => window.location.reload()} 
-                                style={{
-                                  background: 'transparent',
-                                  color: t.textMuted,
-                                  border: '1px solid #e0e0e0',
-                                  padding: '8px 16px',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '14px'
-                                }}
-                              >
-                                Refresh Page
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        tokens.map((token, index) => (
-                          <tr key={index} className="mp-table-row">
-                            <td style={{
-                              padding: '12px 8px'
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px'
-                              }}>
-                                {token.image ? (
-                                  <img
-                                    src={token.image}
-                                    alt={token.symbol}
-                                    style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                  />
-                                ) : (
-                                  <div className="mp-token-icon-placeholder" style={{ background: getIconBg(token.symbol) }}>
-                                    {token.symbol.charAt(0).toUpperCase()}
-                                  </div>
-                                )}
-                                <div>
-                                  <div style={{
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    color: t.textPrimary
-                                  }}>
-                                    {token.name}
-                                  </div>
-                                  <div style={{
-                                    fontSize: '12px',
-                                    color: t.textMuted
-                                  }}>
-                                    {token.symbol}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{
-                              textAlign: 'right',
-                              padding: '12px 8px',
-                              fontWeight: '600',
-                              color: t.textPrimary,
-                              width: '150px'
-                            }}>
-                              {token.priceUSD != null ? formatPrice(token.priceUSD) : token.price != null ? `${token.price.toFixed(8)} APT` : '—'}
-                            </td>
-                            <td style={{
-                              textAlign: 'right',
-                              padding: '12px 8px',
-                              color: token.change24h && token.change24h > 0 ? '#00d4aa' : '#ff4757',
-                              fontWeight: '600'
-                            }}>
-                              {token.change24h ? `${token.change24h.toFixed(2)}%` : 'N/A'}
-                            </td>
-                            <td style={{
-                              textAlign: 'right',
-                              padding: '12px 8px',
-                              color: t.textMuted
-                            }}>
-                              {token.marketCapUSD != null ? formatMarketCap(token.marketCapUSD) : '—'}
-                            </td>
-                            <td style={{
-                              textAlign: 'right',
-                              padding: '12px 8px',
-                              width: '200px'
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                gap: '12px',
-                                alignItems: 'center'
-                              }}>
-                                <button 
-                                  onClick={async () => {
-                                    console.log("Trade button clicked for token:", token);
-                                    console.log("Token metadataAddress:", token.metadataAddress);
-                                    console.log("Token txHash:", token.txHash);
-                                    console.log("Token creatorAddress:", token.creatorAddress);
-                                    console.log("Token creator:", token.creator);
-                                    setSelectedToken(token);
-                                    // Use cached balance if available, otherwise refresh
-                                    if (token.metadataAddress) {
-                                      const cachedBalance = tokenBalanceMap.get(token.metadataAddress);
-                                      if (cachedBalance !== undefined) {
-                                        setTokenBalance(cachedBalance);
-                                      } else if (account?.address) {
-                                        await refreshBalances(true);
-                                      }
-                                    }
-                                  }}
-                                  style={{
-                                    padding: '8px 16px',
-                                    background: '#00d4aa',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    fontSize: '14px',
-                                    fontWeight: '500',
-                                    cursor: 'pointer'
-                                  }}>
-                                  Trade
-                                </button>
-                                {/* Boost button - commented out for future deployment */}
-                                {/* <button style={{
-                                  padding: '8px 16px',
-                                  background: t.bgPrimary,
-                                  color: '#FF6B35',
-                                  border: '1px solid #FF6B35',
-                                  borderRadius: '6px',
-                                  fontSize: '14px',
-                                  fontWeight: '500',
-                                  cursor: 'pointer'
-                                }}>
-                                  Boost
-                                </button> */}
-                                {/* Verify button - commented out for future deployment */}
-                                {/* <button style={{
-                                  padding: '8px 16px',
-                                  background: t.bgPrimary,
-                                  color: '#00BFFF',
-                                  border: '1px solid #00BFFF',
-                                  borderRadius: '6px',
-                                  fontSize: '14px',
-                                  fontWeight: '500',
-                                  cursor: 'pointer'
-                                }}>
-                                  Verify
-                                </button> */}
-                                <button
-                                  onClick={(e) => handleStarClick(token, e)}
-                                  className={`mp-star-btn${(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? ' starred' : ''}`}
-                                  title={(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? 'Remove from watchlist' : 'Add to watchlist'}
-                                >
-                                  {(token.metadataAddress || token.txHash) && isInWatchlist(token.metadataAddress || token.txHash) ? '★' : '☆'}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Trading Panel */}
-              <div style={{
-                width: '400px',
-                background: t.bgPrimary,
-                borderLeft: `1px solid ${t.border}`,
-                padding: '20px',
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0
-              }}>
-                <div style={{
-                  background: t.bgSecondary,
-                  borderRadius: '12px',
-                  padding: '20px',
-                  border: `1px solid ${t.border}`,
-                  height: '100%'
-                }}>
-                  {/* Token Info Section */}
-                  {selectedToken ? (
-                    <div style={{ 
-                      marginBottom: '20px',
-                      padding: '16px',
-                      background: t.bgPrimary,
-                      borderRadius: '8px',
-                      border: `1px solid ${t.border}`
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        marginBottom: '8px'
-                      }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          background: '#00d4aa',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontWeight: 'bold',
-                          fontSize: '14px',
-                          marginRight: '12px'
-                        }}>
-                          {selectedToken.symbol.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 style={{
-                            fontSize: '18px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                            margin: '0'
-                          }}>
-                            {selectedToken.symbol}
-                          </h4>
-                          <p style={{
-                            fontSize: '14px',
-                            color: t.textSecondary,
-                            margin: '0'
-                          }}>
-                            {selectedToken.name}
-                          </p>
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    <div style={{ 
-                      marginBottom: '20px',
-                      padding: '16px',
-                      background: t.bgSecondary,
-                      borderRadius: '8px',
-                      border: `1px solid ${t.border}`,
-                      textAlign: 'center'
-                    }}>
-                      <p style={{
-                        fontSize: '14px',
-                        color: t.textSecondary,
-                        margin: '0'
-                      }}>
-                        Select a token to start trading
-                      </p>
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: '20px' }}>
-                    <h3 style={{
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      color: t.textPrimary,
-                      marginBottom: '8px'
-                    }}>
-                      Your Balance {selectedToken && <span style={{ color: t.textPrimary, fontWeight: '600' }}>({selectedToken.symbol})</span>}
-                    </h3>
-                    <div style={{
-                      fontSize: '24px',
-                      fontWeight: '700',
-                      color: '#00d4aa'
-                    }}>
-                      {tokenBalance || '0.000'}
-                    </div>
-                  </div>
-                  
-                  <ul style={{
-                    display: 'flex',
-                    background: t.bgSecondary,
-                    borderRadius: '8px',
-                    padding: '4px',
-                    marginBottom: '20px',
-                    listStyle: 'none'
-                  }}>
-                    <li 
-                      style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        background: activeTab === 'buy' ? '#00d4aa' : 'transparent',
-                        color: activeTab === 'buy' ? 'white' : t.textMuted
-                      }}
-                      onClick={() => setActiveTab('buy')}
-                    >
-                      Buy
-                    </li>
-                    <li 
-                      style={{
-                        flex: 1,
-                        textAlign: 'center',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        background: activeTab === 'sell' ? '#ff4757' : 'transparent',
-                        color: activeTab === 'sell' ? 'white' : t.textMuted
-                      }}
-                      onClick={() => setActiveTab('sell')}
-                    >
-                      Sell
-                    </li>
-                  </ul>
-                  
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: t.textPrimary,
-                      marginBottom: '8px'
-                    }}>
-                      Amount
-                    </label>
-                    <input 
-                      type="text" 
-                      value={amountString}
-                      onChange={(e) => setAmountString(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: `1px solid ${t.border}`,
-                        borderRadius: '8px',
-                        fontSize: '16px',
-                        background: t.bgPrimary
-                      }}
-                    />
-                  </div>
-                  
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: t.textPrimary,
-                      marginBottom: '8px'
-                    }}>
-                      Total (APT)
-                    </label>
-                    <input 
-                      type="text" 
-                      value={total}
-                      readOnly
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        border: `1px solid ${t.border}`,
-                        borderRadius: '8px',
-                        fontSize: '16px',
-                        background: t.bgSecondary,
-                        color: t.textSecondary
-                      }}
-                    />
-                  </div>
-
-                  {/* Slippage Protection Section */}
-                  <div style={{
-                    margin: '20px 0',
-                    padding: '15px',
-                    background: t.bgSecondary,
-                    borderRadius: '8px',
-                    border: `1px solid ${t.border}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: slippageExpanded ? '12px' : '0',
-                        transition: 'margin-bottom 0.3s ease'
-                      }}
-                      onClick={handleSlippageToggle}
-                    >
-                      <span style={{
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: t.textPrimary
-                      }}>
-                        Slippage Protection
-                      </span>
-                      <span style={{
-                        fontSize: '12px',
-                        color: t.textMuted,
-                        cursor: 'pointer',
-                        transition: 'transform 0.3s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '20px',
-                        height: '20px',
-                        transform: slippageExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
-                      }}>
-                        ▼
-                      </span>
-                    </div>
-                    <div style={{
-                      maxHeight: slippageExpanded ? '200px' : '0',
-                      overflow: 'hidden',
-                      transition: 'max-height 0.3s ease'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        marginBottom: '12px',
-                        marginTop: '12px'
-                      }}>
-                        {['0.5', '1.0', '2.0', '5.0'].map((slipValue) => (
-                          <button
-                            key={slipValue}
-                            onClick={() => handleSlippageSelect(slipValue)}
-                            className={`mp-slippage-btn${selectedSlippage === slipValue ? ' active' : ''}`}
-                          >
-                            {slipValue}%
-                          </button>
-                        ))}
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <input
-                          type="number"
-                          placeholder="Custom"
-                          min="0.1"
-                          max="50"
-                          step="0.1"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: `1px solid ${t.border}`,
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            background: t.bgPrimary,
-                            color: t.textPrimary
-                          }}
-                        />
-                        <span style={{
-                          fontSize: '12px',
-                          color: t.textMuted,
-                          fontWeight: '500'
-                        }}>
-                          %
-                        </span>
-                      </div>
-                      <div style={{
-                        fontSize: '11px',
-                        color: '#ff4757',
-                        marginTop: '8px',
-                        display: parseFloat(selectedSlippage) > 5.0 ? 'block' : 'none'
-                      }}>
-                        ⚠️ High slippage may result in unfavorable trade execution
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleTrade}
-                    style={{
-                      width: '100%',
-                      padding: '14px 24px',
-                      background: activeTab === 'buy' ? '#00d4aa' : '#ff4757',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      marginBottom: '12px'
-                    }}
+          <div className="mp-table-card">
+            <table className="mp-table">
+              <thead>
+                <tr>
+                  <th className="mp-th" style={{ textAlign: 'center' }}>#</th>
+                  <th className="mp-th" style={{ textAlign: 'left' }}>Token</th>
+                  <th
+                    className={`mp-th sortable${sortKey === 'price' ? ' sorted' : ''}`}
+                    style={{ textAlign: 'right' }}
+                    onClick={() => handleSort('price')}
                   >
-                    {activeTab === 'buy' ? 'Buy' : 'Sell'}
-                  </button>
-                  
-                  {selectedToken && (
-                    <Link 
-                      to={`/newtoken/${selectedToken.txHash}`}
-                      style={{
-                        width: '100%',
-                        padding: '12px 24px',
-                        background: 'transparent',
-                        color: t.textSecondary,
-                        border: `1px solid ${t.border}`,
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        textDecoration: 'none',
-                        display: 'block',
-                        textAlign: 'center'
-                      }}
-                    >
-                      Full Trade View
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
+                    Price{sortIcon('price')}
+                  </th>
+                  <th
+                    className={`mp-th sortable${sortKey === 'change' ? ' sorted' : ''}`}
+                    style={{ textAlign: 'right' }}
+                    onClick={() => handleSort('change')}
+                  >
+                    24h{sortIcon('change')}
+                  </th>
+                  <th
+                    className={`mp-th sortable${sortKey === 'mc' ? ' sorted' : ''}`}
+                    style={{ textAlign: 'right' }}
+                    onClick={() => handleSort('mc')}
+                  >
+                    Market cap{sortIcon('mc')}
+                  </th>
+                  <th className="mp-th" style={{ textAlign: 'right' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="mp-empty">Loading markets…</div>
+                    </td>
+                  </tr>
+                ) : tokens.length === 0 && error ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="mp-empty">
+                        <div style={{ marginBottom: 8 }}>Unable to load tokens. The Aptos network may be under load.</div>
+                        <button className="mp-retry-btn" onClick={() => refetch()}>Retry</button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : tokens.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="mp-empty">
+                        {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens have launched yet.'}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  tokens.map((token, i) => {
+                    const change = token.change24h;
+                    const changeColor = change == null
+                      ? 'var(--text-muted)'
+                      : change >= 0 ? 'var(--positive)' : 'var(--negative)';
+                    const starred = !!(token.metadataAddress || token.txHash) &&
+                      isInWatchlist(token.metadataAddress || token.txHash);
 
-            {/* Footer */}
-            <div style={{
-              background: t.bgPrimary,
-              borderTop: `1px solid ${t.border}`,
-              padding: '20px 24px',
-              width: '100%',
-              flexShrink: 0
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  gap: '20px'
-                }}>
-                  <a href="#" style={{
-                    color: t.textSecondary,
-                    textDecoration: 'none',
-                    fontSize: '14px'
-                  }}>
-                    Careers
-                  </a>
-                  <a href="#" style={{
-                    color: t.textSecondary,
-                    textDecoration: 'none',
-                    fontSize: '14px'
-                  }}>
-                    Privacy & Legal
-                  </a>
-                  <a href="#" style={{
-                    color: t.textSecondary,
-                    textDecoration: 'none',
-                    fontSize: '14px'
-                  }}>
-                    Docs
-                  </a>
-                  <a href="#" style={{
-                    color: t.textSecondary,
-                    textDecoration: 'none',
-                    fontSize: '14px'
-                  }}>
-                    Accessibility
-                  </a>
-                </div>
-                <p style={{
-                  fontSize: '14px',
-                  color: t.textSecondary
-                }}>
-                  &copy; 2025 MoveMint
-                </p>
-              </div>
-            </div>
+                    return (
+                      <tr key={i} onClick={() => handleTradeClick(token)}>
+                        <td className="mp-td mp-td-rank">{i + 1}</td>
+                        <td className="mp-td">
+                          <div className="mp-token-cell">
+                            {token.image ? (
+                              <img
+                                src={token.image}
+                                alt={token.symbol}
+                                className="mp-token-icon"
+                                style={{ objectFit: 'cover' }}
+                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="mp-token-icon" style={{ background: getIconBg(token.symbol) }}>
+                                {token.symbol.replace('$', '').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <div className="mp-token-name">{token.name}</div>
+                              <div className="mp-token-sym">{symbolWithDollar(token.symbol)}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="mp-td mp-td-price">{priceLabel(token)}</td>
+                        <td className="mp-td mp-td-change" style={{ color: changeColor }}>
+                          {change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}
+                        </td>
+                        <td className="mp-td mp-td-mc">
+                          {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
+                        </td>
+                        <td className="mp-td">
+                          <div className="mp-td-actions">
+                            <button
+                              className="mp-trade-btn"
+                              onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
+                            >
+                              Trade
+                            </button>
+                            <button
+                              className={`mp-star-btn${starred ? ' starred' : ''}`}
+                              onClick={e => handleStarClick(token, e)}
+                              title={starred ? 'Remove from watchlist' : 'Add to watchlist'}
+                            >
+                              {starred ? '★' : '☆'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
+        </main>
+
+        <footer className="mp-footer">
+          © 2025 MoveMint · <Link to="/launch" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Launch a token</Link>
+        </footer>
       </div>
     </>
   );
 };
 
-export default Marketplace; 
+export default Marketplace;
