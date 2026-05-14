@@ -166,7 +166,7 @@ const HomePage: React.FC = () => {
           border-bottom: 1px solid var(--border);
         }
         .mm-nav {
-          max-width: 1180px; margin: 0 auto; height: 100%;
+          max-width: 1280px; margin: 0 auto; height: 100%;
           padding: 0 24px;
           display: flex; align-items: center; justify-content: space-between;
         }
@@ -260,7 +260,7 @@ const HomePage: React.FC = () => {
         }
         .mm-hero-inner {
           position: relative; z-index: 1;
-          max-width: 1180px; margin: 0 auto;
+          max-width: 1280px; margin: 0 auto;
           display: grid; grid-template-columns: 1.05fr 0.95fr;
           gap: 60px; align-items: center;
         }
@@ -411,7 +411,7 @@ const HomePage: React.FC = () => {
         /* ── STATS PANEL ── */
         .mm-stats {
           position: relative; z-index: 5;
-          max-width: 1180px; margin: -58px auto 0;
+          max-width: 1280px; margin: -58px auto 0;
           padding: 0 24px;
         }
         .mm-stats-panel {
@@ -447,7 +447,7 @@ const HomePage: React.FC = () => {
           padding: 88px 24px 100px;
           background: var(--bg-primary);
         }
-        .mm-tokens-inner { max-width: 1180px; margin: 0 auto; }
+        .mm-tokens-inner { max-width: 1280px; margin: 0 auto; }
         .mm-section-head {
           display: flex; justify-content: space-between; align-items: flex-end;
           gap: 24px; flex-wrap: wrap;
@@ -577,7 +577,7 @@ const HomePage: React.FC = () => {
           border-top: 1px solid var(--border);
           padding: 54px 24px 26px;
         }
-        .mm-footer-inner { max-width: 1180px; margin: 0 auto; }
+        .mm-footer-inner { max-width: 1280px; margin: 0 auto; }
         .mm-footer-top {
           padding-bottom: 34px; border-bottom: 1px solid var(--border);
           display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 44px;

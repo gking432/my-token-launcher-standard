@@ -54,6 +54,13 @@ body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+/* Landing.css sets `body { display: flex; align-items: center }`, which makes
+   #root shrink-to-fit its content. Force it full-width so page layouts that
+   rely on a definite width (e.g. CSS grid `1fr` tracks) resolve correctly. */
+#root {
+  width: 100%;
+}
+
 code {
   font-family: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
