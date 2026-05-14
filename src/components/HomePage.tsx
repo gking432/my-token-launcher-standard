@@ -202,7 +202,7 @@ const HomePage: React.FC = () => {
           transform: translateX(-50%);
           width: 900px; height: 900px;
           background: radial-gradient(circle, var(--accent-light) 0%, transparent 60%);
-          opacity: ${isDark ? '0.4' : '0.6'};
+          opacity: ${isDark ? '0.5' : '0.8'};
           pointer-events: none;
           z-index: 0;
         }
@@ -248,19 +248,25 @@ const HomePage: React.FC = () => {
           border: none; cursor: pointer;
         }
         .mm-btn-primary:hover { background: var(--accent-hover); }
-        .mm-btn-ghost {
-          color: var(--accent); padding: 13px 0;
+        .mm-btn-secondary {
+          background: transparent;
+          color: var(--text-primary);
+          padding: 12px 24px; border-radius: 980px;
           font-size: 17px; font-weight: 400;
           text-decoration: none;
-          display: inline-flex; align-items: center; gap: 4px;
-          transition: opacity 0.15s;
+          border: 1.5px solid var(--border-secondary);
+          display: inline-flex; align-items: center; gap: 6px;
+          transition: background 0.18s, border-color 0.18s;
         }
-        .mm-btn-ghost:hover { opacity: 0.7; }
-        .mm-btn-ghost::after {
-          content: '›'; font-size: 22px; line-height: 0.5;
+        .mm-btn-secondary:hover {
+          background: var(--bg-hover);
+          border-color: var(--text-muted);
+        }
+        .mm-btn-secondary::after {
+          content: '›'; font-size: 20px; line-height: 0.6;
           transition: transform 0.2s;
         }
-        .mm-btn-ghost:hover::after { transform: translateX(3px); }
+        .mm-btn-secondary:hover::after { transform: translateX(2px); }
 
         /* ── STATS BAR ── */
         .mm-stats {
@@ -297,7 +303,7 @@ const HomePage: React.FC = () => {
         /* ── TOKENS SECTION ── */
         .mm-tokens {
           padding: 100px 22px;
-          background: var(--bg-primary);
+          background: ${isDark ? 'var(--bg-secondary)' : 'var(--bg-tertiary)'};
         }
         .mm-tokens-inner { max-width: 1180px; margin: 0 auto; }
         .mm-section-head {
@@ -322,26 +328,29 @@ const HomePage: React.FC = () => {
           display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
         }
         .mm-search {
-          background: var(--bg-secondary);
-          border: 1px solid transparent;
-          border-radius: 980px;
+          background: ${isDark ? 'var(--bg-hover)' : 'var(--bg-primary)'};
+          border: 1.5px solid var(--border);
+          border-radius: 10px;
           padding: 9px 16px 9px 38px;
           font-size: 14px;
           color: var(--text-primary);
           outline: none;
           width: 260px;
-          transition: border-color 0.15s, background 0.15s;
+          transition: border-color 0.15s, box-shadow 0.15s;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
-          background-position: 14px center;
+          background-position: 13px center;
           font-family: inherit;
         }
-        .mm-search:focus { border-color: var(--accent); background: var(--bg-primary); }
+        .mm-search:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-light);
+        }
         .mm-search::placeholder { color: var(--text-muted); }
         .mm-sort {
-          background: var(--bg-secondary);
-          border: 1px solid transparent;
-          border-radius: 980px;
+          background: ${isDark ? 'var(--bg-hover)' : 'var(--bg-primary)'};
+          border: 1.5px solid var(--border);
+          border-radius: 10px;
           padding: 9px 36px 9px 16px;
           font-size: 14px;
           color: var(--text-primary);
@@ -350,11 +359,15 @@ const HomePage: React.FC = () => {
           appearance: none;
           -webkit-appearance: none;
           font-family: inherit;
+          transition: border-color 0.15s, box-shadow 0.15s;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 14px center;
         }
-        .mm-sort:focus { border-color: var(--accent); }
+        .mm-sort:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-light);
+        }
 
         /* ── TOKEN CARDS ── */
         .mm-grid {
@@ -363,17 +376,18 @@ const HomePage: React.FC = () => {
           gap: 16px;
         }
         .mm-card {
-          background: var(--bg-primary);
+          background: ${isDark ? 'var(--bg-tertiary)' : 'var(--bg-primary)'};
           border: 1px solid var(--border);
-          border-radius: 18px;
+          border-radius: 16px;
           padding: 22px;
           display: flex; flex-direction: column; gap: 18px;
           cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
           transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
         }
         .mm-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(0,0,0,${isDark ? '0.4' : '0.08'}), 0 2px 8px rgba(0,0,0,${isDark ? '0.3' : '0.04'});
+          transform: translateY(-2px);
+          box-shadow: 0 10px 28px rgba(0,0,0,${isDark ? '0.35' : '0.10'}), 0 3px 8px rgba(0,0,0,${isDark ? '0.25' : '0.06'});
           border-color: var(--border-secondary);
         }
         .mm-card-head { display: flex; align-items: center; gap: 14px; }
@@ -434,20 +448,19 @@ const HomePage: React.FC = () => {
         }
         .mm-card-creator:hover { color: var(--text-secondary); }
         .mm-card-trade {
-          background: var(--bg-secondary);
-          color: var(--text-primary);
+          background: var(--accent);
+          color: #fff;
           border: none;
-          padding: 7px 16px;
+          padding: 8px 18px;
           border-radius: 980px;
           font-size: 13px;
           font-weight: 500;
           cursor: pointer;
-          transition: background 0.15s;
+          transition: background 0.15s, opacity 0.15s;
           font-family: inherit;
         }
         .mm-card-trade:hover {
-          background: var(--accent);
-          color: #fff;
+          background: var(--accent-hover);
         }
 
         .mm-empty {
@@ -560,7 +573,7 @@ const HomePage: React.FC = () => {
             </p>
             <div className="mm-hero-actions">
               <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
-              <a href="#tokens" className="mm-btn-ghost">Explore the marketplace</a>
+              <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
             </div>
           </div>
         </section>
