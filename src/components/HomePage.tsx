@@ -137,13 +137,8 @@ const HomePage: React.FC = () => {
     return items.slice(0, 24);
   }, [rawTokens]);
 
-  // ── Featured token for the hero product-preview card ──
-  const featured = tokens[0] || rawTokens[0] || null;
-  const featuredUp = (featured?.change24h ?? 0) >= 0;
-  // Stylized hero sparkline (decorative product preview)
-  const chartLine = featuredUp
-    ? 'M0,104 C26,98 38,74 64,82 C90,90 100,52 128,58 C156,64 168,38 196,32 C224,26 236,54 264,42 C292,30 306,14 320,8'
-    : 'M0,16 C26,22 38,46 64,38 C90,30 100,68 128,62 C156,56 168,82 196,88 C224,94 236,66 264,78 C292,90 306,106 320,112';
+  // ── Static mock token for the hero product-preview card ──
+  const chartLine = 'M0,104 C26,98 38,74 64,82 C90,90 100,52 128,58 C156,64 168,38 196,32 C224,26 236,54 264,42 C292,30 306,14 320,8';
   const chartArea = chartLine + ' L320,120 L0,120 Z';
 
   return (
@@ -159,7 +154,7 @@ const HomePage: React.FC = () => {
           -moz-osx-font-smoothing: grayscale;
         }
 
-        .mm-page { min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
+        .mm-page { width: 100%; min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
 
         /* ── HEADER ── */
         .mm-header {
@@ -704,45 +699,24 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Product preview card */}
+            {/* Product preview card — static mock */}
             <div className="mm-hero-visual">
               <div className="mm-preview-glow" />
-              <div
-                className="mm-preview-card"
-                onClick={() => featured ? handleTradeClick(featured) : navigate('/marketplace')}
-                style={{ cursor: 'pointer' }}
-              >
+              <div className="mm-preview-card">
                 <div className="mm-preview-head">
-                  {featured && featured.image ? (
-                    <img
-                      src={featured.image}
-                      alt={featured.symbol}
-                      className="mm-preview-icon"
-                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="mm-preview-icon" style={{ background: getIconBg(featured?.symbol || 'M') }}>
-                      {(featured?.symbol || 'M').replace('$', '').charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#059669,#0ea5e9)' }}>
+                    A
+                  </div>
                   <div>
-                    <div className="mm-preview-name">{featured?.name || 'Your token, live'}</div>
-                    <div className="mm-preview-sym">{symbolWithDollar(featured?.symbol || 'MINT')}</div>
+                    <div className="mm-preview-name">Aptos Launch</div>
+                    <div className="mm-preview-sym">$APTX</div>
                   </div>
                   <div className="mm-preview-tag">Live</div>
                 </div>
 
-                <div className="mm-preview-price">
-                  {featured ? priceLabel(featured) : '$0.0021'}
-                </div>
-                <div
-                  className="mm-preview-change"
-                  style={{ color: featuredUp ? 'var(--positive)' : 'var(--negative)' }}
-                >
-                  {featuredUp ? '▲' : '▼'}{' '}
-                  {featured?.change24h != null
-                    ? `${Math.abs(featured.change24h).toFixed(2)}% · 24h`
-                    : 'Bonding curve active'}
+                <div className="mm-preview-price">$0.0058</div>
+                <div className="mm-preview-change" style={{ color: 'var(--positive)' }}>
+                  ▲ 24.7% · Bonding curve active
                 </div>
 
                 <svg className="mm-preview-chart" viewBox="0 0 320 120" preserveAspectRatio="none">
@@ -764,18 +738,8 @@ const HomePage: React.FC = () => {
                 </svg>
 
                 <div className="mm-preview-actions">
-                  <button
-                    className="mm-preview-buy"
-                    onClick={e => { e.stopPropagation(); featured ? handleTradeClick(featured) : navigate('/marketplace'); }}
-                  >
-                    Buy
-                  </button>
-                  <button
-                    className="mm-preview-sell"
-                    onClick={e => { e.stopPropagation(); featured ? handleTradeClick(featured) : navigate('/marketplace'); }}
-                  >
-                    Sell
-                  </button>
+                  <button className="mm-preview-buy" onClick={() => navigate('/marketplace')}>Buy</button>
+                  <button className="mm-preview-sell" onClick={() => navigate('/marketplace')}>Sell</button>
                 </div>
               </div>
             </div>
