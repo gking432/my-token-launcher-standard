@@ -11,6 +11,7 @@ import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
+import { priceAtAPT } from '../lib/bondingCurve';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
@@ -1549,8 +1550,8 @@ const TokenPage: React.FC = () => {
                               <td className="tp-tx-td">{Number(trade.amount).toLocaleString()}</td>
                               <td className="tp-tx-td">{trade.aptValue.toFixed(4)} APT</td>
                               <td className="tp-tx-td">
-                                {trade.amount > 0 && aptPrice
-                                  ? formatPrice((trade.aptValue / trade.amount) * aptPrice)
+                                {aptPrice && trade.tokensSoldAfter != null
+                                  ? formatPrice(priceAtAPT(trade.tokensSoldAfter) * aptPrice)
                                   : '—'}
                               </td>
                               <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{timeAgo(trade.timestampMs)}</td>
