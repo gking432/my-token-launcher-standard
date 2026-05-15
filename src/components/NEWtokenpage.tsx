@@ -1547,8 +1547,12 @@ const TokenPage: React.FC = () => {
                                 {isYou && <span className="tp-tx-you">YOU</span>}
                               </td>
                               <td className="tp-tx-td">{Number(trade.amount).toLocaleString()}</td>
-                              <td className="tp-tx-td">{(trade.aptValue / 1e8).toFixed(4)} APT</td>
-                              <td className="tp-tx-td">—</td>
+                              <td className="tp-tx-td">{trade.aptValue.toFixed(4)} APT</td>
+                              <td className="tp-tx-td">
+                                {trade.amount > 0 && aptPrice
+                                  ? formatPrice((trade.aptValue / trade.amount) * aptPrice)
+                                  : '—'}
+                              </td>
                               <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{timeAgo(trade.timestampMs)}</td>
                             </tr>
                           );
@@ -1559,26 +1563,52 @@ const TokenPage: React.FC = () => {
                 )}
 
                 {/* ── HOLDERS ── */}
-                {activeInsightTab === 'holders' && (
-                  <div className="tp-insight-grid">
-                    <div className="tp-insight-card">
-                      <div className="tp-insight-label">Total holders</div>
-                      <div className="tp-insight-value">{holderCount ?? 'Loading…'}</div>
+                {activeInsightTab === 'holders' && (() => {
+                  const balanceMap = new Map<string, number>();
+                  for (const t of recentTrades) {
+                    const w = t.wallet?.toLowerCase();
+                    if (!w) continue;
+                    balanceMap.set(w, (balanceMap.get(w) ?? 0) + (t.type === 'buy' ? t.amount : -t.amount));
+                  }
+                  const sorted = Array.from(balanceMap.entries())
+                    .filter(([, bal]) => bal > 0)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 100);
+                  const totalTokens = sorted.reduce((s, [, b]) => s + b, 0);
+                  return sorted.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>
+                      No holder data yet
                     </div>
-                    <div className="tp-insight-card">
-                      <div className="tp-insight-label">Tokens sold</div>
-                      <div className="tp-insight-value">
-                        {tokenData?.tokensSold != null ? Number(tokenData.tokensSold).toLocaleString() : '—'}
-                      </div>
-                    </div>
-                    <div className="tp-insight-card">
-                      <div className="tp-insight-label">Total supply</div>
-                      <div className="tp-insight-value">
-                        {tokenData?.supply != null ? Number(tokenData.supply).toLocaleString() : '—'}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  ) : (
+                    <table className="tp-tx-table">
+                      <thead>
+                        <tr>
+                          <th className="tp-tx-th" style={{ width: 36 }}>#</th>
+                          <th className="tp-tx-th">Wallet</th>
+                          <th className="tp-tx-th" style={{ textAlign: 'right' }}>Tokens</th>
+                          <th className="tp-tx-th" style={{ textAlign: 'right' }}>Share</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map(([wallet, bal], i) => {
+                          const isYou = wallet === account?.address?.toString().toLowerCase();
+                          const pct = totalTokens > 0 ? ((bal / totalTokens) * 100).toFixed(2) : '—';
+                          return (
+                            <tr key={wallet}>
+                              <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                              <td className="tp-tx-td" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                {wallet.slice(0, 6)}…{wallet.slice(-4)}
+                                {isYou && <span className="tp-tx-you">YOU</span>}
+                              </td>
+                              <td className="tp-tx-td" style={{ textAlign: 'right' }}>{Number(bal).toLocaleString()}</td>
+                              <td className="tp-tx-td" style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{pct}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               </div>
             </div>
 
