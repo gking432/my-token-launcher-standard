@@ -1218,7 +1218,7 @@ const TokenPage: React.FC = () => {
 
         .tp-trade-card {
           background: var(--bg-primary); border: 1px solid var(--border);
-          border-radius: 18px; padding: 20px; position: sticky; top: 72px;
+          border-radius: 18px; padding: 20px; position: sticky; top: 116px;
           box-shadow: 0 4px 14px rgba(0,0,0,${isDark ? '0.35' : '0.07'});
         }
         .tp-trade-tabs {

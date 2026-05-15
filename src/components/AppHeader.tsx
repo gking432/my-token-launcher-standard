@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useTheme } from '../contexts/ThemeContext';
+import BoostBar from './BoostBar';
 
 const AppHeader: React.FC = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -284,6 +285,7 @@ const AppHeader: React.FC = () => {
           </button>
         </div>
       </header>
+      <BoostBar />
     </>
   );
 };
