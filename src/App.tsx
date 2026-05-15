@@ -49,8 +49,8 @@ const App: React.FC = () => {
                   <Route path="/tokenpage"         element={<NEWtokenpage />} />
                   <Route path="/launchpage"        element={<NEWLaunch />} />
                   <Route path="/launch"            element={<NEWLaunch />} />
-                  <Route path="/profile"           element={<Layout><Profile /></Layout>} />
-                  <Route path="/profile/:address"  element={<Layout><Profile /></Layout>} />
+                  <Route path="/profile"           element={<Profile />} />
+                  <Route path="/profile/:address"  element={<Profile />} />
                   <Route path="/token/:coinHash"   element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
                   <Route path="/newtoken/:coinHash" element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
                   <Route path="*"                  element={<Layout><div>404 - Page Not Found</div></Layout>} />
