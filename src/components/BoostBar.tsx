@@ -1,62 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
-import { useTokenList } from '../data/useTokenList';
+import { useBoostData, BOOST_WINDOWS } from '../data/useBoostStore';
 
 // Top-10 leaderboard strip that sits below AppHeader on every page.
-// Ranks by total APT raised (cumulative) as a prototype proxy for "APT raised
-// in the last N hours". When we have a server-side windowed endpoint, swap the
-// sort source here without touching the UI.
+// Ranks by APT spent on boost (advertising fees, no tokens received) within
+// the configured window. Currently localStorage-backed; will move to on-chain
+// data once the boost entry function exists in the contract.
 
 const REFRESH_INTERVAL_MS = 60_000;
 const TOP_N = 10;
+const WINDOW_MS = BOOST_WINDOWS['24h'];
 
 const formatApt = (apt: number): string => {
-  if (apt >= 1000) return `${(apt / 1000).toFixed(2)}k APT`;
-  if (apt >= 100) return `${apt.toFixed(0)} APT`;
-  if (apt >= 10) return `${apt.toFixed(1)} APT`;
-  return `${apt.toFixed(2)} APT`;
+  if (apt >= 1000) return `${(apt / 1000).toFixed(2)}k`;
+  if (apt >= 100) return `${apt.toFixed(0)}`;
+  if (apt >= 10) return `${apt.toFixed(1)}`;
+  return apt.toFixed(2);
 };
 
 const BoostBar: React.FC = () => {
   const { tokens: catalogTokens } = useTokenData();
-  const addrs = useMemo(
-    () => catalogTokens.map(t => t.metadataAddress || t.txHash).filter(Boolean) as string[],
-    [catalogTokens]
-  );
-  const { data: liveByAddr, refetch } = useTokenList(addrs);
+  const boostMap = useBoostData(WINDOW_MS);
 
   const [secondsToRefresh, setSecondsToRefresh] = useState(REFRESH_INTERVAL_MS / 1000);
 
   useEffect(() => {
     const tick = setInterval(() => {
-      setSecondsToRefresh(s => {
-        if (s <= 1) {
-          refetch();
-          return REFRESH_INTERVAL_MS / 1000;
-        }
-        return s - 1;
-      });
+      setSecondsToRefresh(s => (s <= 1 ? REFRESH_INTERVAL_MS / 1000 : s - 1));
     }, 1000);
     return () => clearInterval(tick);
-  }, [refetch]);
+  }, []);
 
   const top = useMemo(() => {
-    if (!liveByAddr) return [];
     return catalogTokens
       .map(t => {
-        const live = liveByAddr[(t.metadataAddress || '').toLowerCase()];
+        const addr = (t.metadataAddress || t.txHash || '').toLowerCase();
         return {
           name: t.name,
           symbol: t.symbol,
           metadataAddress: t.metadataAddress || t.txHash,
-          aptRaised: live?.aptRaised ?? 0,
+          boostApt: boostMap[addr] ?? 0,
         };
       })
-      .filter(t => t.aptRaised > 0 && t.metadataAddress)
-      .sort((a, b) => b.aptRaised - a.aptRaised)
+      .filter(t => t.boostApt > 0 && t.metadataAddress)
+      .sort((a, b) => b.boostApt - a.boostApt)
       .slice(0, TOP_N);
-  }, [catalogTokens, liveByAddr]);
+  }, [catalogTokens, boostMap]);
 
   if (top.length === 0) return null;
 
@@ -130,11 +120,10 @@ const BoostBar: React.FC = () => {
         .bb-chip.gold .bb-rank { background: #ffd700; color: #5a4500; }
         .bb-chip.silver .bb-rank { background: #c0c0c8; color: #36363c; }
         .bb-chip.bronze .bb-rank { background: #cd7f32; color: #fff; }
-        .bb-sym {
-          font-weight: 700; color: var(--text-primary);
-        }
-        .bb-apt {
-          color: var(--accent); font-weight: 700;
+        .bb-sym { font-weight: 700; color: var(--text-primary); }
+        .bb-apt { color: var(--accent); font-weight: 700; }
+        .bb-apt-unit {
+          font-size: 10.5px; color: var(--text-muted); font-weight: 600; margin-left: 2px;
         }
         .bb-countdown {
           flex-shrink: 0; font-size: 11px; color: var(--text-muted);
@@ -159,13 +148,13 @@ const BoostBar: React.FC = () => {
               return (
                 <Link
                   key={t.metadataAddress}
-                  to={`/newtoken/${t.metadataAddress}`}
+                  to={`/boost?token=${t.metadataAddress}`}
                   className={`bb-chip ${rankClass}`}
-                  title={`${t.name} · ${t.aptRaised.toFixed(2)} APT raised`}
+                  title={`${t.name} · ${t.boostApt.toFixed(2)} APT boosted`}
                 >
                   <span className="bb-rank">{i + 1}</span>
                   <span className="bb-sym">{t.symbol}</span>
-                  <span className="bb-apt">{formatApt(t.aptRaised)}</span>
+                  <span className="bb-apt">{formatApt(t.boostApt)}<span className="bb-apt-unit">APT</span></span>
                 </Link>
               );
             })}

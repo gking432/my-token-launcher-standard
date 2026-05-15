@@ -1,1299 +1,527 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import GlobalSidebar from './GlobalSidebar';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import AppHeader from './AppHeader';
+import { useTokenData } from '../hooks/useTokenData';
+import { useBoostData, addBoost, BOOST_WINDOWS, BoostWindow } from '../data/useBoostStore';
+
+const TOP_N = 100;
+
+const formatApt = (apt: number): string => {
+  if (apt >= 1000) return `${(apt / 1000).toFixed(2)}k`;
+  if (apt >= 100) return apt.toFixed(0);
+  if (apt >= 10) return apt.toFixed(1);
+  return apt.toFixed(2);
+};
 
 const Boost: React.FC = () => {
-  const [countdown, setCountdown] = useState(60);
-  const [selectedToken, setSelectedToken] = useState<any>(null);
+  const { account } = useWallet();
+  const { tokens: catalogTokens } = useTokenData();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [windowKey, setWindowKey] = useState<BoostWindow>('24h');
+  const [query, setQuery] = useState('');
   const [boostAmount, setBoostAmount] = useState('');
-  const [filterQuery, setFilterQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState('1h');
-  const [statusFilter, setStatusFilter] = useState('All Status');
-  const [aptFilter, setAptFilter] = useState('1');
-  const location = useLocation();
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Countdown timer effect
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          return 60; // Reset to 60
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  const boostMap = useBoostData(BOOST_WINDOWS[windowKey]);
 
-    return () => clearInterval(timer);
-  }, []);
+  const selectedAddr = (searchParams.get('token') || '').toLowerCase();
 
-  const handleTokenSelect = (token: any) => {
-    setSelectedToken(token);
+  const ranked = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return catalogTokens
+      .map(t => {
+        const addr = (t.metadataAddress || t.txHash || '').toLowerCase();
+        return {
+          name: t.name,
+          symbol: t.symbol,
+          creator: (t.creator || t.creatorAddress || '').toLowerCase(),
+          metadataAddress: addr,
+          boostApt: boostMap[addr] ?? 0,
+        };
+      })
+      .filter(t => t.metadataAddress)
+      .filter(t => !q || t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q))
+      .sort((a, b) => b.boostApt - a.boostApt)
+      .slice(0, TOP_N);
+  }, [catalogTokens, boostMap, query]);
+
+  const selected = useMemo(
+    () => ranked.find(t => t.metadataAddress === selectedAddr) || null,
+    [ranked, selectedAddr]
+  );
+
+  const selectToken = (addr: string) => {
+    setSearchParams({ token: addr });
+  };
+
+  const clearSelection = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('token');
+    setSearchParams(next);
+    setBoostAmount('');
   };
 
   const handleBoost = () => {
-    if (boostAmount && parseFloat(boostAmount) > 0 && selectedToken) {
-      alert(`Boosting ${selectedToken.name} with ${boostAmount} APT!`);
-      // Here you would add the actual boost functionality
-    } else {
-      alert('Please select a token and enter a valid amount to boost');
+    if (!selected) return;
+    if (!account) {
+      setToast('Connect your wallet to boost a token.');
+      return;
     }
+    const amount = parseFloat(boostAmount);
+    if (!amount || amount <= 0) {
+      setToast('Enter a valid APT amount.');
+      return;
+    }
+    addBoost(selected.metadataAddress, amount, String(account.address));
+    setToast(`Boosted ${selected.symbol} with ${amount} APT.`);
+    setBoostAmount('');
   };
 
-  const handleTrade = () => {
-    if (selectedToken) {
-      alert(`Trading ${selectedToken.name}!`);
-      // Here you would add the actual trade functionality
-    } else {
-      alert('Please select a token to trade');
-    }
-  };
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
-  // Sample token data
-  const tokens = [
-    {
-      id: 1,
-      name: 'MoonDoge',
-      symbol: 'MOON',
-      icon: '🚀',
-      iconBg: '#ff6b35',
-      position: 1,
-      aptRaised: '1,247',
-      aptExpiring: '89',
-      boosters: 89,
-      holders: 1247,
-      age: '2h 34m',
-      isTopSpot: true
-    },
-    {
-      id: 2,
-      name: 'ShibaInu',
-      symbol: 'SHIB',
-      icon: '🐕',
-      iconBg: '#00d4aa',
-      position: 2,
-      positionChange: -1,
-      aptRaised: '1,156',
-      aptExpiring: '156',
-      boosters: 89,
-      holders: 1247,
-      age: '1h 47m'
-    },
-    {
-      id: 3,
-      name: 'PizzaCoin',
-      symbol: 'PIZZA',
-      icon: '🍕',
-      iconBg: '#ff4757',
-      position: 3,
-      positionChange: 3,
-      aptRaised: '987',
-      aptExpiring: '0',
-      boosters: 67,
-      holders: 892,
-      age: '3h 12m'
-    },
-    {
-      id: 4,
-      name: 'PepeCoin',
-      symbol: 'PEPE',
-      icon: '🐸',
-      iconBg: '#ffa502',
-      position: 4,
-      positionChange: -2,
-      aptRaised: '856',
-      aptExpiring: '234',
-      boosters: 45,
-      holders: 654,
-      age: '45m'
-    },
-    {
-      id: 5,
-      name: 'SafeMoon',
-      symbol: 'SAFEMOON',
-      icon: '🌙',
-      iconBg: '#2ed573',
-      position: 5,
-      positionChange: 1,
-      aptRaised: '743',
-      aptExpiring: '67',
-      boosters: 34,
-      holders: 521,
-      age: '2h 8m'
-    }
-  ];
-
-  const topSpotToken = tokens[0]; // MoonDoge is the top spot
-
+  const topThree = ranked.slice(0, 3);
+  const totalBoostedApt = Object.values(boostMap).reduce((s, v) => s + v, 0);
+  const activeTokens = Object.keys(boostMap).length;
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      width: '100vw',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      margin: 0,
-      padding: 0,
-      overflow: 'hidden'
-    }}>
-      {/* Main Layout */}
-      <div style={{
-        display: 'flex',
-        flex: 1,
-        width: '100%',
-        overflow: 'hidden'
-      }}>
-        {/* Sidebar */}
-        <GlobalSidebar 
-          activeTab="boost"
-        />
+    <>
+      <style>{`
+        .bp-page {
+          min-height: 100vh;
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+        }
+        .bp-wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 64px; }
+        .bp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+        .bp-hero h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 6px; }
+        .bp-hero p { font-size: 15px; color: var(--text-secondary); margin: 0; max-width: 560px; }
+        .bp-banner {
+          background: var(--accent-light);
+          border: 1px solid var(--accent);
+          border-radius: 12px;
+          padding: 12px 16px;
+          margin-bottom: 24px;
+          font-size: 13.5px;
+          color: var(--accent);
+          font-weight: 500;
+          line-height: 1.5;
+        }
+        .bp-banner strong { font-weight: 700; }
 
-        {/* Main Content */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0,
-          width: '100%'
-        }}>
-          {/* Token Title Bar */}
-          <div style={{
-            background: 'white',
-            borderBottom: '1px solid #e7ebee',
-            padding: '18px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
-            <div style={{
-              fontSize: '32px',
-              fontWeight: '600',
-              color: '#050f19',
-              flexShrink: 0
-            }}>
-              Boost
+        .bp-summary {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+          margin-bottom: 24px;
+        }
+        .bp-stat {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 18px 20px;
+        }
+        .bp-stat-label {
+          font-size: 11.5px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+        }
+        .bp-stat-value {
+          font-size: 22px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+        }
+        .bp-stat-unit { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+
+        .bp-controls {
+          display: flex; align-items: center; gap: 12px;
+          margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .bp-search {
+          flex: 1; min-width: 220px;
+          height: 38px; padding: 0 14px 0 36px;
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          color: var(--text-primary); font-size: 14px; font-family: inherit;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .bp-search:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        .bp-search-wrap { position: relative; flex: 1; min-width: 220px; }
+        .bp-search-icon {
+          position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+          font-size: 14px; color: var(--text-muted); pointer-events: none;
+        }
+        .bp-window {
+          display: flex; gap: 0;
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 10px; padding: 3px;
+        }
+        .bp-window button {
+          padding: 6px 14px;
+          background: transparent; border: none; cursor: pointer;
+          color: var(--text-secondary);
+          font-size: 13px; font-weight: 600; font-family: inherit;
+          border-radius: 7px;
+          transition: background 0.12s, color 0.12s;
+        }
+        .bp-window button.active {
+          background: var(--bg-tertiary); color: var(--text-primary);
+        }
+        .bp-window button:hover:not(.active) { color: var(--text-primary); }
+
+        .bp-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+          gap: 20px;
+          align-items: flex-start;
+        }
+        .bp-list {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          overflow: hidden;
+        }
+        .bp-row {
+          display: grid;
+          grid-template-columns: 44px 1fr auto auto;
+          align-items: center; gap: 14px;
+          padding: 12px 18px;
+          border-bottom: 1px solid var(--border);
+          cursor: pointer;
+          text-decoration: none; color: inherit;
+          transition: background 0.12s;
+        }
+        .bp-row:last-child { border-bottom: none; }
+        .bp-row:hover { background: var(--bg-secondary); }
+        .bp-row.selected { background: var(--accent-light); }
+        .bp-rank {
+          font-size: 15px; font-weight: 700; color: var(--text-muted);
+          font-variant-numeric: tabular-nums;
+          text-align: center;
+        }
+        .bp-row.r1 .bp-rank { color: #c69900; }
+        .bp-row.r2 .bp-rank { color: #6e6e73; }
+        .bp-row.r3 .bp-rank { color: #b76a25; }
+        .bp-token-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .bp-token-icon {
+          width: 36px; height: 36px; border-radius: 10px;
+          background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: var(--text-primary); font-size: 12.5px; font-weight: 700;
+          flex-shrink: 0;
+        }
+        .bp-token-name {
+          font-size: 14px; font-weight: 600; color: var(--text-primary);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .bp-token-symbol {
+          font-size: 12px; color: var(--text-muted); font-weight: 500;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        }
+        .bp-row-apt {
+          font-size: 15px; font-weight: 700; color: var(--accent);
+          font-variant-numeric: tabular-nums;
+        }
+        .bp-row-apt-unit { font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-left: 3px; }
+        .bp-row-action {
+          font-size: 12px; font-weight: 600; color: var(--text-muted);
+          padding: 5px 10px; border-radius: 7px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border);
+        }
+        .bp-row.selected .bp-row-action {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .bp-empty-list {
+          padding: 60px 24px; text-align: center; color: var(--text-muted);
+        }
+
+        .bp-panel {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 24px;
+          position: sticky; top: 116px;
+        }
+        .bp-panel-title {
+          font-size: 13px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+        }
+        .bp-panel-empty {
+          font-size: 14px; color: var(--text-secondary);
+          line-height: 1.55; padding: 24px 0;
+          text-align: center;
+        }
+        .bp-panel-token {
+          display: flex; align-items: center; gap: 12px;
+          padding-bottom: 16px; margin-bottom: 16px;
+          border-bottom: 1px solid var(--border);
+        }
+        .bp-panel-token-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+        .bp-panel-token-sym { font-size: 12.5px; color: var(--text-muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+        .bp-panel-current {
+          background: var(--bg-secondary);
+          border-radius: 10px; padding: 12px 14px;
+          margin-bottom: 18px;
+          display: flex; justify-content: space-between; align-items: baseline;
+        }
+        .bp-panel-current-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .bp-panel-current-value { font-size: 18px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+        .bp-panel-input-label {
+          font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; display: block;
+        }
+        .bp-panel-input-wrap { position: relative; margin-bottom: 12px; }
+        .bp-panel-input {
+          width: 100%; padding: 14px 60px 14px 14px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          color: var(--text-primary);
+          font-size: 18px; font-weight: 600; font-family: inherit;
+          outline: none; box-sizing: border-box;
+          font-variant-numeric: tabular-nums;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .bp-panel-input:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        .bp-panel-input-suffix {
+          position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+          font-size: 14px; color: var(--text-muted); font-weight: 600;
+        }
+        .bp-quick {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+          margin-bottom: 16px;
+        }
+        .bp-quick button {
+          padding: 8px 0;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+          font-family: inherit; cursor: pointer;
+          transition: background 0.1s, border-color 0.1s;
+        }
+        .bp-quick button:hover { background: var(--bg-hover); border-color: var(--accent); }
+        .bp-panel-submit {
+          width: 100%; padding: 13px 0;
+          background: var(--accent); color: #fff;
+          border: none; border-radius: 12px;
+          font-size: 15px; font-weight: 600; font-family: inherit;
+          cursor: pointer;
+          box-shadow: 0 2px 12px rgba(5,150,105,0.3);
+          transition: background 0.15s;
+        }
+        .bp-panel-submit:hover { background: var(--accent-hover); }
+        .bp-panel-trade {
+          margin-top: 10px;
+          display: block; text-align: center;
+          padding: 11px 0;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          font-size: 14px; font-weight: 600; color: var(--text-primary);
+          text-decoration: none;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .bp-panel-trade:hover { background: var(--bg-hover); border-color: var(--accent); }
+        .bp-panel-close {
+          display: block; width: 100%;
+          margin-top: 10px;
+          background: transparent; border: none;
+          color: var(--text-muted); font-size: 13px;
+          font-family: inherit; cursor: pointer;
+        }
+        .bp-panel-close:hover { color: var(--text-primary); }
+
+        .bp-toast {
+          position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+          background: var(--text-primary); color: var(--bg-primary);
+          padding: 10px 18px; border-radius: 10px;
+          font-size: 13.5px; font-weight: 500;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+          z-index: 500;
+        }
+
+        @media (max-width: 900px) {
+          .bp-grid { grid-template-columns: 1fr; }
+          .bp-panel { position: static; }
+          .bp-summary { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 540px) {
+          .bp-row { grid-template-columns: 32px 1fr auto; }
+          .bp-row-action { display: none; }
+          .bp-summary { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
+      <div className="bp-page">
+        <AppHeader />
+
+        <div className="bp-wrap">
+          <div className="bp-hero">
+            <div>
+              <h1>Boost</h1>
+              <p>Pay APT to promote a token to the top of every page. Boost fees are pure advertising — no tokens are issued. Highest spend wins the slot.</p>
             </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              margin: '0 20px'
-            }}>
+          </div>
+
+          <div className="bp-banner">
+            <strong>Prototype mode.</strong> Boost contributions are stored locally on this device for testing. Real boosts will be on-chain in the next contract release.
+          </div>
+
+          <div className="bp-summary">
+            <div className="bp-stat">
+              <div className="bp-stat-label">Total boosted ({windowKey})</div>
+              <div className="bp-stat-value">{formatApt(totalBoostedApt)}<span className="bp-stat-unit">APT</span></div>
+            </div>
+            <div className="bp-stat">
+              <div className="bp-stat-label">Active tokens</div>
+              <div className="bp-stat-value">{activeTokens}</div>
+            </div>
+            <div className="bp-stat">
+              <div className="bp-stat-label">Leader</div>
+              <div className="bp-stat-value" style={{ fontSize: 18 }}>
+                {topThree[0] ? topThree[0].symbol : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div className="bp-controls">
+            <div className="bp-search-wrap">
+              <span className="bp-search-icon">&#9906;</span>
               <input
                 type="text"
-                placeholder="Search"
-                style={{
-                  width: '400px',
-                  padding: '8px 12px',
-                  border: '1px solid #d3d3d3',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  background: '#f8f9fa',
-                  color: '#050f19'
-                }}
+                className="bp-search"
+                placeholder="Search tokens by name or ticker…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
               />
             </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              fontSize: '14px',
-              flexShrink: 0
-            }}>
-              <span>⚙️</span>
-              <a href="#" style={{
-                color: '#5b616e',
-                textDecoration: 'none'
-              }}>
-                Launch
-              </a>
-              <a href="#" style={{
-                background: '#00d4aa',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                textDecoration: 'none',
-                fontWeight: '600'
-              }}>
-                Connect Wallet
-              </a>
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div style={{
-            display: 'flex',
-            flex: 1,
-            minHeight: 0,
-            width: '100%'
-          }}>
-            {/* Content Left - Boost Leaderboard */}
-            <div style={{
-              flex: 1,
-              padding: '20px',
-              background: '#f7f7f7',
-              overflowY: 'auto',
-              minWidth: 0
-            }}>
-              <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                minWidth: 0,
-                overflowX: 'auto',
-                width: '100%',
-                border: '3px solid #ff6f00'
-              }}>
-                {/* Boost Header */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '24px',
-                  padding: '20px 0',
-                  borderBottom: '1px solid #e2e8f0'
-                }}>
-                  <div style={{
-                    flex: 1,
-                    marginTop: '-50px'
-                  }}>
-                    <h1 style={{
-                      fontSize: '128px',
-                      fontWeight: '900',
-                      color: '#ff6b35',
-                      margin: '0 0 8px 0',
-                      fontStyle: 'italic'
-                    }}>
-                      BOOST
-                    </h1>
-                    <p style={{
-                      fontSize: '16px',
-                      color: '#6b7280',
-                      margin: 0,
-                      lineHeight: '1.5'
-                    }}>
-                      Real-time competition for the top spot. Positions update every 60 seconds.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Filter Controls */}
-                <div style={{
-                  display: 'flex',
-                  gap: '10px',
-                  marginBottom: '20px',
-                  flexWrap: 'wrap',
-                  maxWidth: '100%'
-                }}>
-                  <input
-                    type="text"
-                    placeholder="Filter by name"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    style={{
-                      flex: 1,
-                      minWidth: '150px',
-                      padding: '10px 16px',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      background: '#f7f8fa',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <select
-                    value={timeFilter}
-                    onChange={(e) => setTimeFilter(e.target.value)}
-                    style={{
-                      padding: '10px 16px',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      minWidth: '120px'
-                    }}
-                  >
-                    <option value="1h">1h</option>
-                    <option value="4h">4h</option>
-                    <option value="12h">12h</option>
-                    <option value="1D">1D</option>
-                    <option value="All">All</option>
-                  </select>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{
-                      padding: '10px 16px',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      minWidth: '120px'
-                    }}
-                  >
-                    <option value="All Status">All Status</option>
-                    <option value="Verified">Verified</option>
-                    <option value="Unverified">Unverified</option>
-                  </select>
-                  <select
-                    value={aptFilter}
-                    onChange={(e) => setAptFilter(e.target.value)}
-                    style={{
-                      padding: '10px 16px',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      minWidth: '120px'
-                    }}
-                  >
-                    <option value="All">All</option>
-                    <option value="1">&gt; 1 APT</option>
-                    <option value="10">&gt; 10 APT</option>
-                    <option value="20">&gt; 20 APT</option>
-                  </select>
-                </div>
-
-                {/* TOP SPOT Section */}
-                <div style={{
-                  background: '#ffffffcb',
-                  borderRadius: '0 0 20px 20px',
-                  padding: '60px 24px',
-                  boxShadow: '0 30px 30px #ff6f0072',
-                  margin: '24px 24px 20px -24px',
-                  border: '2px solid #ff6f00',
-                  borderTop: '1px solid #e9ecef',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  marginBottom: '60px',
-                  width: 'calc(100% + 48px)',
-                  maxWidth: 'calc(100% + 48px)',
-                  boxSizing: 'border-box',
-                  display: 'block',
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-                }}
-                onClick={() => handleTokenSelect(topSpotToken)}
+            <div className="bp-window">
+              {(Object.keys(BOOST_WINDOWS) as BoostWindow[]).map(w => (
+                <button
+                  key={w}
+                  className={windowKey === w ? 'active' : ''}
+                  onClick={() => setWindowKey(w)}
                 >
-                  {/* Header Section */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '60px'
-                  }}>
-                    <div style={{
-                      fontSize: '26px',
-                      fontWeight: '600',
-                      fontStyle: 'italic',
-                      color: '#ffffff',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      marginTop: '-20px',
-                      background: '#ff6f00',
-                      padding: '12px 24px',
-                      marginLeft: '-24px',
-                      position: 'relative',
-                      boxShadow: '0 2px 8px rgba(255, 111, 0, 0.3)'
-                    }}>
-                      TOP SPOT
-                    </div>
-                  </div>
-
-                  {/* Content Section */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: '24px'
-                  }}>
-                    {/* Left Section: Token Info and Key Metrics */}
-                    <div style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '20px',
-                      borderRight: '1px solid #969696',
-                      maxWidth: '50%',
-                      paddingLeft: '24px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '16px'
-                      }}>
-                        <div style={{
-                          width: '80px',
-                          height: '80px',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '36px',
-                          flexShrink: 0,
-                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                          background: topSpotToken.iconBg
-                        }}>
-                          {topSpotToken.icon}
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px'
-                        }}>
-                          <div style={{
-                            fontSize: '36px',
-                            fontWeight: '700',
-                            color: '#1a202c',
-                            margin: 0,
-                            lineHeight: '1.2'
-                          }}>
-                            {topSpotToken.name}
-                          </div>
-                          <div style={{
-                            fontSize: '20px',
-                            color: '#6b7280',
-                            margin: 0,
-                            fontWeight: '500'
-                          }}>
-                            {topSpotToken.symbol}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        gap: '24px',
-                        flexWrap: 'wrap'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                            marginBottom: '4px'
-                          }}>
-                            APT Raised
-                          </div>
-                          <div style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            margin: 0,
-                            lineHeight: '1.2',
-                            color: '#00d4aa'
-                          }}>
-                            {topSpotToken.aptRaised} APT
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                            marginBottom: '4px'
-                          }}>
-                            APT Expiring
-                          </div>
-                          <div style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            margin: 0,
-                            lineHeight: '1.2',
-                            color: '#ff4757'
-                          }}>
-                            {topSpotToken.aptExpiring} APT
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                            marginBottom: '4px'
-                          }}>
-                            Next Closest
-                          </div>
-                          <div style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            margin: 0,
-                            lineHeight: '1.2'
-                          }}>
-                            +91 APT
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                            marginBottom: '4px'
-                          }}>
-                            Time at #1
-                          </div>
-                          <div style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            margin: 0,
-                            lineHeight: '1.2'
-                          }}>
-                            {topSpotToken.age}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Section: Detailed Stats, Progress Bar, and Trade Button */}
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      gap: '56px',
-                      minWidth: '160px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        gap: '16px',
-                        alignItems: 'flex-end',
-                        flexWrap: 'wrap',
-                        width: '100%'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            Boosters
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#1a202c',
-                            fontWeight: '500'
-                          }}>
-                            {topSpotToken.boosters}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            Holders
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#1a202c',
-                            fontWeight: '500'
-                          }}>
-                            {topSpotToken.holders}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            % Change
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#00d4aa',
-                            fontWeight: '500'
-                          }}>
-                            +89.3%
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            Market Cap
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#1a202c',
-                            fontWeight: '500'
-                          }}>
-                            $523K
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            Volume (24h)
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#1a202c',
-                            fontWeight: '500'
-                          }}>
-                            $89K
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '2px'
-                        }}>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
-                          }}>
-                            Created by
-                          </div>
-                          <div style={{
-                            fontSize: '14px',
-                            color: '#1a202c',
-                            fontWeight: '500'
-                          }}>
-                            @moondev
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        alignItems: 'flex-end',
-                        width: '100%'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          width: '100%'
-                        }}>
-                          <span style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#1a202c'
-                          }}>
-                            962 / 1283 APT
-                          </span>
-                          <span style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#00d4aa'
-                          }}>
-                            75% Complete
-                          </span>
-                        </div>
-                        <div style={{
-                          width: '100%',
-                          height: '8px',
-                          background: '#e2e8f0',
-                          borderRadius: '4px',
-                          overflow: 'hidden'
-                        }}>
-                          <div style={{
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-                            borderRadius: '4px',
-                            width: '75%'
-                          }}></div>
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#6b7280',
-                          fontWeight: '500',
-                          textAlign: 'center'
-                        }}>
-                          Graduation Progress
-                        </div>
-                      </div>
-
-                      <button style={{
-                        background: '#00d4aa',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '12px 24px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'background 0.2s',
-                        width: '50%',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        Trade
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Leaderboard Table */}
-                <table style={{
-                  width: '100%',
-                  minWidth: '600px',
-                  overflowX: 'auto'
-                }}>
-                  <thead>
-                    <tr>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}></th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}></th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>Name</th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>APT Raised (4h)</th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>APT Expiring (1m)</th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>Boosters</th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>Holders</th>
-                      <th style={{
-                        textAlign: 'left',
-                        fontWeight: '500',
-                        color: '#666',
-                        padding: '10px 0',
-                        borderBottom: '1px solid #e6e8ea',
-                        whiteSpace: 'nowrap'
-                      }}>Age</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tokens.slice(1).map((token) => (
-                      <tr
-                        key={token.id}
-                        style={{
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s'
-                        }}
-                        onClick={() => handleTokenSelect(token)}
-                      >
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap'
-                        }}>{token.position}</td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap',
-                          fontWeight: '600',
-                          fontSize: '14px',
-                          color: (token.positionChange || 0) > 0 ? '#2ed573' : '#ff4757'
-                        }}>
-                          {(token.positionChange || 0) > 0 ? `(+${token.positionChange})` : `(${token.positionChange})`}
-                        </td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px'
-                          }}>
-                            <div style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: 'bold',
-                              fontSize: '12px',
-                              background: token.iconBg
-                            }}>
-                              {token.icon}
-                            </div>
-                            <div>
-                              <div style={{
-                                fontWeight: '500'
-                              }}>
-                                {token.name}
-                              </div>
-                              <div style={{
-                                color: '#666',
-                                fontSize: '12px'
-                              }}>
-                                {token.symbol}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap',
-                          fontWeight: '700',
-                          color: '#00d4aa'
-                        }}>{token.aptRaised} APT</td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap',
-                          fontWeight: '300',
-                          color: '#ff4757'
-                        }}>{token.aptExpiring} APT</td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap'
-                        }}>{token.boosters}</td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap'
-                        }}>{token.holders}</td>
-                        <td style={{
-                          padding: '16px 0',
-                          borderBottom: '1px solid #f7f8fa',
-                          whiteSpace: 'nowrap'
-                        }}>{token.age}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Content Right - Boost Interface */}
-            <div style={{
-              width: '400px',
-              background: '#ffffff',
-              borderLeft: '1px solid #d3d3d3',
-              padding: '20px',
-              flexShrink: 0
-            }}>
-              <div style={{
-                marginBottom: '30px'
-              }}>
-                {/* Countdown Section */}
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  background: '#ffffff',
-                  padding: '16px 24px',
-                  borderRadius: '12px',
-                  color: 'white',
-                  minWidth: '120px'
-                }}>
-                  <div style={{
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    opacity: 0.9,
-                    color: '#6b7280'
-                  }}>
-                    Next Update
-                  </div>
-                  <div style={{
-                    fontSize: '32px',
-                    fontWeight: '700',
-                    margin: '4px 0',
-                    color: '#000'
-                  }}>
-                    {countdown}
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    opacity: 0.9,
-                    color: '#6b7280'
-                  }}>
-                    seconds
-                  </div>
-                </div>
-
-                {/* Token Details */}
-                {selectedToken ? (
-                  <div style={{
-                    marginTop: '20px'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      marginBottom: '20px',
-                      padding: '16px',
-                      background: '#f8f9fa',
-                      borderRadius: '8px'
-                    }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '20px',
-                        background: selectedToken.iconBg
-                      }}>
-                        {selectedToken.icon}
-                      </div>
-                      <div style={{
-                        flex: 1
-                      }}>
-                        <h3 style={{
-                          fontSize: '18px',
-                          fontWeight: '600',
-                          margin: '0 0 4px 0',
-                          color: '#1a202c'
-                        }}>
-                          {selectedToken.name}
-                        </h3>
-                        <p style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          margin: 0
-                        }}>
-                          {selectedToken.symbol}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      marginBottom: '20px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 0',
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
-                        <span style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          fontWeight: '500'
-                        }}>
-                          Current Position:
-                        </span>
-                        <span style={{
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          color: '#1a202c'
-                        }}>
-                          {selectedToken.position}
-                        </span>
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 0',
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
-                        <span style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          fontWeight: '500'
-                        }}>
-                          APT Raised:
-                        </span>
-                        <span style={{
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          color: '#1a202c'
-                        }}>
-                          {selectedToken.aptRaised} APT
-                        </span>
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 0',
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
-                        <span style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          fontWeight: '500'
-                        }}>
-                          APT Expiring:
-                        </span>
-                        <span style={{
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          color: '#1a202c'
-                        }}>
-                          {selectedToken.aptExpiring} APT
-                        </span>
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px 0',
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
-                        <span style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          fontWeight: '500'
-                        }}>
-                          APT to Next Spot:
-                        </span>
-                        <span style={{
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          color: '#1a202c'
-                        }}>
-                          {selectedToken.position === 1 ? 'N/A' : '91 APT'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      marginTop: '20px'
-                    }}>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: '#6b7280',
-                        marginBottom: '8px'
-                      }}>
-                        APT to Spend:
-                      </label>
-                      <input
-                        type="number"
-                        value={boostAmount}
-                        onChange={(e) => setBoostAmount(e.target.value)}
-                        placeholder="0.0"
-                        min="0"
-                        step="0.1"
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          fontSize: '16px',
-                          marginBottom: '12px',
-                          background: 'white'
-                        }}
-                      />
-                      <button
-                        onClick={handleBoost}
-                        style={{
-                          width: '100%',
-                          padding: '12px 24px',
-                          background: '#ff6b35',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontSize: '16px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'background 0.2s',
-                          marginBottom: '8px'
-                        }}
-                      >
-                        Boost
-                      </button>
-                      <button
-                        onClick={handleTrade}
-                        style={{
-                          width: '100%',
-                          padding: '12px 24px',
-                          background: 'white',
-                          color: '#00d4aa',
-                          border: '2px solid #00d4aa',
-                          borderRadius: '8px',
-                          fontSize: '16px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        Trade
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px 20px',
-                    color: '#6b7280',
-                    fontSize: '14px'
-                  }}>
-                    <p>Click on any token in the leaderboard to boost it</p>
-                  </div>
-                )}
-              </div>
+                  {w}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Footer */}
-          <div style={{
-            background: '#ffffff',
-            borderTop: '1px solid #e7ebee',
-            padding: '20px 24px',
-            width: '100%',
-            flexShrink: 0
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{
-                display: 'flex',
-                gap: '20px'
-              }}>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Careers
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Privacy & Legal
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Docs
-                </a>
-                <a href="#" style={{
-                  color: '#5b616e',
-                  textDecoration: 'none',
-                  fontSize: '14px'
-                }}>
-                  Accessibility
-                </a>
-              </div>
-              <p style={{
-                fontSize: '14px',
-                color: '#5b616e'
-              }}>
-                &copy; 2025 MoveMint
-              </p>
+          <div className="bp-grid">
+            <div className="bp-list">
+              {ranked.length === 0 ? (
+                <div className="bp-empty-list">
+                  No tokens boosted yet in this window. Be the first.
+                </div>
+              ) : (
+                ranked.map((t, i) => {
+                  const rankClass = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : '';
+                  const isSelected = t.metadataAddress === selectedAddr;
+                  return (
+                    <div
+                      key={t.metadataAddress}
+                      className={`bp-row ${rankClass}${isSelected ? ' selected' : ''}`}
+                      onClick={() => selectToken(t.metadataAddress)}
+                    >
+                      <div className="bp-rank">{i + 1}</div>
+                      <div className="bp-token-cell">
+                        <div className="bp-token-icon">{(t.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="bp-token-name">{t.name}</div>
+                          <div className="bp-token-symbol">{t.symbol}</div>
+                        </div>
+                      </div>
+                      <div className="bp-row-apt">
+                        {formatApt(t.boostApt)}<span className="bp-row-apt-unit">APT</span>
+                      </div>
+                      <div className="bp-row-action">
+                        {isSelected ? 'Selected' : 'Boost'}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="bp-panel">
+              <div className="bp-panel-title">Boost a token</div>
+              {!selected ? (
+                <div className="bp-panel-empty">
+                  Select a token from the leaderboard to add boost. New tokens can climb instantly.
+                </div>
+              ) : (
+                <>
+                  <div className="bp-panel-token">
+                    <div className="bp-token-icon">{(selected.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="bp-panel-token-name">{selected.name}</div>
+                      <div className="bp-panel-token-sym">{selected.symbol}</div>
+                    </div>
+                  </div>
+
+                  <div className="bp-panel-current">
+                    <span className="bp-panel-current-label">Current boost</span>
+                    <span className="bp-panel-current-value">{formatApt(selected.boostApt)} APT</span>
+                  </div>
+
+                  <label className="bp-panel-input-label">Amount to add</label>
+                  <div className="bp-panel-input-wrap">
+                    <input
+                      type="number"
+                      className="bp-panel-input"
+                      placeholder="0.00"
+                      value={boostAmount}
+                      onChange={e => setBoostAmount(e.target.value)}
+                      min="0"
+                      step="0.01"
+                    />
+                    <span className="bp-panel-input-suffix">APT</span>
+                  </div>
+
+                  <div className="bp-quick">
+                    {[1, 5, 10, 50].map(v => (
+                      <button key={v} type="button" onClick={() => setBoostAmount(String(v))}>
+                        {v} APT
+                      </button>
+                    ))}
+                  </div>
+
+                  <button className="bp-panel-submit" onClick={handleBoost}>
+                    Boost {selected.symbol}
+                  </button>
+
+                  <Link
+                    to={`/newtoken/${selected.metadataAddress}`}
+                    className="bp-panel-trade"
+                  >
+                    Trade this token →
+                  </Link>
+                  <button className="bp-panel-close" onClick={clearSelection}>
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
+
+        {toast && <div className="bp-toast">{toast}</div>}
       </div>
-    </div>
+    </>
   );
 };
 
-export default Boost; 
+export default Boost;

@@ -11,6 +11,7 @@ import Profile from "./components/Profile";
 import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
+import About from "./components/About";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
@@ -18,13 +19,6 @@ import { AptPriceProvider } from "./contexts/AptPriceContext";
 import { WatchlistProvider } from "./contexts/WatchlistContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./styles/Landing.css";
-
-const About: React.FC = () => (
-  <div style={{ padding: '20px', textAlign: 'center' }}>
-    <h1>About</h1>
-    <p>Information about MoveMint and the platform will be displayed here.</p>
-  </div>
-);
 
 const App: React.FC = () => {
   return (
