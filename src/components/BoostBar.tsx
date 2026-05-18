@@ -148,7 +148,7 @@ const BoostBar: React.FC = () => {
               return (
                 <Link
                   key={t.metadataAddress}
-                  to={`/boost?token=${t.metadataAddress}`}
+                  to={`/newtoken/${t.metadataAddress}`}
                   className={`bb-chip ${rankClass}`}
                   title={`${t.name} · ${t.boostApt.toFixed(2)} APT boosted`}
                 >
