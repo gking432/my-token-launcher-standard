@@ -918,31 +918,32 @@ const HomePage: React.FC = () => {
                 <ul>
                   <li><Link to="/marketplace">Marketplace</Link></li>
                   <li><Link to="/launch">Launch a token</Link></li>
+                  <li><Link to="/boost">Boost</Link></li>
                 </ul>
               </div>
               <div className="mm-footer-section">
                 <h4>Resources</h4>
                 <ul>
-                  <li><a href="#">Documentation</a></li>
-                  <li><a href="#">API reference</a></li>
-                  <li><a href="#">Support</a></li>
+                  <li><a href="#" onClick={e => e.preventDefault()}>Documentation</a></li>
+                  <li><a href="#" onClick={e => e.preventDefault()}>API reference</a></li>
+                  <li><a href="#" onClick={e => e.preventDefault()}>Support</a></li>
                 </ul>
               </div>
               <div className="mm-footer-section">
                 <h4>Company</h4>
                 <ul>
-                  <li><a href="#">About</a></li>
-                  <li><a href="#">Privacy</a></li>
-                  <li><a href="#">Terms</a></li>
+                  <li><Link to="/about">About</Link></li>
+                  <li><a href="#" onClick={e => e.preventDefault()}>Privacy</a></li>
+                  <li><a href="#" onClick={e => e.preventDefault()}>Terms</a></li>
                 </ul>
               </div>
             </div>
             <div className="mm-footer-bottom">
               <span>Copyright © 2025 MoveMint. All rights reserved.</span>
               <span>
-                <a href="#">Privacy</a>
-                <a href="#">Terms</a>
-                <a href="#">Cookies</a>
+                <a href="#" onClick={e => e.preventDefault()}>Privacy</a>
+                <a href="#" onClick={e => e.preventDefault()}>Terms</a>
+                <Link to="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none', marginLeft: 22 }}>About</Link>
               </span>
             </div>
           </div>

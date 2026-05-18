@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import AppHeader from './AppHeader';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
@@ -1115,8 +1115,17 @@ const TokenPage: React.FC = () => {
           font-variant-numeric: tabular-nums;
         }
 
+        .tp-boost-btn {
+          display: flex; align-items: center; gap: 5px;
+          padding: 9px 14px; border-radius: 10px;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          font-size: 13px; font-weight: 600; color: var(--text-primary);
+          text-decoration: none; flex-shrink: 0; margin-left: auto;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .tp-boost-btn:hover { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
         .tp-star-btn {
-          margin-left: auto; background: var(--bg-secondary);
+          background: var(--bg-secondary);
           border: 1.5px solid var(--border); border-radius: 10px;
           width: 40px; height: 40px; font-size: 18px;
           display: flex; align-items: center; justify-content: center;
@@ -1425,6 +1434,15 @@ const TokenPage: React.FC = () => {
               </div>
             </div>
 
+            {tokenDetails?.metadataAddress && (
+              <Link
+                to={`/boost?token=${tokenDetails.metadataAddress}`}
+                className="tp-boost-btn"
+                title="Boost this token on the leaderboard"
+              >
+                ⚡ Boost
+              </Link>
+            )}
             <button
               className={`tp-star-btn${currentTokenInWatchlist ? ' starred' : ''}`}
               onClick={handleStarClick}

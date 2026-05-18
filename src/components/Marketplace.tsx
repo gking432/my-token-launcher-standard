@@ -222,6 +222,14 @@ const Marketplace: React.FC = () => {
           transition: background 0.15s; font-family: inherit;
         }
         .mp-trade-btn:hover { background: var(--accent-hover); }
+        .mp-boost-btn {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          color: var(--text-secondary); padding: 7px 12px; border-radius: 9px;
+          font-size: 12.5px; font-weight: 600; text-decoration: none;
+          transition: border-color 0.12s, color 0.12s, background 0.12s;
+        }
+        .mp-boost-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
         .mp-star-btn {
           background: transparent; border: 1.5px solid var(--border);
           border-radius: 8px; width: 34px; height: 34px;
@@ -439,6 +447,14 @@ const Marketplace: React.FC = () => {
                           </td>
                           <td className="mp-td">
                             <div className="mp-td-actions">
+                              <Link
+                                to={`/boost?token=${token.metadataAddress || token.txHash}`}
+                                className="mp-boost-btn"
+                                onClick={e => e.stopPropagation()}
+                                title="Boost this token"
+                              >
+                                ⚡ Boost
+                              </Link>
                               <button
                                 className="mp-trade-btn"
                                 onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
@@ -519,6 +535,14 @@ const Marketplace: React.FC = () => {
                         MCap: {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
                       </div>
                       <div className="mp-card-footer">
+                        <Link
+                          to={`/boost?token=${token.metadataAddress || token.txHash}`}
+                          className="mp-boost-btn"
+                          onClick={e => e.stopPropagation()}
+                          title="Boost this token"
+                        >
+                          ⚡ Boost
+                        </Link>
                         <button
                           className="mp-card-trade"
                           onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
@@ -543,9 +567,11 @@ const Marketplace: React.FC = () => {
 
         <footer className="mp-footer">
           © 2025 MoveMint ·{' '}
-          <Link to="/launch" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-            Launch a token
-          </Link>
+          <Link to="/launch" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Launch a token</Link>
+          {' · '}
+          <Link to="/boost" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Boost</Link>
+          {' · '}
+          <Link to="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>About</Link>
         </footer>
       </div>
     </>

@@ -207,7 +207,9 @@ const AppHeader: React.FC = () => {
 
           <ul className="ah-links">
             <li><Link to="/marketplace">Marketplace</Link></li>
+            <li><Link to="/boost">Boost</Link></li>
             <li><Link to="/launch">Launch</Link></li>
+            <li><Link to="/about">About</Link></li>
             {account && <li><Link to={`/profile/${account.address}`}>Profile</Link></li>}
           </ul>
 
