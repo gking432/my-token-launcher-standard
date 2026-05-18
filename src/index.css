@@ -16,6 +16,9 @@
   --accent-light:    #ecfdf5;
   --positive:        #059669;
   --negative:        #d70015;
+  --boost:           #ea580c;
+  --boost-hover:     #c2410c;
+  --boost-light:     #fff7ed;
   --chart-bg:        #fbfbfb;
   --chart-text:      #6e6e73;
   --chart-grid:      #f0f0f0;
@@ -36,6 +39,9 @@
   --accent-light:    #0f2418;
   --positive:        #30d158;
   --negative:        #ff453a;
+  --boost:           #ff7a1a;
+  --boost-hover:     #ff9447;
+  --boost-light:     #2a1505;
   --chart-bg:        #1c1c1e;
   --chart-text:      #a1a1a6;
   --chart-grid:      #38383a;

@@ -509,6 +509,25 @@ const HomePage: React.FC = () => {
           font-family: inherit;
         }
         .mm-card-trade:hover { background: var(--accent-hover); }
+        .mm-card-boost {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: var(--boost-light); border: 1.5px solid var(--boost);
+          color: var(--boost); padding: 7px 12px; border-radius: 9px;
+          font-size: 12.5px; font-weight: 700; text-decoration: none;
+          transition: background 0.12s, color 0.12s, transform 0.05s;
+          margin-right: 6px;
+        }
+        .mm-card-boost:hover { background: var(--boost); color: #fff; transform: translateY(-1px); }
+
+        .mm-lt-boost {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: var(--boost-light); border: 1.5px solid var(--boost);
+          color: var(--boost); padding: 6px 10px; border-radius: 8px;
+          font-size: 12px; font-weight: 700; text-decoration: none;
+          margin-right: 8px;
+          transition: background 0.12s, color 0.12s;
+        }
+        .mm-lt-boost:hover { background: var(--boost); color: #fff; }
 
         .mm-empty {
           text-align: center; padding: 72px 20px;
@@ -824,12 +843,22 @@ const HomePage: React.FC = () => {
                             {truncateAddress(token.creatorAddress)}
                           </div>
                         ) : <div />}
-                        <button
-                          className="mm-card-trade"
-                          onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
-                        >
-                          Trade
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Link
+                            to={`/boost?token=${token.metadataAddress || token.txHash}`}
+                            className="mm-card-boost"
+                            onClick={e => e.stopPropagation()}
+                            title="Boost this token"
+                          >
+                            🔥
+                          </Link>
+                          <button
+                            className="mm-card-trade"
+                            onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
+                          >
+                            Trade
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -883,7 +912,15 @@ const HomePage: React.FC = () => {
                           <td className="mm-lt-td" style={{ textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                             {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
                           </td>
-                          <td className="mm-lt-td" style={{ textAlign: 'right' }}>
+                          <td className="mm-lt-td" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <Link
+                              to={`/boost?token=${token.metadataAddress || token.txHash}`}
+                              className="mm-lt-boost"
+                              onClick={e => e.stopPropagation()}
+                              title="Boost this token"
+                            >
+                              🔥 Boost
+                            </Link>
                             <button
                               className="mm-lt-trade"
                               onClick={e => { e.stopPropagation(); handleTradeClick(token); }}

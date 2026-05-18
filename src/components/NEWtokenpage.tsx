@@ -1118,12 +1118,13 @@ const TokenPage: React.FC = () => {
         .tp-boost-btn {
           display: flex; align-items: center; gap: 5px;
           padding: 9px 14px; border-radius: 10px;
-          background: var(--bg-secondary); border: 1.5px solid var(--border);
-          font-size: 13px; font-weight: 600; color: var(--text-primary);
+          background: var(--boost); border: 1.5px solid var(--boost);
+          font-size: 13px; font-weight: 700; color: #fff;
           text-decoration: none; flex-shrink: 0; margin-left: auto;
-          transition: border-color 0.15s, background 0.15s;
+          box-shadow: 0 2px 10px rgba(234,88,12,0.3);
+          transition: background 0.15s, border-color 0.15s, transform 0.05s;
         }
-        .tp-boost-btn:hover { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+        .tp-boost-btn:hover { background: var(--boost-hover); border-color: var(--boost-hover); transform: translateY(-1px); }
         .tp-star-btn {
           background: var(--bg-secondary);
           border: 1.5px solid var(--border); border-radius: 10px;
@@ -1440,7 +1441,7 @@ const TokenPage: React.FC = () => {
                 className="tp-boost-btn"
                 title="Boost this token on the leaderboard"
               >
-                ⚡ Boost
+                🔥 Boost
               </Link>
             )}
             <button

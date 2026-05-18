@@ -99,6 +99,8 @@ const AppHeader: React.FC = () => {
           transition: color 0.12s, background 0.12s; white-space: nowrap;
         }
         .ah-links a:hover { color: var(--text-primary); background: var(--bg-secondary); }
+        .ah-links a.ah-link-boost { color: var(--boost); font-weight: 700; }
+        .ah-links a.ah-link-boost:hover { background: var(--boost-light); color: var(--boost); }
         .ah-wallet-wrap { position: relative; flex-shrink: 0; }
         .ah-connect-btn {
           background: var(--accent); color: #fff;
@@ -207,10 +209,9 @@ const AppHeader: React.FC = () => {
 
           <ul className="ah-links">
             <li><Link to="/marketplace">Marketplace</Link></li>
-            <li><Link to="/boost">Boost</Link></li>
+            <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
             <li><Link to="/launch">Launch</Link></li>
             <li><Link to="/about">About</Link></li>
-            {account && <li><Link to={`/profile/${account.address}`}>Profile</Link></li>}
           </ul>
 
           <div className="ah-wallet-wrap" ref={walletRef}>

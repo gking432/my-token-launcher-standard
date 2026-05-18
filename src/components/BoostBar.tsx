@@ -69,20 +69,20 @@ const BoostBar: React.FC = () => {
         }
         .bb-label {
           display: flex; align-items: center; gap: 7px;
-          font-size: 11.5px; font-weight: 700; color: var(--text-muted);
+          font-size: 11.5px; font-weight: 800; color: var(--boost);
           text-transform: uppercase; letter-spacing: 0.08em;
           flex-shrink: 0;
         }
         .bb-pulse {
           width: 6px; height: 6px; border-radius: 50%;
-          background: var(--positive);
-          box-shadow: 0 0 0 0 var(--positive);
+          background: var(--boost);
+          box-shadow: 0 0 0 0 var(--boost);
           animation: bb-pulse 1.6s ease-out infinite;
         }
         @keyframes bb-pulse {
-          0%   { box-shadow: 0 0 0 0 rgba(5,150,105,0.55); }
-          70%  { box-shadow: 0 0 0 6px rgba(5,150,105,0); }
-          100% { box-shadow: 0 0 0 0 rgba(5,150,105,0); }
+          0%   { box-shadow: 0 0 0 0 rgba(234,88,12,0.55); }
+          70%  { box-shadow: 0 0 0 6px rgba(234,88,12,0); }
+          100% { box-shadow: 0 0 0 0 rgba(234,88,12,0); }
         }
         .bb-track {
           flex: 1; min-width: 0;
@@ -107,7 +107,7 @@ const BoostBar: React.FC = () => {
         }
         .bb-chip:hover {
           background: var(--bg-hover);
-          border-color: var(--accent);
+          border-color: var(--boost);
           transform: translateY(-1px);
         }
         .bb-rank {
@@ -121,7 +121,7 @@ const BoostBar: React.FC = () => {
         .bb-chip.silver .bb-rank { background: #c0c0c8; color: #36363c; }
         .bb-chip.bronze .bb-rank { background: #cd7f32; color: #fff; }
         .bb-sym { font-weight: 700; color: var(--text-primary); }
-        .bb-apt { color: var(--accent); font-weight: 700; }
+        .bb-apt { color: var(--boost); font-weight: 700; }
         .bb-apt-unit {
           font-size: 10.5px; color: var(--text-muted); font-weight: 600; margin-left: 2px;
         }
@@ -140,7 +140,7 @@ const BoostBar: React.FC = () => {
         <div className="bb-inner">
           <div className="bb-label">
             <span className="bb-pulse" />
-            Boost · Top {top.length}
+            🔥 Boost · Top {top.length}
           </div>
           <div className="bb-track">
             {top.map((t, i) => {

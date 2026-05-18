@@ -224,12 +224,12 @@ const Marketplace: React.FC = () => {
         .mp-trade-btn:hover { background: var(--accent-hover); }
         .mp-boost-btn {
           display: inline-flex; align-items: center; gap: 4px;
-          background: var(--bg-secondary); border: 1.5px solid var(--border);
-          color: var(--text-secondary); padding: 7px 12px; border-radius: 9px;
-          font-size: 12.5px; font-weight: 600; text-decoration: none;
-          transition: border-color 0.12s, color 0.12s, background 0.12s;
+          background: var(--boost-light); border: 1.5px solid var(--boost);
+          color: var(--boost); padding: 7px 12px; border-radius: 9px;
+          font-size: 12.5px; font-weight: 700; text-decoration: none;
+          transition: background 0.12s, color 0.12s, transform 0.05s;
         }
-        .mp-boost-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+        .mp-boost-btn:hover { background: var(--boost); color: #fff; transform: translateY(-1px); }
         .mp-star-btn {
           background: transparent; border: 1.5px solid var(--border);
           border-radius: 8px; width: 34px; height: 34px;
@@ -453,7 +453,7 @@ const Marketplace: React.FC = () => {
                                 onClick={e => e.stopPropagation()}
                                 title="Boost this token"
                               >
-                                ⚡ Boost
+                                🔥 Boost
                               </Link>
                               <button
                                 className="mp-trade-btn"
@@ -541,7 +541,7 @@ const Marketplace: React.FC = () => {
                           onClick={e => e.stopPropagation()}
                           title="Boost this token"
                         >
-                          ⚡ Boost
+                          🔥 Boost
                         </Link>
                         <button
                           className="mp-card-trade"

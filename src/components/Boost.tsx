@@ -100,16 +100,26 @@ const Boost: React.FC = () => {
         }
         .bp-wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 64px; }
         .bp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
-        .bp-hero h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 6px; }
+        .bp-hero h1 {
+          font-size: 36px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 6px;
+          display: flex; align-items: center; gap: 12px;
+        }
+        .bp-hero-flame {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 44px; height: 44px; border-radius: 12px;
+          background: linear-gradient(145deg, var(--boost), var(--boost-hover));
+          color: #fff; font-size: 22px;
+          box-shadow: 0 4px 14px rgba(234,88,12,0.4);
+        }
         .bp-hero p { font-size: 15px; color: var(--text-secondary); margin: 0; max-width: 560px; }
         .bp-banner {
-          background: var(--accent-light);
-          border: 1px solid var(--accent);
+          background: var(--boost-light);
+          border: 1px solid var(--boost);
           border-radius: 12px;
           padding: 12px 16px;
           margin-bottom: 24px;
           font-size: 13.5px;
-          color: var(--accent);
+          color: var(--boost);
           font-weight: 500;
           line-height: 1.5;
         }
@@ -133,6 +143,7 @@ const Boost: React.FC = () => {
           font-size: 22px; font-weight: 700; color: var(--text-primary);
           font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
         }
+        .bp-stat:first-child .bp-stat-value { color: var(--boost); }
         .bp-stat-unit { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-left: 4px; }
 
         .bp-controls {
@@ -150,8 +161,8 @@ const Boost: React.FC = () => {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .bp-search:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-light);
+          border-color: var(--boost);
+          box-shadow: 0 0 0 3px var(--boost-light);
         }
         .bp-search-wrap { position: relative; flex: 1; min-width: 220px; }
         .bp-search-icon {
@@ -201,7 +212,7 @@ const Boost: React.FC = () => {
         }
         .bp-row:last-child { border-bottom: none; }
         .bp-row:hover { background: var(--bg-secondary); }
-        .bp-row.selected { background: var(--accent-light); }
+        .bp-row.selected { background: var(--boost-light); }
         .bp-rank {
           font-size: 15px; font-weight: 700; color: var(--text-muted);
           font-variant-numeric: tabular-nums;
@@ -227,7 +238,7 @@ const Boost: React.FC = () => {
           font-family: ui-monospace, "SF Mono", Menlo, monospace;
         }
         .bp-row-apt {
-          font-size: 15px; font-weight: 700; color: var(--accent);
+          font-size: 15px; font-weight: 700; color: var(--boost);
           font-variant-numeric: tabular-nums;
         }
         .bp-row-apt-unit { font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-left: 3px; }
@@ -238,7 +249,7 @@ const Boost: React.FC = () => {
           border: 1px solid var(--border);
         }
         .bp-row.selected .bp-row-action {
-          background: var(--accent); color: #fff; border-color: var(--accent);
+          background: var(--boost); color: #fff; border-color: var(--boost);
         }
         .bp-empty-list {
           padding: 60px 24px; text-align: center; color: var(--text-muted);
@@ -274,7 +285,7 @@ const Boost: React.FC = () => {
           display: flex; justify-content: space-between; align-items: baseline;
         }
         .bp-panel-current-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        .bp-panel-current-value { font-size: 18px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+        .bp-panel-current-value { font-size: 18px; font-weight: 700; color: var(--boost); font-variant-numeric: tabular-nums; }
         .bp-panel-input-label {
           font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; display: block;
         }
@@ -291,8 +302,8 @@ const Boost: React.FC = () => {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .bp-panel-input:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-light);
+          border-color: var(--boost);
+          box-shadow: 0 0 0 3px var(--boost-light);
         }
         .bp-panel-input-suffix {
           position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
@@ -311,17 +322,17 @@ const Boost: React.FC = () => {
           font-family: inherit; cursor: pointer;
           transition: background 0.1s, border-color 0.1s;
         }
-        .bp-quick button:hover { background: var(--bg-hover); border-color: var(--accent); }
+        .bp-quick button:hover { background: var(--bg-hover); border-color: var(--boost); }
         .bp-panel-submit {
           width: 100%; padding: 13px 0;
-          background: var(--accent); color: #fff;
+          background: var(--boost); color: #fff;
           border: none; border-radius: 12px;
           font-size: 15px; font-weight: 600; font-family: inherit;
           cursor: pointer;
-          box-shadow: 0 2px 12px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 12px rgba(234,88,12,0.35);
           transition: background 0.15s;
         }
-        .bp-panel-submit:hover { background: var(--accent-hover); }
+        .bp-panel-submit:hover { background: var(--boost-hover); }
         .bp-panel-trade {
           margin-top: 10px;
           display: block; text-align: center;
@@ -370,7 +381,7 @@ const Boost: React.FC = () => {
         <div className="bp-wrap">
           <div className="bp-hero">
             <div>
-              <h1>Boost</h1>
+              <h1><span className="bp-hero-flame">🔥</span> Boost</h1>
               <p>Pay APT to promote a token to the top of every page. Boost fees are pure advertising — no tokens are issued. Highest spend wins the slot.</p>
             </div>
           </div>
