@@ -7,6 +7,7 @@ import { useAptPrice } from '../contexts/AptPriceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AppHeader from './AppHeader';
+import TokenAvatar from './TokenAvatar';
 
 type SortKey = 'newest' | 'price' | 'change' | 'mc';
 type SortDir = 'desc' | 'asc';
@@ -419,19 +420,12 @@ const Marketplace: React.FC = () => {
                           <td className="mp-td mp-td-rank">{i + 1}</td>
                           <td className="mp-td">
                             <div className="mp-token-cell">
-                              {token.image ? (
-                                <img
-                                  src={token.image}
-                                  alt={token.symbol}
-                                  className="mp-token-icon"
-                                  style={{ objectFit: 'cover' }}
-                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                />
-                              ) : (
-                                <div className="mp-token-icon" style={{ background: getIconBg(token.symbol) }}>
-                                  {token.symbol.replace('$', '').charAt(0).toUpperCase()}
-                                </div>
-                              )}
+                              <TokenAvatar
+                                image={token.image}
+                                symbol={token.symbol}
+                                className="mp-token-icon"
+                                background={getIconBg(token.symbol)}
+                              />
                               <div style={{ minWidth: 0 }}>
                                 <div className="mp-token-name">{token.name}</div>
                                 <div className="mp-token-sym">{symbolWithDollar(token.symbol)}</div>
@@ -509,18 +503,12 @@ const Marketplace: React.FC = () => {
                     <div key={i} className="mp-card" onClick={() => handleTradeClick(token)}>
                       <div className="mp-card-head">
                         <div className="mp-card-identity">
-                          {token.image ? (
-                            <img
-                              src={token.image}
-                              alt={token.symbol}
-                              className="mp-card-icon"
-                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="mp-card-icon" style={{ background: getIconBg(token.symbol) }}>
-                              {token.symbol.replace('$', '').charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                          <TokenAvatar
+                            image={token.image}
+                            symbol={token.symbol}
+                            className="mp-card-icon"
+                            background={getIconBg(token.symbol)}
+                          />
                           <div style={{ minWidth: 0 }}>
                             <div className="mp-card-name">{token.name}</div>
                             <div className="mp-card-sym">{symbolWithDollar(token.symbol)}</div>

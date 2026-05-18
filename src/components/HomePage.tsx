@@ -5,6 +5,8 @@ import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AppHeader from './AppHeader';
+import TokenAvatar from './TokenAvatar';
+import { truncateAddress } from '../utils/format';
 
 type SortOrder = 'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol';
 
@@ -94,7 +96,6 @@ const HomePage: React.FC = () => {
     [rawTokens]
   );
 
-  const truncateAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
   const formatPrice = (n: number) => {
     if (n < 0.0001) return `$${n.toFixed(8)}`;
     if (n < 0.01) return `$${n.toFixed(6)}`;
@@ -798,19 +799,12 @@ const HomePage: React.FC = () => {
                   return (
                     <div key={i} className="mm-card" onClick={() => handleTradeClick(token)}>
                       <div className="mm-card-head">
-                        {token.image ? (
-                          <img
-                            src={token.image}
-                            alt={token.symbol}
-                            className="mm-card-icon"
-                            style={{ objectFit: 'cover' }}
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="mm-card-icon" style={{ background: getIconBg(token.symbol) }}>
-                            {token.symbol.replace('$', '').charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <TokenAvatar
+                          image={token.image}
+                          symbol={token.symbol}
+                          className="mm-card-icon"
+                          background={getIconBg(token.symbol)}
+                        />
                         <div className="mm-card-name-wrap">
                           <div className="mm-card-name">{token.name}</div>
                           <div className="mm-card-symbol">{displaySymbol}</div>
@@ -884,19 +878,12 @@ const HomePage: React.FC = () => {
                         <tr key={i} className="mm-lt-row" onClick={() => handleTradeClick(token)}>
                           <td className="mm-lt-td">
                             <div className="mm-lt-token">
-                              {token.image ? (
-                                <img
-                                  src={token.image}
-                                  alt={token.symbol}
-                                  className="mm-lt-icon"
-                                  style={{ objectFit: 'cover' }}
-                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                />
-                              ) : (
-                                <div className="mm-lt-icon" style={{ background: getIconBg(token.symbol) }}>
-                                  {token.symbol.replace('$', '').charAt(0).toUpperCase()}
-                                </div>
-                              )}
+                              <TokenAvatar
+                                image={token.image}
+                                symbol={token.symbol}
+                                className="mm-lt-icon"
+                                background={getIconBg(token.symbol)}
+                              />
                               <div>
                                 <div className="mm-lt-name">{token.name}</div>
                                 <div className="mm-lt-sym">{symbolWithDollar(token.symbol)}</div>

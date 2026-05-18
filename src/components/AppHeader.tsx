@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useTheme } from '../contexts/ThemeContext';
 import BoostBar from './BoostBar';
+import { truncateAddress } from '../utils/format';
 
 const AppHeader: React.FC = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -30,11 +31,6 @@ const AppHeader: React.FC = () => {
       navigate(`/marketplace?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery('');
     }
-  };
-
-  const truncateAddr = (addr: string) => {
-    const s = addr.toString();
-    return `${s.slice(0, 6)}…${s.slice(-4)}`;
   };
 
   const handleCopy = () => {
@@ -219,7 +215,7 @@ const AppHeader: React.FC = () => {
               <>
                 <button className="ah-addr-btn" onClick={() => setWalletOpen(v => !v)}>
                   <span className="ah-addr-dot" />
-                  {truncateAddr(account.address.toString())}
+                  {truncateAddress(account.address.toString())}
                   <span className="ah-addr-chevron">&#9660;</span>
                 </button>
                 {walletOpen && (

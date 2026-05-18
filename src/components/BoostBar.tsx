@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBoostData, BOOST_WINDOWS } from '../data/useBoostStore';
@@ -8,9 +8,10 @@ import { useBoostData, BOOST_WINDOWS } from '../data/useBoostStore';
 // the configured window. Currently localStorage-backed; will move to on-chain
 // data once the boost entry function exists in the contract.
 
-const REFRESH_INTERVAL_MS = 60_000;
 const TOP_N = 10;
 const WINDOW_MS = BOOST_WINDOWS['24h'];
+const BAR_HEIGHT_PX = 44;
+const HEADER_HEIGHT_PX = 60;
 
 const formatApt = (apt: number): string => {
   if (apt >= 1000) return `${(apt / 1000).toFixed(2)}k`;
@@ -22,15 +23,6 @@ const formatApt = (apt: number): string => {
 const BoostBar: React.FC = () => {
   const { tokens: catalogTokens } = useTokenData();
   const boostMap = useBoostData(WINDOW_MS);
-
-  const [secondsToRefresh, setSecondsToRefresh] = useState(REFRESH_INTERVAL_MS / 1000);
-
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setSecondsToRefresh(s => (s <= 1 ? REFRESH_INTERVAL_MS / 1000 : s - 1));
-    }, 1000);
-    return () => clearInterval(tick);
-  }, []);
 
   const top = useMemo(() => {
     return catalogTokens
@@ -48,6 +40,18 @@ const BoostBar: React.FC = () => {
       .slice(0, TOP_N);
   }, [catalogTokens, boostMap]);
 
+  // Expose stack height so sticky elements below can position correctly
+  // regardless of whether the bar is rendered.
+  useEffect(() => {
+    const offset = top.length === 0
+      ? `${HEADER_HEIGHT_PX}px`
+      : `${HEADER_HEIGHT_PX + BAR_HEIGHT_PX}px`;
+    document.documentElement.style.setProperty('--mm-header-offset', offset);
+    return () => {
+      document.documentElement.style.setProperty('--mm-header-offset', `${HEADER_HEIGHT_PX}px`);
+    };
+  }, [top.length]);
+
   if (top.length === 0) return null;
 
   return (
@@ -57,7 +61,7 @@ const BoostBar: React.FC = () => {
           position: sticky; top: 60px; z-index: 199;
           background: var(--bg-primary);
           border-bottom: 1px solid var(--border);
-          height: 44px;
+          height: ${BAR_HEIGHT_PX}px;
           display: flex; align-items: center;
           overflow: hidden;
         }
@@ -125,15 +129,8 @@ const BoostBar: React.FC = () => {
         .bb-apt-unit {
           font-size: 10.5px; color: var(--text-muted); font-weight: 600; margin-left: 2px;
         }
-        .bb-countdown {
-          flex-shrink: 0; font-size: 11px; color: var(--text-muted);
-          font-variant-numeric: tabular-nums;
-          padding-left: 8px; border-left: 1px solid var(--border);
-          font-weight: 600;
-        }
         @media (max-width: 680px) {
           .bb-label { display: none; }
-          .bb-countdown { display: none; }
         }
       `}</style>
       <div className="bb-bar">
@@ -159,7 +156,6 @@ const BoostBar: React.FC = () => {
               );
             })}
           </div>
-          <div className="bb-countdown">{secondsToRefresh}s</div>
         </div>
       </div>
     </>

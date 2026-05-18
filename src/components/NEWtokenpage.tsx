@@ -16,6 +16,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
 import { useQueryClient } from '@tanstack/react-query';
+import { truncateAddress } from '../utils/format';
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
@@ -187,6 +188,13 @@ const TokenPage: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const [linkCopied, setLinkCopied] = useState(false);
+  const handleShareLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   function stringToBytes(str: string): number[] {
@@ -776,11 +784,6 @@ const TokenPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  // Add truncateAddress function from the transplanted engine
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
   // Helper to find token from tokens array using metadataAddress
   // Static catalog row (name, symbol, image, creator) — slow-changing data
   const catalogRow = useMemo(() => {
@@ -1125,6 +1128,14 @@ const TokenPage: React.FC = () => {
           transition: background 0.15s, border-color 0.15s, transform 0.05s;
         }
         .tp-boost-btn:hover { background: var(--boost-hover); border-color: var(--boost-hover); transform: translateY(-1px); }
+        .tp-share-btn {
+          padding: 9px 12px; border-radius: 10px;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          font-size: 13px; font-weight: 600; color: var(--text-primary);
+          cursor: pointer; font-family: inherit; flex-shrink: 0;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .tp-share-btn:hover { background: var(--bg-hover); border-color: var(--text-muted); }
         .tp-star-btn {
           background: var(--bg-secondary);
           border: 1.5px solid var(--border); border-radius: 10px;
@@ -1228,7 +1239,8 @@ const TokenPage: React.FC = () => {
 
         .tp-trade-card {
           background: var(--bg-primary); border: 1px solid var(--border);
-          border-radius: 18px; padding: 20px; position: sticky; top: 116px;
+          border-radius: 18px; padding: 20px; position: sticky;
+          top: calc(var(--mm-header-offset, 60px) + 12px);
           box-shadow: 0 4px 14px rgba(0,0,0,${isDark ? '0.35' : '0.07'});
         }
         .tp-trade-tabs {
@@ -1445,6 +1457,13 @@ const TokenPage: React.FC = () => {
               </Link>
             )}
             <button
+              className="tp-share-btn"
+              onClick={handleShareLink}
+              title={linkCopied ? 'Link copied' : 'Copy share link'}
+            >
+              {linkCopied ? '✓ Copied' : '↗ Share'}
+            </button>
+            <button
               className={`tp-star-btn${currentTokenInWatchlist ? ' starred' : ''}`}
               onClick={handleStarClick}
               title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
@@ -1617,7 +1636,7 @@ const TokenPage: React.FC = () => {
                             <tr key={wallet}>
                               <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
                               <td className="tp-tx-td" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                {wallet.slice(0, 6)}…{wallet.slice(-4)}
+                                {truncateAddress(wallet)}
                                 {isYou && <span className="tp-tx-you">YOU</span>}
                               </td>
                               <td className="tp-tx-td" style={{ textAlign: 'right' }}>{Number(bal).toLocaleString()}</td>

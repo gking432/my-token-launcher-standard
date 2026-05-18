@@ -5,6 +5,7 @@ import AppHeader from './AppHeader';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
+import { truncateAddress } from '../utils/format';
 
 const formatPriceUSD = (price: number | undefined | null): string => {
   if (price == null || isNaN(price)) return '—';
@@ -21,8 +22,6 @@ const formatNumber = (n: number | undefined | null): string => {
   if (n >= 1e3) return `${(n / 1e3).toFixed(2)}K`;
   return n.toFixed(0);
 };
-
-const truncateAddr = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 
 const Profile: React.FC = () => {
   const { account } = useWallet();
@@ -226,7 +225,7 @@ const Profile: React.FC = () => {
                 <div className="pf-avatar">{viewingAddress.slice(2, 3).toUpperCase()}</div>
                 <div className="pf-hero-text">
                   <div className="pf-hero-label">{isOwn ? 'Your wallet' : 'Profile'}</div>
-                  <div className="pf-hero-addr">{truncateAddr(viewingAddress)}</div>
+                  <div className="pf-hero-addr">{truncateAddress(viewingAddress)}</div>
                 </div>
                 <div className="pf-hero-actions">
                   <button className="pf-btn" onClick={handleCopy}>

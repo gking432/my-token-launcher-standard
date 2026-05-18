@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
-import Layout from "./components/Layout";
 
 import HomePage from "./components/HomePage";
 import Marketplace from "./components/Marketplace";
@@ -12,6 +11,7 @@ import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
 import About from "./components/About";
+import NotFound from "./components/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
@@ -47,7 +47,7 @@ const App: React.FC = () => {
                   <Route path="/profile/:address"  element={<Profile />} />
                   <Route path="/token/:coinHash"   element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
                   <Route path="/newtoken/:coinHash" element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
-                  <Route path="*"                  element={<Layout><div>404 - Page Not Found</div></Layout>} />
+                  <Route path="*"                  element={<NotFound />} />
                 </Routes>
               </Router>
             </WatchlistProvider>
