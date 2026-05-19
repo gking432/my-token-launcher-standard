@@ -47,6 +47,14 @@ const SiteFooter: React.FC = () => (
         display: flex; align-items: center; justify-content: center;
         color: #fff; font-size: 13px; font-weight: 800;
       }
+      @media (max-width: 900px) {
+        .mm-footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
+      }
+      @media (max-width: 600px) {
+        .mm-footer-top { grid-template-columns: 1fr; gap: 28px; }
+        .mm-footer-bottom { flex-direction: column; align-items: flex-start; gap: 10px; }
+        .mm-footer-bottom a { margin-left: 0; margin-right: 18px; }
+      }
     `}</style>
     <footer className="mm-footer">
       <div className="mm-footer-inner">

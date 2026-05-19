@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTokenData } from '../hooks/useTokenData';
+import { useWatchlist } from '../contexts/WatchlistContext';
 import BoostBar from './BoostBar';
 import TokenAvatar from './TokenAvatar';
 import { truncateAddress } from '../utils/format';
@@ -15,16 +16,31 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { account, connect, disconnect, wallets } = useWallet();
   const { tokens } = useTokenData();
+  const { watchlist } = useWatchlist();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const [walletOpen, setWalletOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchIndex, setSearchIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const walletRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  // Prevent body scroll while the mobile drawer is open.
+  useEffect(() => {
+    if (mobileOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [mobileOpen]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -39,17 +55,23 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const matches = useMemo(() => {
+  const { matches, totalMatchCount } = useMemo(() => {
     const q = searchQuery.trim().toLowerCase().replace(/^\$/, '');
-    if (!q) return [];
-    return tokens
-      .filter(t => {
-        const sym = (t.symbol || '').toLowerCase().replace(/^\$/, '');
-        const name = (t.name || '').toLowerCase();
-        return sym.includes(q) || name.includes(q);
-      })
-      .slice(0, 8);
+    if (!q) return { matches: [], totalMatchCount: 0 };
+    const all = tokens.filter(t => {
+      const sym = (t.symbol || '').toLowerCase().replace(/^\$/, '');
+      const name = (t.name || '').toLowerCase();
+      return sym.includes(q) || name.includes(q);
+    });
+    return { matches: all.slice(0, 6), totalMatchCount: all.length };
   }, [searchQuery, tokens]);
+
+  const seeAllInMarketplace = () => {
+    const q = searchQuery.trim();
+    setSearchOpen(false);
+    setSearchQuery('');
+    navigate(`/marketplace?q=${encodeURIComponent(q)}`);
+  };
 
   useEffect(() => { setSearchIndex(0); }, [searchQuery]);
 
@@ -171,6 +193,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
         .ah-search-sym {
           font-size: 12px; color: var(--text-muted); font-weight: 600;
         }
+        .ah-search-all {
+          display: block; width: 100%; text-align: left;
+          padding: 10px 12px; margin-top: 4px;
+          border: none; background: var(--bg-secondary);
+          border-radius: 9px; cursor: pointer; font-family: inherit;
+          font-size: 12.5px; font-weight: 600; color: var(--accent);
+          transition: background 0.12s;
+        }
+        .ah-search-all:hover { background: var(--bg-hover); }
         .ah-links {
           display: flex; gap: 2px; list-style: none; margin: 0; padding: 0;
           flex-shrink: 0;
@@ -260,17 +291,110 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
           font-family: inherit;
         }
         .ah-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .ah-links-mobile-only { display: none; }
+
+        /* Hamburger */
+        .ah-burger {
+          display: none;
+          width: 36px; height: 34px;
+          padding: 0; border-radius: 9px;
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          cursor: pointer; flex-direction: column; align-items: center;
+          justify-content: center; gap: 4px;
+          font-family: inherit; flex-shrink: 0;
+        }
+        .ah-burger span {
+          display: block; width: 16px; height: 1.6px;
+          background: var(--text-primary); border-radius: 2px;
+          transition: background 0.15s;
+        }
+        .ah-burger:hover { background: var(--bg-hover); }
+
+        /* Mobile drawer */
+        .ah-mobile-backdrop {
+          position: fixed; inset: 0; z-index: 400;
+          background: rgba(0,0,0,0.45);
+          animation: ahFade 0.18s ease;
+        }
+        @keyframes ahFade { from { opacity: 0; } to { opacity: 1; } }
+        .ah-mobile-drawer {
+          position: fixed; top: 0; left: 0; bottom: 0;
+          width: 86%; max-width: 320px;
+          background: var(--bg-primary);
+          border-right: 1px solid var(--border);
+          z-index: 401; padding: 16px 14px 28px;
+          overflow-y: auto;
+          animation: ahSlide 0.22s cubic-bezier(.2,.7,.2,1);
+          box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+        }
+        @keyframes ahSlide {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0); }
+        }
+        .ah-mobile-head {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 6px 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+        }
+        .ah-mobile-close {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          width: 32px; height: 32px; border-radius: 9px;
+          cursor: pointer; font-family: inherit; color: var(--text-secondary);
+          font-size: 14px;
+        }
+        .ah-mobile-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .ah-mobile-section-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.08em;
+          padding: 14px 10px 6px;
+        }
+        .ah-mobile-section-label:first-of-type { padding-top: 4px; }
+        .ah-mobile-nav { display: flex; flex-direction: column; gap: 2px; }
+        .ah-mobile-nav a {
+          display: block; padding: 12px 12px; border-radius: 10px;
+          font-size: 15px; font-weight: 600; color: var(--text-primary);
+          text-decoration: none; transition: background 0.12s;
+        }
+        .ah-mobile-nav a:hover { background: var(--bg-secondary); }
+        .ah-mobile-nav a.boost { color: var(--boost); }
+        .ah-mobile-empty {
+          padding: 12px; font-size: 13px; color: var(--text-muted);
+          line-height: 1.5;
+        }
+        .ah-mobile-wl { display: flex; flex-direction: column; gap: 2px; }
+        .ah-mobile-wl-item {
+          display: flex; align-items: center; gap: 10px;
+          padding: 9px 10px; border-radius: 10px;
+          color: var(--text-primary); text-decoration: none;
+          transition: background 0.12s;
+        }
+        .ah-mobile-wl-item:hover { background: var(--bg-secondary); }
+        .ah-mobile-wl-icon {
+          width: 32px; height: 32px; border-radius: 9px;
+          flex-shrink: 0; font-size: 13px; color: var(--text-secondary);
+          font-weight: 700;
+        }
+        .ah-mobile-wl-meta { min-width: 0; flex: 1; }
+        .ah-mobile-wl-name {
+          font-size: 14px; font-weight: 600;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ah-mobile-wl-sym { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
+
         @media (max-width: 900px) {
           .ah-nav { grid-template-columns: auto 1fr auto; }
           .ah-links { display: none; }
-          .ah-links-mobile-only { display: flex; }
+          .ah-burger { display: flex; }
         }
         @media (max-width: 680px) {
-          .ah-search { width: 120px; }
-          .ah-search:focus { width: 160px; }
+          .ah-search { width: 100%; }
+          .ah-search:focus { width: 100%; }
+          .ah-search-pop { width: min(320px, calc(100vw - 32px)); }
         }
-        @media (max-width: 480px) { .ah-search-wrap { display: none; } }
+        @media (max-width: 520px) {
+          .ah-theme-btn { display: none; }
+          .ah-nav { padding: 0 14px; gap: 8px; }
+          .ah-connect-btn { padding: 7px 12px; font-size: 12.5px; }
+          .ah-addr-btn { padding: 6px 10px; font-size: 12px; }
+        }
       `}</style>
 
       <header className="ah-header">
@@ -281,12 +405,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
               <div className="ah-logo-mark">M</div>
               MoveMint
             </Link>
-            <ul className={`ah-links${hideNav ? ' ah-links-mobile-only' : ''}`}>
-              <li><Link to="/marketplace">Marketplace</Link></li>
-              <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
-              <li><Link to="/launch">Launch</Link></li>
-              <li><Link to="/about">About</Link></li>
-            </ul>
+            {!hideNav && (
+              <ul className="ah-links">
+                <li><Link to="/marketplace">Marketplace</Link></li>
+                <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
+                <li><Link to="/launch">Launch</Link></li>
+                <li><Link to="/about">About</Link></li>
+              </ul>
+            )}
           </div>
 
           {/* ── CENTER: search ── */}
@@ -304,30 +430,42 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
             {searchOpen && searchQuery.trim() && (
               <div className="ah-search-pop">
                 {matches.length === 0 ? (
-                  <div className="ah-search-empty">No tokens match "{searchQuery}"</div>
+                  <>
+                    <div className="ah-search-empty">No tokens match "{searchQuery}"</div>
+                    <button className="ah-search-all" onClick={seeAllInMarketplace}>
+                      Try in Marketplace →
+                    </button>
+                  </>
                 ) : (
-                  matches.map((t, i) => {
-                    const addr = t.metadataAddress || t.txHash;
-                    return (
-                      <button
-                        key={addr}
-                        className={`ah-search-item${i === searchIndex ? ' active' : ''}`}
-                        onMouseEnter={() => setSearchIndex(i)}
-                        onClick={() => addr && gotoToken(addr)}
-                      >
-                        <TokenAvatar
-                          image={t.image}
-                          symbol={t.symbol}
-                          className="ah-search-icon-img"
-                          background="var(--bg-tertiary)"
-                        />
-                        <div className="ah-search-meta">
-                          <div className="ah-search-name">{t.name}</div>
-                          <div className="ah-search-sym">{t.symbol.startsWith('$') ? t.symbol : `$${t.symbol}`}</div>
-                        </div>
-                      </button>
-                    );
-                  })
+                  <>
+                    {matches.map((t, i) => {
+                      const addr = t.metadataAddress || t.txHash;
+                      return (
+                        <button
+                          key={addr}
+                          className={`ah-search-item${i === searchIndex ? ' active' : ''}`}
+                          onMouseEnter={() => setSearchIndex(i)}
+                          onClick={() => addr && gotoToken(addr)}
+                        >
+                          <TokenAvatar
+                            image={t.image}
+                            symbol={t.symbol}
+                            className="ah-search-icon-img"
+                            background="var(--bg-tertiary)"
+                          />
+                          <div className="ah-search-meta">
+                            <div className="ah-search-name">{t.name}</div>
+                            <div className="ah-search-sym">{t.symbol.startsWith('$') ? t.symbol : `$${t.symbol}`}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    <button className="ah-search-all" onClick={seeAllInMarketplace}>
+                      {totalMatchCount > matches.length
+                        ? `See all ${totalMatchCount} matches in Marketplace →`
+                        : 'See in Marketplace →'}
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -407,10 +545,76 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
           >
             {isDark ? '☀' : '☾'}
           </button>
+
+          <button
+            className="ah-burger"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+          >
+            <span /><span /><span />
+          </button>
           </div>{/* .ah-nav-right */}
         </div>
       </header>
       <BoostBar />
+
+      {mobileOpen && (
+        <>
+          <div className="ah-mobile-backdrop" onClick={() => setMobileOpen(false)} />
+          <aside className="ah-mobile-drawer">
+            <div className="ah-mobile-head">
+              <Link to="/" className="ah-logo" onClick={() => setMobileOpen(false)}>
+                <div className="ah-logo-mark">M</div>
+                MoveMint
+              </Link>
+              <button className="ah-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
+                ✕
+              </button>
+            </div>
+
+            <div className="ah-mobile-section-label">Navigate</div>
+            <nav className="ah-mobile-nav">
+              <Link to="/"            onClick={() => setMobileOpen(false)}>Home</Link>
+              <Link to="/marketplace" onClick={() => setMobileOpen(false)}>Marketplace</Link>
+              <Link to="/boost"       onClick={() => setMobileOpen(false)} className="boost">🔥 Boost</Link>
+              <Link to="/launch"      onClick={() => setMobileOpen(false)}>Launch</Link>
+              <Link to="/about"       onClick={() => setMobileOpen(false)}>About</Link>
+              {account && (
+                <Link to={`/profile/${account.address}`} onClick={() => setMobileOpen(false)}>Profile</Link>
+              )}
+            </nav>
+
+            <div className="ah-mobile-section-label">Watchlist</div>
+            {watchlist.length === 0 ? (
+              <div className="ah-mobile-empty">
+                No tokens watched yet. Tap ☆ on any token to add it.
+              </div>
+            ) : (
+              <div className="ah-mobile-wl">
+                {watchlist.map(t => (
+                  <Link
+                    key={t.metadataAddress}
+                    to={`/newtoken/${t.metadataAddress}`}
+                    className="ah-mobile-wl-item"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <TokenAvatar
+                      image={t.icon && t.icon.startsWith('http') ? t.icon : null}
+                      symbol={t.symbol}
+                      className="ah-mobile-wl-icon"
+                      background={t.iconBg || 'var(--bg-tertiary)'}
+                    />
+                    <div className="ah-mobile-wl-meta">
+                      <div className="ah-mobile-wl-name">{t.name}</div>
+                      <div className="ah-mobile-wl-sym">{t.symbol.startsWith('$') ? t.symbol : `$${t.symbol}`}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </aside>
+        </>
+      )}
     </>
   );
 };

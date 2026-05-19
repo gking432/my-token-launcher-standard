@@ -204,9 +204,17 @@ const Profile: React.FC = () => {
         .pf-empty-sub {
           font-size: 14px; color: var(--text-secondary); margin-bottom: 18px;
         }
+        @media (max-width: 700px) {
+          .pf-wrap { padding: 24px 16px 60px; }
+          .pf-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+        }
         @media (max-width: 600px) {
           .pf-hero { flex-direction: column; align-items: flex-start; gap: 14px; }
           .pf-hero-addr { font-size: 18px; }
+          .pf-hero-actions { width: 100%; }
+        }
+        @media (max-width: 460px) {
+          .pf-grid { grid-template-columns: 1fr; }
         }
       `}</style>
 

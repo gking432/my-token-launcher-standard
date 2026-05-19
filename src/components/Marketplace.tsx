@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
@@ -25,8 +25,19 @@ const Marketplace: React.FC = () => {
   const { isDark } = useTheme();
   const { account } = useWallet();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+
+  // Keep the URL ?q= in sync so deep-links from the header dropdown work
+  // and the URL is shareable.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    const current = searchParams.get('q') || '';
+    if (q === current) return;
+    const next = new URLSearchParams(searchParams);
+    if (q) next.set('q', q); else next.delete('q');
+    setSearchParams(next, { replace: true });
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
   const [sortKey, setSortKey] = useState<SortKey>('newest');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -158,14 +169,24 @@ const Marketplace: React.FC = () => {
         .mp-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
         /* Search */
+        .mp-search-wrap { position: relative; flex: 1; min-width: 220px; max-width: 380px; }
+        .mp-search-clear {
+          position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+          width: 22px; height: 22px; border-radius: 6px;
+          background: var(--bg-tertiary); border: none; cursor: pointer;
+          color: var(--text-muted); font-size: 11px; font-family: inherit;
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.12s, color 0.12s;
+        }
+        .mp-search-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
         .mp-search {
           background: var(--bg-secondary); border: 1.5px solid var(--border);
-          border-radius: 11px; padding: 10px 16px 10px 38px;
+          border-radius: 11px; padding: 10px 38px 10px 38px;
           font-size: 14px; color: var(--text-primary); outline: none;
-          width: 240px; transition: border-color 0.15s, box-shadow 0.15s;
+          width: 100%; transition: border-color 0.15s, box-shadow 0.15s;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
           background-repeat: no-repeat; background-position: 13px center;
-          font-family: inherit;
+          font-family: inherit; box-sizing: border-box;
         }
         .mp-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
         .mp-search::placeholder { color: var(--text-muted); }
@@ -304,14 +325,23 @@ const Marketplace: React.FC = () => {
         .mp-footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; font-size: 12px; color: var(--text-muted); }
 
         /* ── RESPONSIVE ── */
+        @media (max-width: 900px) {
+          .mp-page-head { flex-direction: column; align-items: stretch; }
+          .mp-controls { width: 100%; }
+          .mp-search-wrap { max-width: none; }
+        }
         @media (max-width: 680px) {
-          .mp-main { padding: 32px 16px 60px; }
+          .mp-main { padding: 28px 16px 60px; }
           .mp-td-mc, .mp-th:nth-child(5) { display: none; }
-          .mp-search { width: 100%; }
-          .mp-grid { grid-template-columns: 1fr 1fr; }
+          .mp-td-change, .mp-th:nth-child(4) { display: none; }
+          .mp-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+          .mp-controls { flex-wrap: wrap; gap: 8px; }
+          .mp-view-toggle { order: 2; }
+          .mp-search-wrap { order: 1; flex: 1 1 100%; min-width: 0; }
         }
         @media (max-width: 440px) {
           .mp-grid { grid-template-columns: 1fr; }
+          .mp-td-price, .mp-th:nth-child(3) { font-size: 12.5px; }
         }
       `}</style>
 
@@ -322,9 +352,11 @@ const Marketplace: React.FC = () => {
             <div>
               <h1 className="mp-title">Markets</h1>
               <p className="mp-sub">
-                {rawTokens.length > 0
-                  ? `${rawTokens.length} token${rawTokens.length !== 1 ? 's' : ''} live on Aptos testnet`
-                  : 'All tokens on MoveMint'}
+                {searchQuery.trim()
+                  ? `${tokens.length} of ${rawTokens.length} token${rawTokens.length !== 1 ? 's' : ''} match "${searchQuery.trim()}"`
+                  : rawTokens.length > 0
+                    ? `${rawTokens.length} token${rawTokens.length !== 1 ? 's' : ''} live on Aptos testnet`
+                    : 'All tokens on MoveMint'}
               </p>
             </div>
             <div className="mp-controls">
@@ -344,13 +376,25 @@ const Marketplace: React.FC = () => {
                   Grid
                 </button>
               </div>
-              <input
-                type="text"
-                className="mp-search"
-                placeholder="Search tokens"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
+              <div className="mp-search-wrap">
+                <input
+                  type="text"
+                  className="mp-search"
+                  placeholder="Search by name or ticker…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    className="mp-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    title="Clear search"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

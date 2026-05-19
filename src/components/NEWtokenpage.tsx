@@ -1405,11 +1405,35 @@ const TokenPage: React.FC = () => {
           .tp-right { order: -1; }
         }
         @media (max-width: 700px) {
-          .tp-main { padding: 20px 16px 60px; }
-          .tp-token-head { gap: 12px; }
-          .tp-head-stats { display: none; }
-          .tp-nav-links { display: none; }
+          .tp-main { padding: 20px 14px 60px; }
+          .tp-token-head { gap: 10px; padding-bottom: 16px; margin-bottom: 18px; }
+          .tp-token-avatar { width: 40px; height: 40px; font-size: 17px; border-radius: 11px; }
+          .tp-token-name { font-size: 17px; }
+          .tp-token-sym { font-size: 12px; }
+          .tp-price { font-size: 24px; }
+          .tp-head-stats {
+            display: flex; gap: 14px; width: 100%; order: 99;
+            padding-top: 14px; border-top: 1px solid var(--border);
+          }
+          .tp-head-stat-label { font-size: 10px; }
+          .tp-head-stat-value { font-size: 14px; }
+          .tp-boost-btn { padding: 7px 11px; font-size: 12px; margin-left: 0; }
+          .tp-share-btn { padding: 7px 10px; font-size: 12px; }
+          .tp-star-btn { width: 34px; height: 34px; font-size: 16px; }
+          .tp-chart-card { padding: 8px; }
+          .tp-chart-inner { height: 260px; }
+          .tp-insight-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .tp-insight-card { padding: 12px; }
+          .tp-insight-value { font-size: 15px; }
+          .tp-grad-pct { font-size: 18px; }
           .tp-tf-group .tp-tf-btn:nth-child(n+5) { display: none; }
+          .tp-tx-th, .tp-tx-td { padding: 8px 6px; font-size: 12px; }
+        }
+        @media (max-width: 460px) {
+          .tp-tabs { gap: 0; }
+          .tp-tab { padding: 10px 8px; font-size: 13px; }
+          .tp-trade-card { padding: 14px; border-radius: 14px; }
+          .tp-quick-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
         }
       `}</style>
 

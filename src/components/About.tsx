@@ -181,6 +181,12 @@ const About: React.FC = () => {
           .ab-features, .ab-steps { grid-template-columns: 1fr; }
           .ab-stats { grid-template-columns: 1fr 1fr; }
         }
+        @media (max-width: 480px) {
+          .ab-wrap { padding: 40px 16px 60px; }
+          .ab-hero h1 { font-size: 32px; }
+          .ab-cta-row { flex-direction: column; }
+          .ab-cta { width: 100%; text-align: center; }
+        }
       `}</style>
 
       <div className="ab-page">

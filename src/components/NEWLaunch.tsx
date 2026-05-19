@@ -382,6 +382,15 @@ const Launch: React.FC = () => {
           .lp-grid { grid-template-columns: 1fr; }
           .lp-hero { flex-direction: column; align-items: flex-start; }
         }
+        @media (max-width: 600px) {
+          .lp-wrap { padding: 28px 16px 64px; }
+          .lp-hero-title { font-size: 28px; }
+          .lp-card { padding: 20px; border-radius: 14px; }
+          .lp-row { flex-direction: column; gap: 18px; }
+          .lp-spec-grid { grid-template-columns: 1fr 1fr; }
+          .lp-logo-area { flex-direction: column-reverse; gap: 12px; }
+          .lp-logo-preview { width: 100%; height: 120px; }
+        }
       `}</style>
 
       <div className="lp-page">
