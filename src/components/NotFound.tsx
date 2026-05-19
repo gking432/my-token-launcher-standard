@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import PageShell from './PageShell';
+import AppHeader from './AppHeader';
+import SiteFooter from './SiteFooter';
 
 const NotFound: React.FC = () => {
   return (
@@ -48,7 +49,7 @@ const NotFound: React.FC = () => {
         .nf-btn-secondary:hover { background: var(--bg-hover); }
       `}</style>
       <div className="nf-page">
-        <PageShell>
+        <AppHeader />
         <div className="nf-wrap">
           <h1 className="nf-code">404</h1>
           <div className="nf-title">Page not found</div>
@@ -60,7 +61,7 @@ const NotFound: React.FC = () => {
             <Link to="/marketplace" className="nf-btn nf-btn-secondary">Browse tokens</Link>
           </div>
         </div>
-        </PageShell>
+        <SiteFooter />
       </div>
     </>
   );

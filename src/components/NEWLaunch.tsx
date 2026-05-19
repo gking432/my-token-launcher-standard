@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { Buffer } from "buffer";
 import { MODULE_ADDRESS } from "../config";
 import PreLaunchModal from './PreLaunchModal';
-import PageShell from './PageShell';
+import AppHeader from './AppHeader';
+import SiteFooter from './SiteFooter';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -384,7 +385,7 @@ const Launch: React.FC = () => {
       `}</style>
 
       <div className="lp-page">
-        <PageShell>
+        <AppHeader />
         <div className="lp-wrap">
           <div className="lp-hero">
             <div>
@@ -557,7 +558,7 @@ const Launch: React.FC = () => {
             </form>
           )}
         </div>
-        </PageShell>
+        <SiteFooter />
       </div>
 
       {showPreLaunchModal && pendingLaunchData && (

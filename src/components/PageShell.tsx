@@ -1,6 +1,7 @@
 import React from 'react';
 import AppHeader from './AppHeader';
 import LeftSidebar from './LeftSidebar';
+import SiteFooter from './SiteFooter';
 
 interface PageShellProps {
   children: React.ReactNode;
@@ -23,7 +24,10 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
       <AppHeader hideNav />
       <div className="ps-shell">
         <LeftSidebar />
-        <main className="ps-main">{children}</main>
+        <main className="ps-main">
+          {children}
+          <SiteFooter />
+        </main>
       </div>
     </>
   );

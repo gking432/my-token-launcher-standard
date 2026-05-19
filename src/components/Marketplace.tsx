@@ -551,15 +551,6 @@ const Marketplace: React.FC = () => {
             )
           )}
         </main>
-
-        <footer className="mp-footer">
-          © 2025 MoveMint ·{' '}
-          <Link to="/launch" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Launch a token</Link>
-          {' · '}
-          <Link to="/boost" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Boost</Link>
-          {' · '}
-          <Link to="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>About</Link>
-        </footer>
         </PageShell>
       </div>
     </>

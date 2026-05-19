@@ -97,7 +97,17 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
         }
         .ah-nav {
           max-width: 1280px; margin: 0 auto; height: 100%;
-          padding: 0 24px; display: flex; align-items: center; gap: 6px;
+          padding: 0 24px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 12px;
+        }
+        .ah-nav-left {
+          display: flex; align-items: center; gap: 6px;
+        }
+        .ah-nav-right {
+          display: flex; align-items: center; gap: 6px; justify-content: flex-end;
         }
         .ah-logo {
           display: flex; align-items: center; gap: 9px; flex-shrink: 0;
@@ -111,8 +121,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
           color: #fff; font-size: 15px; font-weight: 800;
           box-shadow: 0 2px 8px rgba(5,150,105,0.35); flex-shrink: 0;
         }
-        .ah-spacer { flex: 1; min-width: 12px; }
-        .ah-search-wrap { position: relative; flex-shrink: 0; }
+        .ah-search-wrap { position: relative; }
         .ah-search {
           width: 210px; height: 34px; padding: 0 12px 0 34px;
           background: var(--bg-secondary); border: 1px solid var(--border);
@@ -253,25 +262,34 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
         .ah-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .ah-links-mobile-only { display: none; }
         @media (max-width: 900px) {
+          .ah-nav { grid-template-columns: auto 1fr auto; }
           .ah-links { display: none; }
           .ah-links-mobile-only { display: flex; }
         }
         @media (max-width: 680px) {
-          .ah-search { width: 140px; }
-          .ah-search:focus { width: 180px; }
+          .ah-search { width: 120px; }
+          .ah-search:focus { width: 160px; }
         }
         @media (max-width: 480px) { .ah-search-wrap { display: none; } }
       `}</style>
 
       <header className="ah-header">
         <div className="ah-nav">
-          <Link to="/" className="ah-logo">
-            <div className="ah-logo-mark">M</div>
-            MoveMint
-          </Link>
+          {/* ── LEFT: logo + nav links ── */}
+          <div className="ah-nav-left">
+            <Link to="/" className="ah-logo">
+              <div className="ah-logo-mark">M</div>
+              MoveMint
+            </Link>
+            <ul className={`ah-links${hideNav ? ' ah-links-mobile-only' : ''}`}>
+              <li><Link to="/marketplace">Marketplace</Link></li>
+              <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
+              <li><Link to="/launch">Launch</Link></li>
+              <li><Link to="/about">About</Link></li>
+            </ul>
+          </div>
 
-          <div className="ah-spacer" />
-
+          {/* ── CENTER: search ── */}
           <div className="ah-search-wrap" ref={searchRef}>
             <span className="ah-search-icon">&#9906;</span>
             <input
@@ -315,13 +333,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
             )}
           </div>
 
-          <ul className={`ah-links${hideNav ? ' ah-links-mobile-only' : ''}`}>
-            <li><Link to="/marketplace">Marketplace</Link></li>
-            <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
-            <li><Link to="/launch">Launch</Link></li>
-            <li><Link to="/about">About</Link></li>
-          </ul>
-
+          {/* ── RIGHT: wallet + theme ── */}
+          <div className="ah-nav-right">
           <div className="ah-wallet-wrap" ref={walletRef}>
             {account ? (
               <>
@@ -394,6 +407,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
           >
             {isDark ? '☀' : '☾'}
           </button>
+          </div>{/* .ah-nav-right */}
         </div>
       </header>
       <BoostBar />

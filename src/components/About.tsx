@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import PageShell from './PageShell';
+import AppHeader from './AppHeader';
+import SiteFooter from './SiteFooter';
 
 const About: React.FC = () => {
   return (
@@ -183,7 +184,7 @@ const About: React.FC = () => {
       `}</style>
 
       <div className="ab-page">
-        <PageShell>
+        <AppHeader />
         <div className="ab-wrap">
           <div className="ab-hero">
             <div className="ab-hero-mark">M</div>
@@ -287,7 +288,7 @@ const About: React.FC = () => {
             </div>
           </div>
         </div>
-        </PageShell>
+        <SiteFooter />
       </div>
     </>
   );
