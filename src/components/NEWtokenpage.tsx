@@ -70,14 +70,9 @@ const TokenPage: React.FC = () => {
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
-  const [amountString, setAmountString] = useState('0.001');
-  
-  // Update amount when amountString changes
-  useEffect(() => {
-    const numAmount = parseFloat(amountString);
-    setAmount(isNaN(numAmount) ? 0 : numAmount);
-  }, [amountString]);
-  const [total, setTotal] = useState('108.18');
+  const [amountString, setAmountString] = useState('1');
+  const [inputMode, setInputMode] = useState<'tokens' | 'apt'>('tokens');
+  const [total, setTotal] = useState('0');
   const [slippageExpanded, setSlippageExpanded] = useState(false);
   const [selectedSlippage, setSelectedSlippage] = useState('1.0');
   const [headerMinimized, setHeaderMinimized] = useState(false);
@@ -828,10 +823,50 @@ const TokenPage: React.FC = () => {
     } as any;
   }, [catalogRow, live, aptPrice]);
 
-  // Recalculate buy total whenever amount or live tokensSold changes.
+  // Invert the bonding curve: find token count whose cost ≈ aptInput.
+  const calculateTokensFromAPT = (aptInput: number, tokensSold: number = 0): number => {
+    if (!aptInput || aptInput <= 0) return 0;
+    const remaining = 800_000_000 - tokensSold;
+    if (remaining <= 1) return 0;
+    let low = 0;
+    let high = remaining - 1;
+    const maxCost = parseFloat(String(calculateTotal(high, tokensSold)));
+    if (aptInput >= maxCost) return Math.floor(high);
+    for (let i = 0; i < 60; i++) {
+      const mid = (low + high) / 2;
+      const cost = parseFloat(String(calculateTotal(mid, tokensSold)));
+      if (aptInput > 0 && Math.abs(cost - aptInput) / aptInput < 0.0001) {
+        return Math.floor(mid);
+      }
+      if (cost < aptInput) low = mid; else high = mid;
+      if (high - low < 0.5) break;
+    }
+    return Math.floor((low + high) / 2);
+  };
+
+  // Recompute amount + total whenever the user input, mode, or curve state changes.
   useEffect(() => {
-    setTotal(calculateTotal(amount, tokenData?.tokensSold ?? 0).toString());
-  }, [amount, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
+    const num = parseFloat(amountString);
+    if (isNaN(num) || num <= 0) {
+      setAmount(0);
+      setTotal('0');
+      return;
+    }
+    const tokensSold = tokenData?.tokensSold ?? 0;
+    if (inputMode === 'tokens') {
+      setAmount(num);
+      setTotal(String(calculateTotal(num, tokensSold)));
+    } else {
+      const tokens = calculateTokensFromAPT(num, tokensSold);
+      setAmount(tokens);
+      setTotal(String(tokens));
+    }
+  }, [amountString, inputMode, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSwapInputMode = () => {
+    setAmountString(total);
+    setInputMode(m => m === 'tokens' ? 'apt' : 'tokens');
+  };
 
   // Fetch OHLC candles, holder count, apt raised, and raw trades
   const { candles, recentTrades, loading: chartLoading, holderCount, aptRaised } = useOHLCData(
@@ -1273,8 +1308,7 @@ const TokenPage: React.FC = () => {
 
         .tp-trade-card {
           background: var(--bg-primary); border: 1px solid var(--border);
-          border-radius: 18px; padding: 20px; position: sticky;
-          top: calc(var(--mm-header-offset, 60px) + 12px);
+          border-radius: 18px; padding: 20px;
           box-shadow: 0 4px 14px rgba(0,0,0,${isDark ? '0.35' : '0.07'});
         }
         .tp-trade-tabs {
@@ -1321,6 +1355,21 @@ const TokenPage: React.FC = () => {
           font-weight: 600; color: var(--text-primary);
           background: var(--bg-secondary); border-radius: 11px;
           font-variant-numeric: tabular-nums;
+        }
+        .tp-swap-row {
+          display: flex; justify-content: center; margin: 2px 0 -4px;
+        }
+        .tp-swap-btn {
+          width: 32px; height: 32px; border-radius: 50%;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          color: var(--text-secondary); font-size: 14px; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          font-family: inherit;
+          transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
+        }
+        .tp-swap-btn:hover {
+          background: var(--bg-hover); color: var(--text-primary);
+          border-color: var(--accent); transform: rotate(180deg);
         }
 
         .tp-slippage-header {
@@ -1401,7 +1450,6 @@ const TokenPage: React.FC = () => {
         /* ── RESPONSIVE ── */
         @media (max-width: 1000px) {
           .tp-layout { grid-template-columns: 1fr; }
-          .tp-trade-card { position: static; }
           .tp-right { order: -1; }
         }
         @media (max-width: 700px) {
@@ -1768,21 +1816,41 @@ const TokenPage: React.FC = () => {
                 )}
 
                 <div className="tp-field">
-                  <label className="tp-field-label">Amount (tokens)</label>
+                  <label className="tp-field-label">
+                    {inputMode === 'tokens'
+                      ? `Amount (${tokenDetails?.symbol?.replace('$', '') || 'tokens'})`
+                      : 'Amount (APT)'}
+                  </label>
                   <input
                     type="number"
                     className="tp-input"
                     value={amountString}
                     onChange={e => setAmountString(e.target.value)}
                     placeholder="0"
-                    min="1"
-                    step="1"
+                    min="0"
+                    step="any"
                   />
                 </div>
 
+                <div className="tp-swap-row">
+                  <button
+                    className="tp-swap-btn"
+                    onClick={handleSwapInputMode}
+                    title="Switch between token and APT amount"
+                  >
+                    ⇅
+                  </button>
+                </div>
+
                 <div className="tp-field">
-                  <label className="tp-field-label">Total (APT)</label>
-                  <div className="tp-total-val">{total} APT</div>
+                  <label className="tp-field-label">
+                    {inputMode === 'tokens' ? 'Total (APT)' : `You ${activeTab === 'buy' ? 'get' : 'sell'} (${tokenDetails?.symbol?.replace('$', '') || 'tokens'})`}
+                  </label>
+                  <div className="tp-total-val">
+                    {inputMode === 'tokens'
+                      ? `${total} APT`
+                      : `${Math.floor(parseFloat(total) || 0).toLocaleString()}`}
+                  </div>
                 </div>
 
                 {/* Slippage */}

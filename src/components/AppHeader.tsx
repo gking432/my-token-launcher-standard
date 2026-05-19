@@ -10,9 +10,15 @@ import { truncateAddress } from '../utils/format';
 
 interface AppHeaderProps {
   launchCta?: boolean;
+  narrow?: boolean;
+  hideBoostBar?: boolean;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ launchCta = false }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({
+  launchCta = false,
+  narrow = false,
+  hideBoostBar = false,
+}) => {
   const { isDark, toggleTheme } = useTheme();
   const { account, connect, disconnect, wallets } = useWallet();
   const { tokens } = useTokenData();
@@ -127,6 +133,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ launchCta = false }) => {
           align-items: center;
           gap: 12px;
         }
+        .ah-nav.narrow { max-width: 1280px; margin: 0 auto; }
         .ah-nav-left {
           display: flex; align-items: center; gap: 6px;
         }
@@ -398,7 +405,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ launchCta = false }) => {
       `}</style>
 
       <header className="ah-header">
-        <div className="ah-nav">
+        <div className={`ah-nav${narrow ? ' narrow' : ''}`}>
           {/* ── LEFT: logo + nav links ── */}
           <div className="ah-nav-left">
             <Link to="/" className="ah-logo">
@@ -555,7 +562,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ launchCta = false }) => {
           </div>{/* .ah-nav-right */}
         </div>
       </header>
-      <BoostBar />
+      {!hideBoostBar && <BoostBar />}
 
       {mobileOpen && (
         <>
