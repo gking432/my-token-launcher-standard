@@ -154,14 +154,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-search-wrap { position: relative; }
         .ah-search {
-          width: 210px; height: 34px; padding: 0 12px 0 34px;
+          width: 360px; height: 36px; padding: 0 14px 0 36px;
           background: var(--bg-secondary); border: 1px solid var(--border);
-          border-radius: 10px; font-size: 13px; font-family: inherit;
+          border-radius: 10px; font-size: 13.5px; font-family: inherit;
           color: var(--text-primary); outline: none;
           transition: border-color 0.15s, box-shadow 0.15s, width 0.2s;
         }
         .ah-search:focus {
-          border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); width: 260px;
+          border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); width: 440px;
         }
         .ah-search::placeholder { color: var(--text-muted); }
         .ah-search-icon {
@@ -171,7 +171,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-search-pop {
           position: absolute; top: calc(100% + 6px); left: 0;
-          width: 320px; max-height: 380px; overflow-y: auto;
+          width: 440px; max-height: 420px; overflow-y: auto;
           background: var(--bg-primary); border: 1px solid var(--border);
           border-radius: 12px;
           box-shadow: 0 12px 32px ${isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.12)'};

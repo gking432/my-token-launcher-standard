@@ -154,7 +154,7 @@ const Marketplace: React.FC = () => {
           -webkit-font-smoothing: antialiased;
         }
         .mp-page { width: 100%; min-height: 100vh; background: var(--bg-primary); }
-        .mp-main { padding: 52px 24px 80px; }
+        .mp-main { padding: 52px 40px 80px; }
 
         /* ── PAGE HEAD ── */
         .mp-page-head {

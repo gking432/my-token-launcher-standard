@@ -13,7 +13,7 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
       <style>{`
         .ps-shell {
           display: flex;
-          align-items: flex-start;
+          align-items: stretch;
           min-height: calc(100vh - var(--mm-header-offset, 60px));
         }
         .ps-main {
@@ -24,11 +24,9 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
       <AppHeader />
       <div className="ps-shell">
         <LeftSidebar />
-        <main className="ps-main">
-          {children}
-          <SiteFooter />
-        </main>
+        <main className="ps-main">{children}</main>
       </div>
+      <SiteFooter />
     </>
   );
 };

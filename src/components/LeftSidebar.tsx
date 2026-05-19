@@ -28,17 +28,18 @@ const LeftSidebar: React.FC = () => {
         .ls-aside {
           width: ${SIDEBAR_WIDTH_PX}px;
           flex-shrink: 0;
-          position: sticky;
-          top: var(--mm-header-offset, 60px);
-          align-self: flex-start;
-          max-height: calc(100vh - var(--mm-header-offset, 60px));
-          overflow-y: auto;
-          padding: 20px 14px 28px;
           border-right: 1px solid var(--border);
           background: var(--bg-primary);
         }
-        .ls-aside::-webkit-scrollbar { width: 6px; }
-        .ls-aside::-webkit-scrollbar-thumb {
+        .ls-sticky {
+          position: sticky;
+          top: var(--mm-header-offset, 60px);
+          max-height: calc(100vh - var(--mm-header-offset, 60px));
+          overflow-y: auto;
+          padding: 20px 14px 28px;
+        }
+        .ls-sticky::-webkit-scrollbar { width: 6px; }
+        .ls-sticky::-webkit-scrollbar-thumb {
           background: var(--border); border-radius: 3px;
         }
         .ls-section-label {
@@ -92,6 +93,7 @@ const LeftSidebar: React.FC = () => {
         }
       `}</style>
       <aside className="ls-aside">
+        <div className="ls-sticky">
         <div className="ls-section-label">Navigate</div>
         <nav className="ls-nav">
           {NAV_ITEMS.map(item => (
@@ -133,6 +135,7 @@ const LeftSidebar: React.FC = () => {
             ))}
           </div>
         )}
+        </div>
       </aside>
     </>
   );

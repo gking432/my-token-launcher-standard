@@ -62,7 +62,7 @@ const TokenPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
-  const [slippage, setSlippage] = useState<number>(500); // Default 5% (500 bps)
+  const [slippage, setSlippage] = useState<number>(100); // Default 1% (100 bps)
   const [priceImpact, setPriceImpact] = useState<number>(0);
   const [showSlippageInput, setShowSlippageInput] = useState<boolean>(false);
 
@@ -1111,7 +1111,7 @@ const TokenPage: React.FC = () => {
         }
 
         /* ── MAIN ── */
-        .tp-main { padding: 32px 24px 80px; }
+        .tp-main { padding: 32px 40px 80px; }
 
         /* ── TOKEN HEADER ── */
         .tp-token-head {
@@ -1211,7 +1211,7 @@ const TokenPage: React.FC = () => {
           border-radius: 16px; overflow: hidden; position: relative;
           box-shadow: 0 1px 4px rgba(0,0,0,${isDark ? '0.3' : '0.05'});
         }
-        .tp-chart-inner { height: 360px; width: 100%; }
+        .tp-chart-inner { height: 500px; width: 100%; }
         .tp-chart-overlay {
           position: absolute; inset: 0; display: flex;
           align-items: center; justify-content: center;
@@ -1469,7 +1469,7 @@ const TokenPage: React.FC = () => {
           .tp-share-btn { padding: 7px 10px; font-size: 12px; }
           .tp-star-btn { width: 34px; height: 34px; font-size: 16px; }
           .tp-chart-card { padding: 8px; }
-          .tp-chart-inner { height: 260px; }
+          .tp-chart-inner { height: 340px; }
           .tp-insight-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
           .tp-insight-card { padding: 12px; }
           .tp-insight-value { font-size: 15px; }
