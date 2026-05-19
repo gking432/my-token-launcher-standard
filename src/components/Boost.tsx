@@ -98,7 +98,7 @@ const Boost: React.FC = () => {
           color: var(--text-primary);
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
-        .bp-wrap { max-width: 1280px; margin: 0 auto; padding: 40px 24px 64px; }
+        .bp-wrap { padding: 40px 24px 64px; }
         .bp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
         .bp-hero h1 {
           font-size: 36px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 6px;

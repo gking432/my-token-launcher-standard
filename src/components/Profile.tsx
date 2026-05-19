@@ -76,8 +76,6 @@ const Profile: React.FC = () => {
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
         .pf-wrap {
-          max-width: 1280px;
-          margin: 0 auto;
           padding: 40px 24px 64px;
         }
         .pf-hero {

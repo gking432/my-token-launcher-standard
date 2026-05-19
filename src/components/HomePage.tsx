@@ -131,14 +131,6 @@ const HomePage: React.FC = () => {
     });
   };
 
-  // ── Live ticker items — pad short lists so the marquee fills ──
-  const tickerItems = useMemo(() => {
-    if (!rawTokens.length) return [] as Token[];
-    let items = [...rawTokens];
-    while (items.length < 12) items = items.concat(rawTokens);
-    return items.slice(0, 24);
-  }, [rawTokens]);
-
   // ── Static mock token for the hero product-preview card ──
   const chartLine = 'M0,104 C26,98 38,74 64,82 C90,90 100,52 128,58 C156,64 168,38 196,32 C224,26 236,54 264,42 C292,30 306,14 320,8';
   const chartArea = chartLine + ' L320,120 L0,120 Z';
@@ -157,35 +149,6 @@ const HomePage: React.FC = () => {
         }
 
         .mm-page { width: 100%; min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
-
-        /* ── LIVE TICKER ── */
-        .mm-ticker {
-          height: 42px; overflow: hidden;
-          background: var(--bg-secondary);
-          border-bottom: 1px solid var(--border);
-          display: flex; align-items: center;
-          position: relative;
-        }
-        .mm-ticker::before, .mm-ticker::after {
-          content: ''; position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2;
-          pointer-events: none;
-        }
-        .mm-ticker::before { left: 0; background: linear-gradient(90deg, var(--bg-secondary), transparent); }
-        .mm-ticker::after { right: 0; background: linear-gradient(270deg, var(--bg-secondary), transparent); }
-        .mm-ticker-track {
-          display: flex; align-items: center; gap: 34px;
-          white-space: nowrap;
-          animation: mm-ticker-scroll 60s linear infinite;
-          padding-left: 34px;
-        }
-        @keyframes mm-ticker-scroll {
-          from { transform: translateX(0); }
-          to   { transform: translateX(-50%); }
-        }
-        .mm-ticker-item { display: inline-flex; align-items: center; gap: 8px; }
-        .mm-ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-        .mm-ticker-sym { font-size: 12.5px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-        .mm-ticker-price { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
         /* ── HERO ── */
         .mm-hero {
@@ -580,22 +543,7 @@ const HomePage: React.FC = () => {
       `}</style>
 
       <div className="mm-page">
-        <AppHeader />
-
-        {/* ── LIVE TICKER ── */}
-        {tickerItems.length > 0 && (
-          <div className="mm-ticker">
-            <div className="mm-ticker-track">
-              {[...tickerItems, ...tickerItems].map((t, i) => (
-                <span className="mm-ticker-item" key={i}>
-                  <span className="mm-ticker-dot" />
-                  <span className="mm-ticker-sym">{symbolWithDollar(t.symbol)}</span>
-                  <span className="mm-ticker-price">{priceLabel(t)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        <AppHeader hideNav launchCta />
 
         {/* ── HERO ── */}
         <section className="mm-hero">

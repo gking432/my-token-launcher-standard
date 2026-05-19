@@ -1076,7 +1076,7 @@ const TokenPage: React.FC = () => {
         }
 
         /* ── MAIN ── */
-        .tp-main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+        .tp-main { padding: 32px 24px 80px; }
 
         /* ── TOKEN HEADER ── */
         .tp-token-head {

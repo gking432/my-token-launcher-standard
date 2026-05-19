@@ -10,9 +10,10 @@ import { truncateAddress } from '../utils/format';
 
 interface AppHeaderProps {
   hideNav?: boolean;
+  launchCta?: boolean;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { account, connect, disconnect, wallets } = useWallet();
   const { tokens } = useTokenData();
@@ -283,6 +284,16 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
           display: flex; align-items: center; justify-content: center;
           font-size: 14px; font-weight: 700; color: var(--text-muted);
         }
+        .ah-launch-btn {
+          background: var(--accent); color: #fff;
+          padding: 8px 18px; border-radius: 10px;
+          font-size: 13.5px; font-weight: 600;
+          text-decoration: none; white-space: nowrap;
+          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+          transition: background 0.15s;
+          display: inline-flex; align-items: center; gap: 6px;
+        }
+        .ah-launch-btn:hover { background: var(--accent-hover); }
         .ah-theme-btn {
           background: var(--bg-secondary); border: 1px solid var(--border);
           width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
@@ -504,6 +515,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
                   </div>
                 )}
               </>
+            ) : launchCta ? (
+              <Link to="/launch" className="ah-launch-btn">
+                Launch a token ↗
+              </Link>
             ) : (
               <>
                 <button className="ah-connect-btn" onClick={() => setWalletOpen(v => !v)}>
