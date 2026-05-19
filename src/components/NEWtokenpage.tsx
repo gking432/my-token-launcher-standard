@@ -17,6 +17,7 @@ import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
 import { useQueryClient } from '@tanstack/react-query';
 import { truncateAddress } from '../utils/format';
+import { useToast } from '../contexts/ToastContext';
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
@@ -58,6 +59,11 @@ const TokenPage: React.FC = () => {
   
   // Use watchlist context
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
+  const toast = useToast();
+  const explorerTxLink = (hash: string) => ({
+    label: 'View on explorer',
+    href: `https://explorer.aptoslabs.com/txn/${hash}?network=testnet`,
+  });
 
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -360,14 +366,14 @@ const TokenPage: React.FC = () => {
   const handleBuy = async () => {
     console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol, "slippage:", slippage);
     if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
+      toast.warning("Can't buy yet", "Connect a wallet and enter a valid amount.");
       return;
     }
 
     // Validate that we're buying at least 1 whole token (contract doesn't support fractional tokens)
     const tokenAmount = Math.floor(amount);
     if (tokenAmount < 1) {
-      alert(`⚠️ Cannot buy fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to buy.`);
+      toast.warning('Minimum is 1 token', `You entered ${amount} — round up to at least 1 whole token.`);
       return;
     }
   
@@ -408,7 +414,7 @@ const TokenPage: React.FC = () => {
         console.log("Transaction hash:", response.hash);
       }
       
-      alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
+      toast.success(`Bought ${tokenAmount} ${tokenDetails.symbol}`, undefined, explorerTxLink(response.hash));
 
       // Refresh token balance and chart
       invalidateTokenData();
@@ -432,38 +438,24 @@ const TokenPage: React.FC = () => {
       
       // Enhanced error handling
       if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
-        // User rejected the transaction - likely due to wallet simulation error
-        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
-              `This is often caused by wallet simulation errors with fungible assets, especially for larger amounts.\n\n` +
-              `If you're trying to buy more than 1 token, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
-              `3. Refreshing the page and reconnecting your wallet\n` +
-              `4. Using a different wallet if available\n\n` +
-              `The transaction may work even if the simulation shows an error.`);
+        toast.error('Transaction rejected', 'The wallet declined the transaction. Wallet simulations sometimes fail on fungible assets — you can still approve through the warning.');
       } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
-        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
-        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset transactions during simulation.\n\n` +
-              `If you're trying to buy more than 1 token, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
-              `3. Refreshing the page\n\n` +
-              `The transaction may still work - check the transaction hash in the console.`);
+        toast.error('Wallet simulation error', 'The wallet cannot verify FA transactions during simulation. Try approving anyway, or refresh and retry.');
       } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        toast.error('Slippage exceeded', `${currentSlippage}% was too tight. Try ${suggestedSlippage}% or reduce trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        toast.error('Invalid slippage', 'Use a value between 0.1% and 10%.');
       } else {
-        alert(`Failed to buy tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
+        toast.error('Buy failed', error.message || 'Unknown error. Check the console for details.');
       }
     }
   };
   
   const handleSell = async () => {
     if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
+      toast.warning("Can't sell yet", "Connect a wallet and enter a valid amount.");
       return;
     }
 
@@ -478,14 +470,14 @@ const TokenPage: React.FC = () => {
     });
     
     if (amount > currentTokenBalance) {
-      alert(`Insufficient token balance. You have ${currentTokenBalance.toFixed(6)} tokens, but trying to sell ${amount.toFixed(6)} tokens.`);
+      toast.error('Not enough tokens', `You hold ${currentTokenBalance.toFixed(2)} ${tokenDetails.symbol} — can't sell ${amount.toFixed(2)}.`);
       return;
     }
 
     // Validate that we're selling at least 1 whole token (contract doesn't support fractional tokens)
     const tokenAmount = Math.floor(amount);
     if (tokenAmount < 1) {
-      alert(`⚠️ Cannot sell fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to sell.`);
+      toast.warning('Minimum is 1 token', `You entered ${amount} — round up to at least 1 whole token.`);
       return;
     }
   
@@ -526,7 +518,7 @@ const TokenPage: React.FC = () => {
         console.log("Transaction hash:", response.hash);
       }
       
-      alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
+      toast.success(`Sold ${tokenAmount} ${tokenDetails.symbol}`, undefined, explorerTxLink(response.hash));
 
       // Refresh token balance and chart
       invalidateTokenData();
@@ -550,32 +542,17 @@ const TokenPage: React.FC = () => {
       
       // Enhanced error handling
       if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
-        // User rejected the transaction - likely due to wallet simulation error
-        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
-              `This is often caused by wallet simulation errors with fungible assets.\n\n` +
-              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
-              `If you're sure you have enough tokens, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Refreshing the page and reconnecting your wallet\n` +
-              `3. Using a different wallet if available\n\n` +
-              `The transaction may work even if the simulation shows an error.`);
+        toast.error('Transaction rejected', 'The wallet declined the transaction. FA simulation warnings can be approved through if your balance is sufficient.');
       } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
-        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
-        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset balances during simulation.\n\n` +
-              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
-              `If you're sure you have enough tokens, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Refreshing the page\n` +
-              `3. Disconnecting and reconnecting your wallet\n\n` +
-              `The transaction may still work - check the transaction hash in the console.`);
+        toast.error('Wallet simulation error', `Your balance shows ${currentTokenBalance.toFixed(2)} ${tokenDetails.symbol}. Try approving anyway or reconnect the wallet.`);
       } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        toast.error('Slippage exceeded', `${currentSlippage}% was too tight. Try ${suggestedSlippage}% or reduce trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        toast.error('Invalid slippage', 'Use a value between 0.1% and 10%.');
       } else {
-        alert(`Failed to sell tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
+        toast.error('Sell failed', error.message || 'Unknown error. Check the console for details.');
       }
     }
   };
@@ -1127,10 +1104,19 @@ const TokenPage: React.FC = () => {
           object-fit: cover;
         }
         .tp-token-label { min-width: 0; }
+        .tp-token-name-row { display: flex; align-items: center; gap: 8px; }
         .tp-token-name {
           font-size: 22px; font-weight: 800; color: var(--text-primary);
           letter-spacing: -0.025em; line-height: 1.1;
         }
+        .tp-watch-star {
+          background: transparent; border: 0; cursor: pointer;
+          font-size: 20px; line-height: 1; padding: 2px 4px;
+          color: var(--text-muted); font-family: inherit;
+          transition: color 0.15s, transform 0.1s;
+        }
+        .tp-watch-star:hover { color: var(--text-primary); transform: scale(1.1); }
+        .tp-watch-star.on { color: #f5c518; }
         .tp-token-sym { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
 
         .tp-price-block { display: flex; align-items: baseline; gap: 10px; }
@@ -1356,6 +1342,18 @@ const TokenPage: React.FC = () => {
           background: var(--bg-secondary); border-radius: 11px;
           font-variant-numeric: tabular-nums;
         }
+        .tp-presets {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px;
+        }
+        .tp-preset-btn {
+          padding: 8px 0; border-radius: 9px;
+          font-size: 12.5px; font-weight: 600;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          color: var(--text-secondary); cursor: pointer;
+          font-family: inherit; transition: all 0.12s;
+          font-variant-numeric: tabular-nums;
+        }
+        .tp-preset-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
         .tp-swap-row {
           display: flex; justify-content: center; margin: 2px 0 -4px;
         }
@@ -1511,7 +1509,18 @@ const TokenPage: React.FC = () => {
                 </div>
               )}
               <div className="tp-token-label">
-                <div className="tp-token-name">{tokenDetails?.name || 'Loading…'}</div>
+                <div className="tp-token-name-row">
+                  <div className="tp-token-name">{tokenDetails?.name || 'Loading…'}</div>
+                  {tokenDetails && (
+                    <button
+                      type="button"
+                      className={`tp-watch-star${currentTokenInWatchlist ? ' on' : ''}`}
+                      onClick={handleStarClick}
+                      title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                      aria-label="Toggle watchlist"
+                    >{currentTokenInWatchlist ? '★' : '☆'}</button>
+                  )}
+                </div>
                 <div className="tp-token-sym">{tokenDetails?.symbol ? symbolWithDollar(tokenDetails.symbol) : '—'}</div>
               </div>
             </div>
@@ -1830,6 +1839,18 @@ const TokenPage: React.FC = () => {
                     min="0"
                     step="any"
                   />
+                  {activeTab === 'buy' && (
+                    <div className="tp-presets">
+                      {['0.1', '0.5', '1', '5'].map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          className="tp-preset-btn"
+                          onClick={() => { setInputMode('apt'); setAmountString(v); }}
+                        >{v} APT</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="tp-swap-row">

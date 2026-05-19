@@ -8,6 +8,7 @@ import { MODULE_ADDRESS } from "../config";
 import PreLaunchModal from './PreLaunchModal';
 import AppHeader from './AppHeader';
 import SiteFooter from './SiteFooter';
+import { useToast } from '../contexts/ToastContext';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -39,6 +40,7 @@ const DEFAULT_SLIPPAGE_BPS = 500;
 const Launch: React.FC = () => {
   const { account, signAndSubmitTransaction } = useWallet();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -75,7 +77,7 @@ const Launch: React.FC = () => {
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!account) {
-      alert("You must connect your wallet before launching a token.");
+      toast.warning('Connect a wallet first', 'You need a connected wallet to launch a token.');
       return;
     }
     const symbol = formData.ticker.startsWith('$') ? formData.ticker : `$${formData.ticker}`;
@@ -182,6 +184,11 @@ const Launch: React.FC = () => {
         await client.waitForTransaction({ transactionHash: buyResponse.hash });
       }
 
+      toast.success(`${pendingLaunchData.symbol} is live`, 'Your token has been launched on Aptos testnet.', {
+        label: 'View launch tx',
+        href: `https://explorer.aptoslabs.com/txn/${createHash}?network=testnet`,
+      });
+
       navigate(`/newtoken/${createHash}`, {
         state: {
           name: pendingLaunchData.name,
@@ -198,7 +205,7 @@ const Launch: React.FC = () => {
       });
     } catch (error) {
       console.error("Error launching token:", error);
-      alert(`Failed to launch token: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error('Launch failed', error instanceof Error ? error.message : 'Unknown error. Check the console for details.');
     } finally {
       setLoading(false);
       setShowPreLaunchModal(false);

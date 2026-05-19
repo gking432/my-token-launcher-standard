@@ -19,6 +19,8 @@ import { BalanceProvider } from "./contexts/BalanceContext";
 import { AptPriceProvider } from "./contexts/AptPriceContext";
 import { WatchlistProvider } from "./contexts/WatchlistContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider } from "./contexts/ToastContext";
+import Toaster from "./components/Toaster";
 import "./styles/Landing.css";
 
 const App: React.FC = () => {
@@ -32,7 +34,9 @@ const App: React.FC = () => {
         <AptPriceProvider>
           <BalanceProvider>
             <WatchlistProvider>
-              <GraduationListener />
+              <ToastProvider>
+                <GraduationListener />
+                <Toaster />
               <Router>
                 <ScrollToTop />
                 <Routes>
@@ -42,8 +46,6 @@ const App: React.FC = () => {
                   <Route path="/marketplace/:metadataAddress" element={<Marketplace />} />
                   <Route path="/boost"             element={<Boost />} />
                   <Route path="/about"             element={<About />} />
-                  <Route path="/tokenpage"         element={<NEWtokenpage />} />
-                  <Route path="/launchpage"        element={<NEWLaunch />} />
                   <Route path="/launch"            element={<NEWLaunch />} />
                   <Route path="/profile"           element={<Profile />} />
                   <Route path="/profile/:address"  element={<Profile />} />
@@ -52,6 +54,7 @@ const App: React.FC = () => {
                   <Route path="*"                  element={<NotFound />} />
                 </Routes>
               </Router>
+              </ToastProvider>
             </WatchlistProvider>
           </BalanceProvider>
         </AptPriceProvider>
