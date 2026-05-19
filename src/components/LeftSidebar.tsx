@@ -8,7 +8,7 @@ export const SIDEBAR_WIDTH_PX = 232;
 const NAV_ITEMS: { to: string; label: string; emoji: string; key: string; boost?: boolean }[] = [
   { to: '/',            label: 'Home',        emoji: '◎', key: 'home' },
   { to: '/marketplace', label: 'Marketplace', emoji: '⌗', key: 'marketplace' },
-  { to: '/boost',       label: 'Boost',       emoji: '🔥', key: 'boost', boost: true },
+  { to: '/boost',       label: 'Boost',       emoji: '◆', key: 'boost', boost: true },
   { to: '/launch',      label: 'Launch',      emoji: '↑', key: 'launch' },
   { to: '/about',       label: 'About',       emoji: '?', key: 'about' },
 ];

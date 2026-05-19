@@ -137,7 +137,7 @@ const BoostBar: React.FC = () => {
         <div className="bb-inner">
           <div className="bb-label">
             <span className="bb-pulse" />
-            🔥 Boost · Top {top.length}
+            Boost · Top {top.length}
           </div>
           <div className="bb-track">
             {top.map((t, i) => {

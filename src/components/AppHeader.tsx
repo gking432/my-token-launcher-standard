@@ -582,7 +582,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <nav className="ah-mobile-nav">
               <Link to="/"            onClick={() => setMobileOpen(false)}>Home</Link>
               <Link to="/marketplace" onClick={() => setMobileOpen(false)}>Marketplace</Link>
-              <Link to="/boost"       onClick={() => setMobileOpen(false)} className="boost">🔥 Boost</Link>
+              <Link to="/boost"       onClick={() => setMobileOpen(false)} className="boost">Boost</Link>
               <Link to="/launch"      onClick={() => setMobileOpen(false)}>Launch</Link>
               <Link to="/about"       onClick={() => setMobileOpen(false)}>About</Link>
               {account && (

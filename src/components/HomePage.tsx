@@ -4,7 +4,6 @@ import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useBoostData, BOOST_WINDOWS } from '../data/useBoostStore';
 import AppHeader from './AppHeader';
 import TokenAvatar from './TokenAvatar';
 import SiteFooter from './SiteFooter';
@@ -88,18 +87,6 @@ const HomePage: React.FC = () => {
     });
     return sorted;
   }, [rawTokens, sortOrder, searchQuery]);
-
-  const boostMap = useBoostData(BOOST_WINDOWS['24h']);
-  const boostedLeader = useMemo(() => {
-    let topAddr: string | null = null;
-    let topApt = 0;
-    for (const [addr, apt] of Object.entries(boostMap)) {
-      if (apt > topApt) { topApt = apt; topAddr = addr; }
-    }
-    if (!topAddr) return null;
-    const t = rawTokens.find(rt => (rt.metadataAddress || rt.txHash || '').toLowerCase() === topAddr);
-    return t ? { token: t, apt: topApt } : null;
-  }, [boostMap, rawTokens]);
 
   const totalVolume24h = useMemo(
     () => rawTokens.reduce((sum, t) => sum + (t.volume || 0), 0),
@@ -289,20 +276,6 @@ const HomePage: React.FC = () => {
           box-shadow:
             0 32px 64px rgba(0,0,0,${isDark ? '0.55' : '0.16'}),
             0 10px 24px rgba(0,0,0,${isDark ? '0.45' : '0.08'});
-        }
-        .mm-preview-card.mm-preview-boosted {
-          border-color: var(--boost);
-          box-shadow:
-            0 0 0 1px var(--boost),
-            0 32px 64px rgba(234,88,12,${isDark ? '0.32' : '0.22'}),
-            0 10px 24px rgba(234,88,12,${isDark ? '0.28' : '0.16'});
-        }
-        .mm-preview-boost-tag {
-          position: absolute; top: -12px; left: 22px;
-          background: var(--boost); color: #fff;
-          font-size: 11px; font-weight: 800; letter-spacing: 0.08em;
-          padding: 4px 11px; border-radius: 7px; text-transform: uppercase;
-          box-shadow: 0 4px 12px rgba(234,88,12,0.45);
         }
         .mm-preview-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
         .mm-preview-icon {
@@ -502,21 +475,21 @@ const HomePage: React.FC = () => {
         }
         .mm-card-trade:hover { background: var(--accent-hover); }
         .mm-card-boost {
-          display: inline-flex; align-items: center; gap: 4px;
+          display: inline-flex; align-items: center;
           background: var(--boost-light); border: 1.5px solid var(--boost);
-          color: var(--boost); padding: 7px 12px; border-radius: 9px;
-          font-size: 12.5px; font-weight: 700; text-decoration: none;
-          transition: background 0.12s, color 0.12s, transform 0.05s;
-          margin-right: 6px;
+          color: var(--boost); padding: 8px 14px; border-radius: 9px;
+          font-size: 13px; font-weight: 600; text-decoration: none;
+          transition: background 0.12s, color 0.12s;
+          margin-right: 6px; line-height: 1;
         }
-        .mm-card-boost:hover { background: var(--boost); color: #fff; transform: translateY(-1px); }
+        .mm-card-boost:hover { background: var(--boost); color: #fff; }
 
         .mm-lt-boost {
-          display: inline-flex; align-items: center; gap: 4px;
+          display: inline-flex; align-items: center;
           background: var(--boost-light); border: 1.5px solid var(--boost);
-          color: var(--boost); padding: 6px 10px; border-radius: 8px;
-          font-size: 12px; font-weight: 700; text-decoration: none;
-          margin-right: 8px;
+          color: var(--boost); padding: 7px 14px; border-radius: 9px;
+          font-size: 13px; font-weight: 600; text-decoration: none;
+          margin-right: 8px; line-height: 1;
           transition: background 0.12s, color 0.12s;
         }
         .mm-lt-boost:hover { background: var(--boost); color: #fff; }
@@ -601,53 +574,24 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Product preview card — shows the #1 boosted token (live), or a static demo */}
+            {/* Product preview card — static demo */}
             <div className="mm-hero-visual">
               <div className="mm-preview-glow" />
-              <div className={`mm-preview-card${boostedLeader ? ' mm-preview-boosted' : ''}`}>
-                {boostedLeader && (
-                  <div className="mm-preview-boost-tag">🔥 BOOSTED · {boostedLeader.apt.toFixed(2)} APT</div>
-                )}
+              <div className="mm-preview-card">
                 <div className="mm-preview-head">
-                  {boostedLeader ? (
-                    <TokenAvatar
-                      image={boostedLeader.token.image}
-                      symbol={boostedLeader.token.symbol}
-                      className="mm-preview-icon"
-                    />
-                  ) : (
-                    <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#059669,#0ea5e9)' }}>
-                      A
-                    </div>
-                  )}
+                  <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#059669,#0ea5e9)' }}>
+                    A
+                  </div>
                   <div>
-                    <div className="mm-preview-name">
-                      {boostedLeader ? boostedLeader.token.name : 'Aptos Launch'}
-                    </div>
-                    <div className="mm-preview-sym">
-                      {boostedLeader
-                        ? (boostedLeader.token.symbol.startsWith('$') ? boostedLeader.token.symbol : `$${boostedLeader.token.symbol}`)
-                        : '$APTX'}
-                    </div>
+                    <div className="mm-preview-name">Aptos Launch</div>
+                    <div className="mm-preview-sym">$APTX</div>
                   </div>
                   <div className="mm-preview-tag">Live</div>
                 </div>
 
-                <div className="mm-preview-price">
-                  {boostedLeader
-                    ? (boostedLeader.token.priceUSD != null
-                        ? `$${boostedLeader.token.priceUSD < 0.01 ? boostedLeader.token.priceUSD.toFixed(6) : boostedLeader.token.priceUSD.toFixed(4)}`
-                        : '—')
-                    : '$0.0058'}
-                </div>
-                <div className="mm-preview-change" style={{
-                  color: boostedLeader
-                    ? ((boostedLeader.token.change24h ?? 0) >= 0 ? 'var(--positive)' : 'var(--negative)')
-                    : 'var(--positive)'
-                }}>
-                  {boostedLeader
-                    ? `${(boostedLeader.token.change24h ?? 0) >= 0 ? '▲' : '▼'} ${Math.abs(boostedLeader.token.change24h ?? 0).toFixed(2)}% · Top boosted token`
-                    : '▲ 24.7% · Bonding curve active'}
+                <div className="mm-preview-price">$0.0058</div>
+                <div className="mm-preview-change" style={{ color: 'var(--positive)' }}>
+                  ▲ 24.7% · Bonding curve active
                 </div>
 
                 <svg className="mm-preview-chart" viewBox="0 0 320 120" preserveAspectRatio="none">
@@ -669,23 +613,8 @@ const HomePage: React.FC = () => {
                 </svg>
 
                 <div className="mm-preview-actions">
-                  {boostedLeader ? (
-                    <>
-                      <button
-                        className="mm-preview-buy"
-                        onClick={() => navigate(`/newtoken/${boostedLeader.token.metadataAddress || boostedLeader.token.txHash}`)}
-                      >Trade {boostedLeader.token.symbol.startsWith('$') ? boostedLeader.token.symbol : `$${boostedLeader.token.symbol}`}</button>
-                      <button
-                        className="mm-preview-sell"
-                        onClick={() => navigate(`/boost?token=${boostedLeader.token.metadataAddress || boostedLeader.token.txHash}`)}
-                      >Overtake</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="mm-preview-buy" onClick={() => navigate('/marketplace')}>Buy</button>
-                      <button className="mm-preview-sell" onClick={() => navigate('/marketplace')}>Sell</button>
-                    </>
-                  )}
+                  <button className="mm-preview-buy" onClick={() => navigate('/marketplace')}>Buy</button>
+                  <button className="mm-preview-sell" onClick={() => navigate('/marketplace')}>Sell</button>
                 </div>
               </div>
             </div>
@@ -822,7 +751,7 @@ const HomePage: React.FC = () => {
                             onClick={e => e.stopPropagation()}
                             title="Boost this token"
                           >
-                            🔥
+                            Boost
                           </Link>
                           <button
                             className="mm-card-trade"
@@ -884,7 +813,7 @@ const HomePage: React.FC = () => {
                               onClick={e => e.stopPropagation()}
                               title="Boost this token"
                             >
-                              🔥 Boost
+                              Boost
                             </Link>
                             <button
                               className="mm-lt-trade"

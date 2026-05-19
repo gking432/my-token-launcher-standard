@@ -1604,7 +1604,7 @@ const TokenPage: React.FC = () => {
                 className="tp-boost-btn"
                 title="Boost this token on the leaderboard"
               >
-                🔥 Boost
+                Boost
               </Link>
             )}
             <button

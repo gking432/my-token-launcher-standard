@@ -247,15 +247,6 @@ const Marketplace: React.FC = () => {
           border-left: 3px solid var(--boost);
         }
         .mp-boosted-row:hover { background: linear-gradient(90deg, var(--boost-light) 0%, var(--bg-hover) 70%) !important; }
-        .mp-boost-flame {
-          font-size: 18px; display: inline-block;
-          filter: drop-shadow(0 0 6px rgba(234,88,12,0.5));
-          animation: mp-flame-flicker 2.6s ease-in-out infinite;
-        }
-        @keyframes mp-flame-flicker {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.12); }
-        }
         .mp-boosted-tag {
           display: inline-block; margin-left: 8px;
           background: var(--boost); color: #fff;
@@ -298,13 +289,13 @@ const Marketplace: React.FC = () => {
         }
         .mp-trade-btn:hover { background: var(--accent-hover); }
         .mp-boost-btn {
-          display: inline-flex; align-items: center; gap: 4px;
+          display: inline-flex; align-items: center;
           background: var(--boost-light); border: 1.5px solid var(--boost);
-          color: var(--boost); padding: 7px 12px; border-radius: 9px;
-          font-size: 12.5px; font-weight: 700; text-decoration: none;
-          transition: background 0.12s, color 0.12s, transform 0.05s;
+          color: var(--boost); padding: 8px 14px; border-radius: 9px;
+          font-size: 13px; font-weight: 600; text-decoration: none; line-height: 1;
+          transition: background 0.12s, color 0.12s;
         }
-        .mp-boost-btn:hover { background: var(--boost); color: #fff; transform: translateY(-1px); }
+        .mp-boost-btn:hover { background: var(--boost); color: #fff; }
         .mp-star-btn {
           background: transparent; border: 1.5px solid var(--border);
           border-radius: 8px; width: 34px; height: 34px;
@@ -512,8 +503,8 @@ const Marketplace: React.FC = () => {
                       isInWatchlist(token.metadataAddress || token.txHash);
                     return (
                       <tr className="mp-boosted-row" onClick={() => handleTradeClick(token)}>
-                        <td className="mp-td mp-td-rank">
-                          <span className="mp-boost-flame" title={`${boostedLeader.apt.toFixed(2)} APT boosted (24h)`}>🔥</span>
+                        <td className="mp-td mp-td-rank" title={`${boostedLeader.apt.toFixed(2)} APT boosted (24h)`}>
+                          <span style={{ color: 'var(--boost)', fontWeight: 800, fontSize: 13 }}>↑1</span>
                         </td>
                         <td className="mp-td">
                           <div className="mp-token-cell">
@@ -547,7 +538,7 @@ const Marketplace: React.FC = () => {
                               onClick={e => e.stopPropagation()}
                               title="Overtake this boost"
                             >
-                              🔥 Overtake
+                              Overtake
                             </Link>
                             <button
                               className="mp-trade-btn"
@@ -655,7 +646,7 @@ const Marketplace: React.FC = () => {
                                 onClick={e => e.stopPropagation()}
                                 title="Boost this token"
                               >
-                                🔥 Boost
+                                Boost
                               </Link>
                               <button
                                 className="mp-trade-btn"
@@ -740,7 +731,7 @@ const Marketplace: React.FC = () => {
                     isInWatchlist(token.metadataAddress || token.txHash);
                   return (
                     <div className="mp-card mp-card-boosted" onClick={() => handleTradeClick(token)}>
-                      <div className="mp-card-boosted-tag">🔥 BOOSTED · {boostedLeader.apt.toFixed(2)} APT</div>
+                      <div className="mp-card-boosted-tag">BOOSTED · {boostedLeader.apt.toFixed(2)} APT</div>
                       <div className="mp-card-head">
                         <div className="mp-card-identity">
                           <TokenAvatar image={token.image} symbol={token.symbol} className="mp-card-icon" background={getIconBg(token.symbol)} />
@@ -764,7 +755,7 @@ const Marketplace: React.FC = () => {
                           onClick={e => e.stopPropagation()}
                           title="Overtake this boost"
                         >
-                          🔥 Overtake
+                          Overtake
                         </Link>
                         <button className="mp-card-trade" onClick={e => { e.stopPropagation(); handleTradeClick(token); }}>Trade</button>
                         <button
@@ -819,7 +810,7 @@ const Marketplace: React.FC = () => {
                           onClick={e => e.stopPropagation()}
                           title="Boost this token"
                         >
-                          🔥 Boost
+                          Boost
                         </Link>
                         <button
                           className="mp-card-trade"
