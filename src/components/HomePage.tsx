@@ -543,7 +543,7 @@ const HomePage: React.FC = () => {
       `}</style>
 
       <div className="mm-page">
-        <AppHeader hideNav launchCta />
+        <AppHeader launchCta />
 
         {/* ── HERO ── */}
         <section className="mm-hero">

@@ -9,11 +9,10 @@ import TokenAvatar from './TokenAvatar';
 import { truncateAddress } from '../utils/format';
 
 interface AppHeaderProps {
-  hideNav?: boolean;
   launchCta?: boolean;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = false }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ launchCta = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { account, connect, disconnect, wallets } = useWallet();
   const { tokens } = useTokenData();
@@ -27,6 +26,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
   const [searchIndex, setSearchIndex] = useState(0);
   const [copied, setCopied] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [launchClicked, setLaunchClicked] = useState(false);
+  const showLaunchCta = launchCta && !launchClicked;
 
   const walletRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -119,7 +120,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
           border-bottom: 1px solid var(--border);
         }
         .ah-nav {
-          max-width: 1280px; margin: 0 auto; height: 100%;
+          height: 100%;
           padding: 0 24px;
           display: grid;
           grid-template-columns: 1fr auto 1fr;
@@ -203,18 +204,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
           transition: background 0.12s;
         }
         .ah-search-all:hover { background: var(--bg-hover); }
-        .ah-links {
-          display: flex; gap: 2px; list-style: none; margin: 0; padding: 0;
-          flex-shrink: 0;
-        }
-        .ah-links a {
-          font-size: 14px; font-weight: 500; color: var(--text-secondary);
-          text-decoration: none; padding: 7px 12px; border-radius: 8px;
-          transition: color 0.12s, background 0.12s; white-space: nowrap;
-        }
-        .ah-links a:hover { color: var(--text-primary); background: var(--bg-secondary); }
-        .ah-links a.ah-link-boost { color: var(--boost); font-weight: 700; }
-        .ah-links a.ah-link-boost:hover { background: var(--boost-light); color: var(--boost); }
         .ah-wallet-wrap { position: relative; flex-shrink: 0; }
         .ah-connect-btn {
           background: var(--accent); color: #fff;
@@ -292,6 +281,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
           box-shadow: 0 2px 10px rgba(5,150,105,0.3);
           transition: background 0.15s;
           display: inline-flex; align-items: center; gap: 6px;
+          border: none; cursor: pointer; font-family: inherit;
         }
         .ah-launch-btn:hover { background: var(--accent-hover); }
         .ah-theme-btn {
@@ -392,7 +382,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
 
         @media (max-width: 900px) {
           .ah-nav { grid-template-columns: auto 1fr auto; }
-          .ah-links { display: none; }
           .ah-burger { display: flex; }
         }
         @media (max-width: 680px) {
@@ -416,14 +405,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
               <div className="ah-logo-mark">M</div>
               MoveMint
             </Link>
-            {!hideNav && (
-              <ul className="ah-links">
-                <li><Link to="/marketplace">Marketplace</Link></li>
-                <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
-                <li><Link to="/launch">Launch</Link></li>
-                <li><Link to="/about">About</Link></li>
-              </ul>
-            )}
           </div>
 
           {/* ── CENTER: search ── */}
@@ -515,10 +496,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false, launchCta = fals
                   </div>
                 )}
               </>
-            ) : launchCta ? (
-              <Link to="/launch" className="ah-launch-btn">
+            ) : showLaunchCta ? (
+              <button
+                className="ah-launch-btn"
+                onClick={() => { setLaunchClicked(true); setWalletOpen(true); }}
+              >
                 Launch a token ↗
-              </Link>
+              </button>
             ) : (
               <>
                 <button className="ah-connect-btn" onClick={() => setWalletOpen(v => !v)}>

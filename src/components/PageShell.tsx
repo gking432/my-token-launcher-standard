@@ -21,7 +21,7 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
           min-width: 0;
         }
       `}</style>
-      <AppHeader hideNav />
+      <AppHeader />
       <div className="ps-shell">
         <LeftSidebar />
         <main className="ps-main">

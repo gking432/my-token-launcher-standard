@@ -66,7 +66,7 @@ const BoostBar: React.FC = () => {
           overflow: hidden;
         }
         .bb-inner {
-          max-width: 1280px; width: 100%; margin: 0 auto;
+          width: 100%;
           padding: 0 24px;
           display: flex; align-items: center; gap: 12px;
           height: 100%;
