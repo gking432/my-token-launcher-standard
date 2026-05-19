@@ -9,6 +9,7 @@ import PreLaunchModal from './PreLaunchModal';
 import AppHeader from './AppHeader';
 import SiteFooter from './SiteFooter';
 import { useToast } from '../contexts/ToastContext';
+import { setLocalImage, MAX_IMAGE_BYTES } from '../lib/localImages';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -87,6 +88,14 @@ const Launch: React.FC = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Unsupported file', 'Please upload a PNG, JPG, or GIF image.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error('Image too large', `Logos must be under ${Math.round(MAX_IMAGE_BYTES / 1024)}KB. Yours is ${Math.round(file.size / 1024)}KB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => setLogoPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -145,7 +154,7 @@ const Launch: React.FC = () => {
         symbol: pendingLaunchData.symbol,
         supply,
         txHash: createHash,
-        image: null,
+        image: logoPreview,
         launchDate: new Date().toISOString(),
         creator: walletString,
       });
@@ -188,6 +197,10 @@ const Launch: React.FC = () => {
       if (!metadataAddress) {
         const tickerHex = Buffer.from(symbolBytes).toString("hex");
         metadataAddress = `${creatorAddress}::${tickerHex}`;
+      }
+
+      if (logoPreview && metadataAddress) {
+        setLocalImage(metadataAddress, logoPreview);
       }
 
       if (initialPurchaseAmount && parseFloat(initialPurchaseAmount) > 0) {
@@ -505,7 +518,7 @@ const Launch: React.FC = () => {
                         )}
                       </div>
                       <div className="lp-info-note">
-                        Logos are stored off-chain for now and shown on your token page. On-chain image storage is coming with the next contract upgrade.
+                        Logo is stored locally for now. On-chain image storage is coming with the next contract upgrade. PNG, JPG, GIF · up to 256KB.
                       </div>
                     </div>
 

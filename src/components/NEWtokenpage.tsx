@@ -827,18 +827,32 @@ const TokenPage: React.FC = () => {
     if (isNaN(num) || num <= 0) {
       setAmount(0);
       setTotal('0');
+      setPriceImpact(0);
       return;
     }
     const tokensSold = tokenData?.tokensSold ?? 0;
+    let tokens: number;
     if (inputMode === 'tokens') {
+      tokens = num;
       setAmount(num);
       setTotal(String(calculateTotal(num, tokensSold)));
     } else {
-      const tokens = calculateTokensFromAPT(num, tokensSold);
+      tokens = calculateTokensFromAPT(num, tokensSold);
       setAmount(tokens);
       setTotal(String(tokens));
     }
-  }, [amountString, inputMode, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
+    const tokensSoldAfter = activeTab === 'buy'
+      ? tokensSold + tokens
+      : Math.max(0, tokensSold - tokens);
+    const priceBefore = priceAtAPT(tokensSold);
+    const priceAfter = priceAtAPT(tokensSoldAfter);
+    if (priceBefore > 0 && tokens > 0) {
+      const impact = Math.abs(priceAfter - priceBefore) / priceBefore * 100;
+      setPriceImpact(impact);
+    } else {
+      setPriceImpact(0);
+    }
+  }, [amountString, inputMode, activeTab, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwapInputMode = () => {
     setAmountString(total);
@@ -1478,7 +1492,16 @@ const TokenPage: React.FC = () => {
         @media (max-width: 460px) {
           .tp-tabs { gap: 0; }
           .tp-tab { padding: 10px 8px; font-size: 13px; }
-          .tp-trade-card { padding: 14px; border-radius: 14px; }
+          .tp-trade-card { padding: 16px; border-radius: 14px; }
+          .tp-trade-tabs { margin-bottom: 14px; }
+          .tp-trade-tab { padding: 12px; font-size: 14px; }
+          .tp-field { margin-bottom: 14px; }
+          .tp-input { padding: 14px; font-size: 16px; }
+          .tp-total-val { padding: 14px; font-size: 15px; }
+          .tp-balance { padding: 12px 14px; }
+          .tp-preset-btn { padding: 10px 0; font-size: 13px; }
+          .tp-slip-btn { padding: 10px 0; font-size: 13px; }
+          .tp-trade-action { padding: 16px; font-size: 16px; margin-top: 10px; }
           .tp-quick-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
         }
       `}</style>
@@ -1894,17 +1917,24 @@ const TokenPage: React.FC = () => {
                 )}
 
                 {/* Price impact */}
-                {priceImpact > 5 && (
+                {priceImpact >= 1 && (
                   <div
                     className="tp-impact-warn"
                     style={{
                       background: priceImpact > 15
                         ? (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.08)')
-                        : (isDark ? 'rgba(255,159,10,0.15)' : 'rgba(255,159,10,0.10)'),
-                      color: priceImpact > 15 ? 'var(--negative)' : '#c77d00',
+                        : priceImpact > 5
+                          ? (isDark ? 'rgba(255,159,10,0.15)' : 'rgba(255,159,10,0.10)')
+                          : (isDark ? 'rgba(160,160,170,0.10)' : 'rgba(0,0,0,0.04)'),
+                      color: priceImpact > 15
+                        ? 'var(--negative)'
+                        : priceImpact > 5
+                          ? '#c77d00'
+                          : 'var(--text-secondary)',
                     }}
                   >
-                    Price impact: ~{priceImpact.toFixed(1)}% — consider a smaller trade
+                    Price impact: ~{priceImpact.toFixed(priceImpact < 0.1 ? 3 : priceImpact < 1 ? 2 : 1)}%
+                    {priceImpact > 5 && ' — consider a smaller trade'}
                   </div>
                 )}
 

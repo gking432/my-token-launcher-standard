@@ -4,6 +4,7 @@ import { getTokenLauncherTokens, fetchPurchaseEvents } from '../utils/aptosIndex
 import { MODULE_ADDRESS } from '../config';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { usePageVisibility } from './usePageVisibility';
+import { getLocalImage } from '../lib/localImages';
 
 interface Token {
   name: string;
@@ -244,9 +245,11 @@ export const useTokenData = (): UseTokenDataReturn => {
         console.log(`✅ Event ${index} final metadataAddr:`, fullMetadataAddr, 'length:', fullMetadataAddr?.length);
         
         // Only use icon_uri if it looks like a real URL (skip the hardcoded placeholder)
-        const image = iconUri && iconUri !== 'http://example.com/icon.png' && iconUri.startsWith('http')
+        const onChainImage = iconUri && iconUri !== 'http://example.com/icon.png' && iconUri.startsWith('http')
           ? iconUri
           : null;
+        // Fall back to the local upload cache (image uploaded at launch time)
+        const image = onChainImage ?? getLocalImage(fullMetadataAddr);
 
         return {
           name: name || symbol || `Token ${index + 1}`,
