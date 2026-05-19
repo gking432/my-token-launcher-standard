@@ -10,6 +10,7 @@ import AppHeader from './AppHeader';
 import SiteFooter from './SiteFooter';
 import { useToast } from '../contexts/ToastContext';
 import { setLocalImage, MAX_IMAGE_BYTES } from '../lib/localImages';
+import { setLocalSocials } from '../lib/localSocials';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -49,8 +50,10 @@ const Launch: React.FC = () => {
   const [pendingLaunchData, setPendingLaunchData] = useState<{
     name: string;
     symbol: string;
+    description: string;
     twitterLink: string | null;
     websiteLink: string | null;
+    telegram: string | null;
   } | null>(null);
 
   const [formData, setFormData] = useState({
@@ -111,8 +114,10 @@ const Launch: React.FC = () => {
     setPendingLaunchData({
       name: formData.tokenName,
       symbol,
-      twitterLink: formData.xLink || null,
-      websiteLink: formData.website || null,
+      description: formData.description.trim(),
+      twitterLink: formData.xLink.trim() || null,
+      websiteLink: formData.website.trim() || null,
+      telegram: formData.telegram.trim() || null,
     });
     setShowPreLaunchModal(true);
   };
@@ -157,6 +162,10 @@ const Launch: React.FC = () => {
         image: logoPreview,
         launchDate: new Date().toISOString(),
         creator: walletString,
+        description: pendingLaunchData.description,
+        twitterLink: pendingLaunchData.twitterLink,
+        websiteLink: pendingLaunchData.websiteLink,
+        telegram: pendingLaunchData.telegram,
       });
       localStorage.setItem("users", JSON.stringify(users));
 
@@ -203,6 +212,15 @@ const Launch: React.FC = () => {
         setLocalImage(metadataAddress, logoPreview);
       }
 
+      if (metadataAddress) {
+        setLocalSocials(metadataAddress, {
+          description: pendingLaunchData.description,
+          twitterLink: pendingLaunchData.twitterLink,
+          websiteLink: pendingLaunchData.websiteLink,
+          telegram: pendingLaunchData.telegram,
+        });
+      }
+
       if (initialPurchaseAmount && parseFloat(initialPurchaseAmount) > 0) {
         const aptAmountInOctas = Math.floor(parseFloat(initialPurchaseAmount) * 1e8);
         const buyTransaction: InputTransactionData = {
@@ -226,8 +244,10 @@ const Launch: React.FC = () => {
           symbol: pendingLaunchData.symbol,
           supply,
           txHash: createHash,
+          description: pendingLaunchData.description,
           twitterLink: pendingLaunchData.twitterLink,
           websiteLink: pendingLaunchData.websiteLink,
+          telegram: pendingLaunchData.telegram,
           metadataAddress,
           initialPurchase: initialPurchaseAmount ? parseFloat(initialPurchaseAmount) : 0,
           creatorAddress,

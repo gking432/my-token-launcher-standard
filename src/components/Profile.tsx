@@ -5,6 +5,7 @@ import PageShell from './PageShell';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
+import { useWatchlist } from '../contexts/WatchlistContext';
 import { truncateAddress } from '../utils/format';
 
 const formatPriceUSD = (price: number | undefined | null): string => {
@@ -28,6 +29,7 @@ const Profile: React.FC = () => {
   const { address: routeAddress } = useParams();
   const { tokens: catalogTokens, loading } = useTokenData();
   const { aptPrice } = useAptPrice();
+  const { watchlist, removeFromWatchlist } = useWatchlist();
   const [copied, setCopied] = useState(false);
 
   const viewingAddress = (routeAddress || (account ? String(account.address) : '')).toLowerCase();
@@ -58,6 +60,28 @@ const Profile: React.FC = () => {
   }, [catalogTokens, liveByAddr, viewingAddress, aptPrice]);
 
   const isOwn = account && String(account.address).toLowerCase() === viewingAddress;
+
+  const watching = useMemo(() => {
+    if (!isOwn) return [];
+    return watchlist.map(w => {
+      const t = catalogTokens.find(
+        c => (c.metadataAddress || '').toLowerCase() === w.metadataAddress.toLowerCase()
+      );
+      const live = t && liveByAddr?.[(t.metadataAddress || '').toLowerCase()];
+      const priceAPT = live?.spotPriceAPT ?? t?.price ?? 0;
+      const priceUSD = aptPrice ? priceAPT * aptPrice : t?.priceUSD;
+      const marketCapUSD = live?.marketCapAPT && aptPrice ? live.marketCapAPT * aptPrice : t?.marketCapUSD;
+      return {
+        metadataAddress: w.metadataAddress,
+        name: t?.name ?? w.name,
+        symbol: t?.symbol ?? w.symbol,
+        priceUSD,
+        marketCapUSD,
+        aptRaised: live?.aptRaised,
+        isGraduated: live?.isGraduated ?? false,
+      };
+    });
+  }, [isOwn, watchlist, catalogTokens, liveByAddr, aptPrice]);
 
   const handleCopy = () => {
     if (!viewingAddress) return;
@@ -176,6 +200,14 @@ const Profile: React.FC = () => {
         .pf-card-badge.graduated {
           background: var(--accent-light); color: var(--accent);
         }
+        .pf-unwatch {
+          background: none; border: none; cursor: pointer;
+          color: #f5b80a; font-size: 20px; line-height: 1;
+          padding: 4px 6px; border-radius: 6px;
+          font-family: inherit; margin-left: auto;
+          transition: background 0.12s, transform 0.12s;
+        }
+        .pf-unwatch:hover { background: var(--bg-hover); transform: scale(1.15); }
         .pf-card-stats {
           display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
           padding-top: 14px; border-top: 1px solid var(--border);
@@ -338,6 +370,64 @@ const Profile: React.FC = () => {
                     </Link>
                   ))}
                 </div>
+              )}
+
+              {isOwn && (
+                <>
+                  <div className="pf-section-title" style={{ marginTop: 36 }}>
+                    <h2>Watching</h2>
+                    <span className="count">{watching.length}</span>
+                  </div>
+                  {watching.length === 0 ? (
+                    <div className="pf-empty">
+                      <div className="pf-empty-title">Nothing watched yet</div>
+                      <div className="pf-empty-sub">
+                        Tap the ☆ on any token to start tracking it here.
+                      </div>
+                      <Link to="/marketplace" className="pf-btn primary" style={{ textDecoration: 'none' }}>
+                        Browse marketplace
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="pf-grid">
+                      {watching.map(w => (
+                        <Link
+                          key={w.metadataAddress}
+                          to={`/newtoken/${w.metadataAddress}`}
+                          className="pf-card"
+                        >
+                          <div className="pf-card-top">
+                            <div className="pf-token-icon">{(w.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div className="pf-card-name">{w.name}</div>
+                              <div className="pf-card-symbol">{w.symbol}</div>
+                            </div>
+                            {w.isGraduated && <span className="pf-card-badge graduated">Graduated</span>}
+                            <button
+                              className="pf-unwatch"
+                              title="Remove from watchlist"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFromWatchlist(w.metadataAddress); }}
+                            >★</button>
+                          </div>
+                          <div className="pf-card-stats">
+                            <div>
+                              <div className="pf-stat-label">Price</div>
+                              <div className="pf-stat-value">{formatPriceUSD(w.priceUSD)}</div>
+                            </div>
+                            <div>
+                              <div className="pf-stat-label">Market cap</div>
+                              <div className="pf-stat-value">{w.marketCapUSD ? `$${formatNumber(w.marketCapUSD)}` : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="pf-stat-label">APT raised</div>
+                              <div className="pf-stat-value">{w.aptRaised != null ? `${w.aptRaised.toFixed(2)} APT` : '—'}</div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

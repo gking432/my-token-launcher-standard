@@ -18,6 +18,7 @@ import { useTokenLive } from '../data/useTokenLive';
 import { useQueryClient } from '@tanstack/react-query';
 import { truncateAddress } from '../utils/format';
 import { useToast } from '../contexts/ToastContext';
+import { getLocalSocials } from '../lib/localSocials';
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
@@ -148,6 +149,7 @@ const TokenPage: React.FC = () => {
     creationDate: number;
     twitterLink?: string | null;
     websiteLink?: string | null;
+    telegram?: string | null;
     description?: string;
   }
 
@@ -288,6 +290,7 @@ const TokenPage: React.FC = () => {
       if (location.state) {
         console.log("✅ Using token data from location.state:", location.state);
         const stateData = location.state as any;
+        const cachedSocials = getLocalSocials(stateData.metadataAddress || stateData.txHash || coinHash);
         const tokenDetailsData: TokenDetails = {
           name: stateData.name || 'Unknown',
           symbol: stateData.symbol || 'UNK',
@@ -296,8 +299,10 @@ const TokenPage: React.FC = () => {
           metadataAddress: stateData.metadataAddress || stateData.txHash || coinHash,
           creatorAddress: stateData.creatorAddress || stateData.creator || '',
           creationDate: stateData.creationDate || Math.floor(Date.now() / 1000),
-          twitterLink: stateData.twitterLink || null,
-          websiteLink: stateData.websiteLink || null,
+          description: stateData.description ?? cachedSocials?.description,
+          twitterLink: stateData.twitterLink ?? cachedSocials?.twitterLink ?? null,
+          websiteLink: stateData.websiteLink ?? cachedSocials?.websiteLink ?? null,
+          telegram: stateData.telegram ?? cachedSocials?.telegram ?? null,
         };
         console.log("🎯 Setting token details from state:", tokenDetailsData);
         setTokenDetails(tokenDetailsData);
@@ -334,6 +339,7 @@ const TokenPage: React.FC = () => {
       if (token) {
         console.log("✅ Found token in array:", token);
         
+        const cachedSocials = getLocalSocials(token.metadataAddress || token.txHash);
         const tokenDetailsData: TokenDetails = {
           name: token.name,
           symbol: token.symbol,
@@ -342,8 +348,10 @@ const TokenPage: React.FC = () => {
           metadataAddress: token.metadataAddress || token.txHash || '',
           creatorAddress: token.creatorAddress || token.creator || '',
           creationDate: new Date(token.launchDate).getTime() / 1000,
-          twitterLink: null,
-          websiteLink: null,
+          description: cachedSocials?.description,
+          twitterLink: cachedSocials?.twitterLink ?? null,
+          websiteLink: cachedSocials?.websiteLink ?? null,
+          telegram: cachedSocials?.telegram ?? null,
         };
         
         console.log("🎯 Setting token details from array:", tokenDetailsData);
@@ -1444,6 +1452,12 @@ const TokenPage: React.FC = () => {
         .tp-info-row:last-child { border-bottom: none; }
         .tp-info-key { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
         .tp-info-val { color: var(--text-primary); font-weight: 600; text-align: right; min-width: 0; }
+        .tp-info-desc {
+          color: var(--text-secondary); font-size: 13px; line-height: 1.5;
+          padding: 4px 0 14px; margin-bottom: 4px;
+          border-bottom: 1px solid var(--border); white-space: pre-wrap;
+          word-break: break-word;
+        }
         .tp-ca-row { display: flex; align-items: center; gap: 8px; }
         .tp-ca-code {
           font-family: 'SF Mono', ui-monospace, monospace;
@@ -1951,6 +1965,10 @@ const TokenPage: React.FC = () => {
               <div className="tp-info-card">
                 <div className="tp-info-title">Token info</div>
 
+                {tokenDetails?.description && (
+                  <div className="tp-info-desc">{tokenDetails.description}</div>
+                )}
+
                 {tokenDetails?.metadataAddress && (
                   <div className="tp-info-row">
                     <span className="tp-info-key">Contract</span>
@@ -1996,6 +2014,15 @@ const TokenPage: React.FC = () => {
                     <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
                       style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                       Visit
+                    </a>
+                  </div>
+                )}
+                {tokenDetails?.telegram && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Telegram</span>
+                    <a href={tokenDetails.telegram} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      Join
                     </a>
                   </div>
                 )}
