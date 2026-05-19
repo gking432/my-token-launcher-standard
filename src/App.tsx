@@ -12,6 +12,7 @@ import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
 import About from "./components/About";
 import NotFound from "./components/NotFound";
+import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
@@ -33,6 +34,7 @@ const App: React.FC = () => {
             <WatchlistProvider>
               <GraduationListener />
               <Router>
+                <ScrollToTop />
                 <Routes>
                   <Route path="/"                  element={<HomePage />} />
                   <Route path="/homepage"          element={<HomePage />} />
