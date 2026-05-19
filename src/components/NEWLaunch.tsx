@@ -394,7 +394,7 @@ const Launch: React.FC = () => {
       `}</style>
 
       <div className="lp-page">
-        <AppHeader />
+        <AppHeader narrow hideBoostBar />
         <div className="lp-wrap">
           <div className="lp-hero">
             <div>

@@ -49,7 +49,7 @@ const NotFound: React.FC = () => {
         .nf-btn-secondary:hover { background: var(--bg-hover); }
       `}</style>
       <div className="nf-page">
-        <AppHeader />
+        <AppHeader narrow hideBoostBar />
         <div className="nf-wrap">
           <h1 className="nf-code">404</h1>
           <div className="nf-title">Page not found</div>
