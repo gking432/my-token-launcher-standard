@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import PageShell from './PageShell';
+import TokenAvatar from './TokenAvatar';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBoostData, addBoost, BOOST_WINDOWS, BoostWindow } from '../data/useBoostStore';
 
@@ -36,6 +37,7 @@ const Boost: React.FC = () => {
         return {
           name: t.name,
           symbol: t.symbol,
+          image: t.image,
           creator: (t.creator || t.creatorAddress || '').toLowerCase(),
           metadataAddress: addr,
           boostApt: boostMap[addr] ?? 0,
@@ -47,10 +49,19 @@ const Boost: React.FC = () => {
       .slice(0, TOP_N);
   }, [catalogTokens, boostMap, query]);
 
+  const leader = ranked[0] ?? null;
+  const aptToTakeFirst = leader ? leader.boostApt + 0.01 : 0;
+
   const selected = useMemo(
     () => ranked.find(t => t.metadataAddress === selectedAddr) || null,
     [ranked, selectedAddr]
   );
+
+  const aptToOvertake = useMemo(() => {
+    if (!selected || !leader) return null;
+    if (selected.metadataAddress === leader.metadataAddress) return null;
+    return Math.max(0, leader.boostApt - selected.boostApt + 0.01);
+  }, [selected, leader]);
 
   const selectToken = (addr: string) => {
     setSearchParams({ token: addr });
@@ -85,7 +96,6 @@ const Boost: React.FC = () => {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const topThree = ranked.slice(0, 3);
   const totalBoostedApt = Object.values(boostMap).reduce((s, v) => s + v, 0);
   const activeTokens = Object.keys(boostMap).length;
 
@@ -124,6 +134,125 @@ const Boost: React.FC = () => {
           line-height: 1.5;
         }
         .bp-banner strong { font-weight: 700; }
+
+        .bp-protomsg {
+          font-size: 12px; color: var(--text-muted);
+          margin-bottom: 22px; text-align: center;
+          font-style: italic;
+        }
+
+        .bp-throne {
+          position: relative;
+          background: linear-gradient(135deg,
+            ${'rgba(234,88,12,0.12)'} 0%,
+            var(--bg-primary) 70%);
+          border: 1.5px solid var(--boost);
+          border-radius: 18px;
+          padding: 24px 28px 18px;
+          margin-bottom: 14px;
+          box-shadow: 0 8px 28px rgba(234,88,12,0.18);
+        }
+        .bp-throne-tag {
+          position: absolute; top: -11px; left: 22px;
+          background: var(--boost); color: #fff;
+          font-size: 11px; font-weight: 800; letter-spacing: 0.08em;
+          padding: 4px 11px; border-radius: 7px;
+          text-transform: uppercase;
+          box-shadow: 0 4px 12px rgba(234,88,12,0.45);
+        }
+        .bp-throne-body {
+          display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+        }
+        .bp-throne-icon {
+          width: 56px; height: 56px; border-radius: 14px;
+          font-size: 18px; font-weight: 700;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        }
+        .bp-throne-empty-flame {
+          width: 56px; height: 56px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 32px;
+          background: var(--boost-light); border-radius: 14px;
+        }
+        .bp-throne-text { flex: 1; min-width: 0; }
+        .bp-throne-name {
+          font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+          color: var(--text-primary);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .bp-throne-sym {
+          font-size: 14px; color: var(--text-secondary); font-weight: 500;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+          margin-top: 2px;
+        }
+        .bp-throne-spend {
+          display: flex; flex-direction: column; align-items: flex-end;
+        }
+        .bp-throne-spend-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .bp-throne-spend-value {
+          font-size: 28px; font-weight: 700; color: var(--boost);
+          letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+          margin-top: 2px;
+        }
+        .bp-throne-spend-value span {
+          font-size: 14px; color: var(--text-muted); font-weight: 600; margin-left: 4px;
+        }
+        .bp-throne-cta {
+          background: var(--boost); color: #fff;
+          border: none; border-radius: 11px;
+          padding: 12px 22px;
+          font-size: 14px; font-weight: 700; font-family: inherit;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(234,88,12,0.4);
+          transition: background 0.15s, transform 0.1s;
+        }
+        .bp-throne-cta:hover { background: var(--boost-hover); transform: translateY(-1px); }
+        .bp-throne-meta {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-top: 16px; padding-top: 14px;
+          border-top: 1px solid var(--border);
+          font-size: 12.5px; color: var(--text-muted); font-weight: 500;
+        }
+        .bp-throne-window { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+        .bp-throne.bp-throne-empty {
+          background: var(--bg-primary);
+          border-color: var(--border);
+          box-shadow: none;
+        }
+        .bp-throne.bp-throne-empty .bp-throne-tag {
+          background: var(--text-muted);
+          box-shadow: none;
+        }
+
+        .bp-panel-overtake {
+          background: var(--boost-light);
+          border: 1px solid var(--boost);
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 16px;
+        }
+        .bp-panel-overtake-label {
+          font-size: 11px; font-weight: 700; color: var(--boost);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;
+        }
+        .bp-panel-overtake-row {
+          display: flex; align-items: center; justify-content: space-between;
+        }
+        .bp-panel-overtake-value {
+          font-size: 18px; font-weight: 700; color: var(--boost);
+          font-variant-numeric: tabular-nums;
+        }
+        .bp-panel-overtake-btn {
+          background: var(--boost); color: #fff;
+          border: none; border-radius: 7px;
+          padding: 5px 12px; font-size: 12px; font-weight: 700;
+          cursor: pointer; font-family: inherit;
+        }
+        .bp-panel-overtake-btn:hover { background: var(--boost-hover); }
 
         .bp-summary {
           display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
@@ -368,6 +497,13 @@ const Boost: React.FC = () => {
           .bp-panel { position: static; }
           .bp-summary { grid-template-columns: 1fr 1fr; }
         }
+        @media (max-width: 640px) {
+          .bp-throne { padding: 22px 18px 16px; }
+          .bp-throne-body { gap: 14px; }
+          .bp-throne-spend { align-items: flex-start; }
+          .bp-throne-cta { width: 100%; }
+          .bp-throne-meta { flex-direction: column; gap: 4px; align-items: flex-start; }
+        }
         @media (max-width: 540px) {
           .bp-row { grid-template-columns: 32px 1fr auto; }
           .bp-row-action { display: none; }
@@ -381,29 +517,53 @@ const Boost: React.FC = () => {
           <div className="bp-hero">
             <div>
               <h1><span className="bp-hero-flame">🔥</span> Boost</h1>
-              <p>Pay APT to promote a token to the top of every page. Boost fees are pure advertising — no tokens are issued. Highest spend wins the slot.</p>
+              <p>Pay APT to claim the top slot — pinned on the marketplace, featured on the home page, and surfaced in the BoostBar above every page. Highest spend wins.</p>
             </div>
           </div>
 
-          <div className="bp-banner">
-            <strong>Prototype mode.</strong> Boost contributions are stored locally on this device for testing. Real boosts will be on-chain in the next contract release.
-          </div>
-
-          <div className="bp-summary">
-            <div className="bp-stat">
-              <div className="bp-stat-label">Total boosted ({windowKey})</div>
-              <div className="bp-stat-value">{formatApt(totalBoostedApt)}<span className="bp-stat-unit">APT</span></div>
-            </div>
-            <div className="bp-stat">
-              <div className="bp-stat-label">Active tokens</div>
-              <div className="bp-stat-value">{activeTokens}</div>
-            </div>
-            <div className="bp-stat">
-              <div className="bp-stat-label">Leader</div>
-              <div className="bp-stat-value" style={{ fontSize: 18 }}>
-                {topThree[0] ? topThree[0].symbol : '—'}
+          {leader ? (
+            <div className="bp-throne">
+              <div className="bp-throne-tag">Reigning #1 · {windowKey}</div>
+              <div className="bp-throne-body">
+                <TokenAvatar image={leader.image} symbol={leader.symbol} className="bp-throne-icon" />
+                <div className="bp-throne-text">
+                  <div className="bp-throne-name">{leader.name}</div>
+                  <div className="bp-throne-sym">{leader.symbol}</div>
+                </div>
+                <div className="bp-throne-spend">
+                  <div className="bp-throne-spend-label">Current boost</div>
+                  <div className="bp-throne-spend-value">{formatApt(leader.boostApt)} <span>APT</span></div>
+                </div>
+                <button
+                  className="bp-throne-cta"
+                  onClick={() => {
+                    selectToken(leader.metadataAddress);
+                    setBoostAmount(aptToTakeFirst.toFixed(2));
+                  }}
+                >
+                  Overtake for {aptToTakeFirst.toFixed(2)} APT
+                </button>
+              </div>
+              <div className="bp-throne-meta">
+                <span>{formatApt(totalBoostedApt)} APT contested · {activeTokens} active tokens</span>
+                <span className="bp-throne-window">window: {windowKey}</span>
               </div>
             </div>
+          ) : (
+            <div className="bp-throne bp-throne-empty">
+              <div className="bp-throne-tag">No leader yet</div>
+              <div className="bp-throne-body">
+                <div className="bp-throne-empty-flame">🔥</div>
+                <div className="bp-throne-text">
+                  <div className="bp-throne-name">The throne is open.</div>
+                  <div className="bp-throne-sym">Be the first to boost in the last {windowKey}.</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="bp-protomsg">
+            Prototype mode — boosts cached on your device. On-chain boost moves in the next release.
           </div>
 
           <div className="bp-controls">
@@ -448,7 +608,7 @@ const Boost: React.FC = () => {
                     >
                       <div className="bp-rank">{i + 1}</div>
                       <div className="bp-token-cell">
-                        <div className="bp-token-icon">{(t.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                        <TokenAvatar image={t.image} symbol={t.symbol} className="bp-token-icon" />
                         <div style={{ minWidth: 0 }}>
                           <div className="bp-token-name">{t.name}</div>
                           <div className="bp-token-symbol">{t.symbol}</div>
@@ -475,12 +635,25 @@ const Boost: React.FC = () => {
               ) : (
                 <>
                   <div className="bp-panel-token">
-                    <div className="bp-token-icon">{(selected.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                    <TokenAvatar image={selected.image} symbol={selected.symbol} className="bp-token-icon" />
                     <div style={{ minWidth: 0 }}>
                       <div className="bp-panel-token-name">{selected.name}</div>
                       <div className="bp-panel-token-sym">{selected.symbol}</div>
                     </div>
                   </div>
+
+                  {aptToOvertake != null && (
+                    <div className="bp-panel-overtake">
+                      <div className="bp-panel-overtake-label">To overtake #1 ({leader?.symbol})</div>
+                      <div className="bp-panel-overtake-row">
+                        <span className="bp-panel-overtake-value">{aptToOvertake.toFixed(2)} APT</span>
+                        <button
+                          className="bp-panel-overtake-btn"
+                          onClick={() => setBoostAmount(aptToOvertake.toFixed(2))}
+                        >Fill</button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="bp-panel-current">
                     <span className="bp-panel-current-label">Current boost</span>
