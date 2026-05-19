@@ -61,6 +61,24 @@ const Launch: React.FC = () => {
     telegram: '',
   });
 
+  const trimmedName = formData.tokenName.trim();
+  const trimmedTicker = formData.ticker.trim().replace(/^\$/, '');
+  const nameValid = trimmedName.length >= 2 && trimmedName.length <= 32;
+  const tickerValid = /^[A-Z0-9]{2,10}$/.test(trimmedTicker);
+  const formValid = nameValid && tickerValid;
+  const nameHint = trimmedName.length === 0
+    ? null
+    : trimmedName.length < 2
+      ? 'Name must be at least 2 characters.'
+      : null;
+  const tickerHint = trimmedTicker.length === 0
+    ? null
+    : trimmedTicker.length < 2
+      ? 'Ticker must be at least 2 characters.'
+      : !/^[A-Z0-9]+$/.test(trimmedTicker)
+        ? 'Ticker must be uppercase letters and digits only.'
+        : null;
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -295,6 +313,15 @@ const Launch: React.FC = () => {
           font-size: 12px; color: var(--text-muted);
           margin-top: 6px; text-align: right;
         }
+        .lp-field-hint {
+          font-size: 12px; color: var(--negative);
+          margin-top: 6px; font-weight: 500;
+        }
+        .lp-input.invalid { border-color: var(--negative); }
+        .lp-input.invalid:focus {
+          border-color: var(--negative);
+          box-shadow: 0 0 0 3px rgba(215,0,21,0.12);
+        }
         .lp-logo-area {
           display: flex; gap: 16px; align-items: stretch;
         }
@@ -426,10 +453,10 @@ const Launch: React.FC = () => {
                     <div className="lp-row" style={{ marginBottom: 18 }}>
                       <div className="lp-field" style={{ marginBottom: 0 }}>
                         <label className="lp-label">
-                          Name <span className="lp-label-hint">required</span>
+                          Name <span className="lp-label-hint">2–32 chars</span>
                         </label>
                         <input
-                          className="lp-input"
+                          className={`lp-input${nameHint ? ' invalid' : ''}`}
                           type="text"
                           name="tokenName"
                           value={formData.tokenName}
@@ -438,15 +465,16 @@ const Launch: React.FC = () => {
                           required
                           maxLength={32}
                         />
+                        {nameHint && <div className="lp-field-hint">{nameHint}</div>}
                       </div>
                       <div className="lp-field" style={{ marginBottom: 0 }}>
                         <label className="lp-label">
-                          Ticker <span className="lp-label-hint">required</span>
+                          Ticker <span className="lp-label-hint">A–Z, 0–9 · 2–10</span>
                         </label>
                         <div className="lp-input-prefix">
                           <span className="lp-prefix-sym">$</span>
                           <input
-                            className="lp-input"
+                            className={`lp-input${tickerHint ? ' invalid' : ''}`}
                             type="text"
                             name="ticker"
                             value={formData.ticker.replace(/^\$/, '')}
@@ -457,6 +485,7 @@ const Launch: React.FC = () => {
                             style={{ textTransform: 'uppercase' }}
                           />
                         </div>
+                        {tickerHint && <div className="lp-field-hint">{tickerHint}</div>}
                       </div>
                     </div>
 
@@ -562,7 +591,7 @@ const Launch: React.FC = () => {
                     <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 18 }}>
                       A small APT launch fee is charged on creation. You'll have the option to make an initial purchase to seed price discovery on the next screen.
                     </div>
-                    <button type="submit" className="lp-submit" disabled={loading}>
+                    <button type="submit" className="lp-submit" disabled={loading || !formValid}>
                       {loading ? 'Launching…' : 'Continue to launch'}
                     </button>
                     <div className="lp-disclaimer">
