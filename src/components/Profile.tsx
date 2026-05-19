@@ -195,6 +195,22 @@ const Profile: React.FC = () => {
           padding: 60px 24px;
           text-align: center;
         }
+        @keyframes pf-skel {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .pf-skel {
+          display: inline-block; height: 14px; border-radius: 6px;
+          background: linear-gradient(90deg, var(--bg-secondary) 0px, var(--bg-hover) 80px, var(--bg-secondary) 160px);
+          background-size: 200px 100%;
+          animation: pf-skel 1.2s linear infinite;
+        }
+        .pf-skel-card {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 18px;
+        }
         .pf-empty-title {
           font-size: 17px; font-weight: 600; color: var(--text-primary);
           margin-bottom: 6px;
@@ -256,8 +272,20 @@ const Profile: React.FC = () => {
               </div>
 
               {loading && launched.length === 0 ? (
-                <div className="pf-empty">
-                  <div className="pf-empty-title">Loading…</div>
+                <div className="pf-grid">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={`pf-skel-${i}`} className="pf-skel-card">
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+                        <span className="pf-skel" style={{ width: 36, height: 36, borderRadius: 10 }}></span>
+                        <div style={{ flex: 1 }}>
+                          <span className="pf-skel" style={{ width: '60%' }}></span><br/>
+                          <span className="pf-skel" style={{ width: 40, height: 11, marginTop: 6 }}></span>
+                        </div>
+                      </div>
+                      <span className="pf-skel" style={{ width: '90%' }}></span><br/>
+                      <span className="pf-skel" style={{ width: '70%', marginTop: 6 }}></span>
+                    </div>
+                  ))}
                 </div>
               ) : launched.length === 0 ? (
                 <div className="pf-empty">

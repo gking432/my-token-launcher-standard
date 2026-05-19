@@ -312,14 +312,32 @@ const Marketplace: React.FC = () => {
 
         /* ── EMPTY / ERROR ── */
         .mp-empty { text-align: center; padding: 72px 20px; color: var(--text-muted); font-size: 15px; }
-        .mp-retry-btn {
+        .mp-empty-strong { font-size: 17px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+        .mp-retry-btn, .mp-empty-cta {
           display: inline-flex; align-items: center; gap: 8px;
           background: var(--accent); color: #fff; border: none;
           padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
           cursor: pointer; font-family: inherit; margin-top: 18px;
           transition: background 0.15s;
+          text-decoration: none;
         }
-        .mp-retry-btn:hover { background: var(--accent-hover); }
+        .mp-retry-btn:hover, .mp-empty-cta:hover { background: var(--accent-hover); }
+
+        /* ── SKELETON ── */
+        @keyframes mp-skel {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .mp-skel {
+          display: inline-block; height: 14px; border-radius: 6px;
+          background: linear-gradient(90deg, var(--bg-secondary) 0px, var(--bg-hover) 80px, var(--bg-secondary) 160px);
+          background-size: 200px 100%;
+          animation: mp-skel 1.2s linear infinite;
+        }
+        .mp-skel-row td { padding: 16px 18px; }
+        .mp-skel-avatar {
+          width: 32px; height: 32px; border-radius: 10px; vertical-align: middle;
+        }
 
         /* ── FOOTER ── */
         .mp-footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; font-size: 12px; color: var(--text-muted); }
@@ -432,12 +450,30 @@ const Marketplace: React.FC = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6}><div className="mp-empty">Loading markets…</div></td></tr>
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={`skel-${i}`} className="mp-skel-row">
+                        <td className="mp-td mp-td-rank"><span className="mp-skel" style={{ width: 16 }}></span></td>
+                        <td className="mp-td">
+                          <div className="mp-token-cell">
+                            <span className="mp-skel mp-skel-avatar"></span>
+                            <div style={{ minWidth: 0 }}>
+                              <span className="mp-skel" style={{ width: 110, marginBottom: 6 }}></span><br/>
+                              <span className="mp-skel" style={{ width: 50, height: 11 }}></span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="mp-td mp-td-price"><span className="mp-skel" style={{ width: 70 }}></span></td>
+                        <td className="mp-td mp-td-change"><span className="mp-skel" style={{ width: 50 }}></span></td>
+                        <td className="mp-td mp-td-mc"><span className="mp-skel" style={{ width: 80 }}></span></td>
+                        <td className="mp-td"><span className="mp-skel" style={{ width: 110 }}></span></td>
+                      </tr>
+                    ))
                   ) : tokens.length === 0 && error ? (
                     <tr>
                       <td colSpan={6}>
                         <div className="mp-empty">
-                          <div style={{ marginBottom: 8 }}>Unable to load tokens. The Aptos network may be under load.</div>
+                          <div className="mp-empty-strong">Couldn't load tokens</div>
+                          <div>The Aptos network may be under load. Give it another try.</div>
                           <button className="mp-retry-btn" onClick={() => refetch()}>Retry</button>
                         </div>
                       </td>
@@ -446,7 +482,18 @@ const Marketplace: React.FC = () => {
                     <tr>
                       <td colSpan={6}>
                         <div className="mp-empty">
-                          {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens have launched yet.'}
+                          {searchQuery ? (
+                            <>
+                              <div className="mp-empty-strong">No tokens match "{searchQuery}"</div>
+                              <div>Try a different search or clear the filter.</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="mp-empty-strong">No tokens launched yet</div>
+                              <div>Be the first to spin one up.</div>
+                              <Link to="/launch" className="mp-empty-cta">Launch a token</Link>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -519,15 +566,45 @@ const Marketplace: React.FC = () => {
           {/* ── GRID VIEW ── */}
           {viewMode === 'grid' && (
             loading ? (
-              <div className="mp-empty">Loading markets…</div>
+              <div className="mp-grid">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={`gskel-${i}`} className="mp-card" style={{ cursor: 'default' }}>
+                    <div className="mp-card-head">
+                      <div className="mp-card-identity">
+                        <span className="mp-skel mp-skel-avatar"></span>
+                        <div>
+                          <span className="mp-skel" style={{ width: 80, marginBottom: 6 }}></span><br/>
+                          <span className="mp-skel" style={{ width: 40, height: 11 }}></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <span className="mp-skel" style={{ width: '70%' }}></span><br/>
+                      <span className="mp-skel" style={{ width: '50%', marginTop: 6 }}></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : tokens.length === 0 && error ? (
               <div className="mp-empty">
-                Unable to load tokens.
+                <div className="mp-empty-strong">Couldn't load tokens</div>
+                <div>The Aptos network may be under load. Give it another try.</div>
                 <button className="mp-retry-btn" onClick={() => refetch()}>Retry</button>
               </div>
             ) : tokens.length === 0 ? (
               <div className="mp-empty">
-                {searchQuery ? `No tokens match "${searchQuery}"` : 'No tokens have launched yet.'}
+                {searchQuery ? (
+                  <>
+                    <div className="mp-empty-strong">No tokens match "{searchQuery}"</div>
+                    <div>Try a different search or clear the filter.</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mp-empty-strong">No tokens launched yet</div>
+                    <div>Be the first to spin one up.</div>
+                    <Link to="/launch" className="mp-empty-cta">Launch a token</Link>
+                  </>
+                )}
               </div>
             ) : (
               <div className="mp-grid">
