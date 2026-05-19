@@ -11,6 +11,9 @@ import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
 import About from "./components/About";
+import Docs from "./components/Docs";
+import Privacy from "./components/Privacy";
+import Terms from "./components/Terms";
 import NotFound from "./components/NotFound";
 import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -46,6 +49,9 @@ const App: React.FC = () => {
                   <Route path="/marketplace/:metadataAddress" element={<Marketplace />} />
                   <Route path="/boost"             element={<Boost />} />
                   <Route path="/about"             element={<About />} />
+                  <Route path="/docs"              element={<Docs />} />
+                  <Route path="/privacy"           element={<Privacy />} />
+                  <Route path="/terms"             element={<Terms />} />
                   <Route path="/launch"            element={<NEWLaunch />} />
                   <Route path="/profile"           element={<Profile />} />
                   <Route path="/profile/:address"  element={<Profile />} />

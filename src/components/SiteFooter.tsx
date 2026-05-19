@@ -78,25 +78,24 @@ const SiteFooter: React.FC = () => (
           <div className="mm-footer-section">
             <h4>Resources</h4>
             <ul>
-              <li><a href="#" onClick={e => e.preventDefault()}>Documentation</a></li>
-              <li><a href="#" onClick={e => e.preventDefault()}>API reference</a></li>
-              <li><a href="#" onClick={e => e.preventDefault()}>Support</a></li>
+              <li><Link to="/docs">Documentation</Link></li>
+              <li><a href="https://explorer.aptoslabs.com/?network=testnet" target="_blank" rel="noopener noreferrer">Aptos explorer</a></li>
             </ul>
           </div>
           <div className="mm-footer-section">
             <h4>Company</h4>
             <ul>
               <li><Link to="/about">About</Link></li>
-              <li><a href="#" onClick={e => e.preventDefault()}>Privacy</a></li>
-              <li><a href="#" onClick={e => e.preventDefault()}>Terms</a></li>
+              <li><Link to="/privacy">Privacy</Link></li>
+              <li><Link to="/terms">Terms</Link></li>
             </ul>
           </div>
         </div>
         <div className="mm-footer-bottom">
-          <span>Copyright © 2025 MoveMint. All rights reserved.</span>
+          <span>Copyright © 2026 MoveMint. All rights reserved.</span>
           <span>
-            <a href="#" onClick={e => e.preventDefault()}>Privacy</a>
-            <a href="#" onClick={e => e.preventDefault()}>Terms</a>
+            <Link to="/privacy" style={{ color: 'var(--text-muted)', textDecoration: 'none', marginLeft: 22 }}>Privacy</Link>
+            <Link to="/terms" style={{ color: 'var(--text-muted)', textDecoration: 'none', marginLeft: 22 }}>Terms</Link>
             <Link to="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none', marginLeft: 22 }}>About</Link>
           </span>
         </div>
