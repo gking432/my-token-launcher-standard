@@ -6,6 +6,7 @@ export const BONDING_CURVE = {
   PRICE_CONSTANT: 61.9053276,
   MAX_TOKENS: 800_000_000, // whole tokens available on the curve
   TOTAL_SUPPLY: 1_000_000_000,
+  GRADUATION_APT: 1283, // APT raised at which a token graduates off the curve
 };
 
 // Returns price in APT per whole token at a given tokens_sold value (whole tokens)

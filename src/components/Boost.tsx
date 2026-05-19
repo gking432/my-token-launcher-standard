@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import AppHeader from './AppHeader';
+import PageShell from './PageShell';
 import { useTokenData } from '../hooks/useTokenData';
 import { useBoostData, addBoost, BOOST_WINDOWS, BoostWindow } from '../data/useBoostStore';
 
@@ -376,8 +376,7 @@ const Boost: React.FC = () => {
       `}</style>
 
       <div className="bp-page">
-        <AppHeader />
-
+        <PageShell>
         <div className="bp-wrap">
           <div className="bp-hero">
             <div>
@@ -530,6 +529,7 @@ const Boost: React.FC = () => {
         </div>
 
         {toast && <div className="bp-toast">{toast}</div>}
+        </PageShell>
       </div>
     </>
   );

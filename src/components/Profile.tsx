@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Link, useParams } from 'react-router-dom';
-import AppHeader from './AppHeader';
+import PageShell from './PageShell';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
@@ -211,8 +211,7 @@ const Profile: React.FC = () => {
       `}</style>
 
       <div className="pf-page">
-        <AppHeader />
-
+        <PageShell>
         <div className="pf-wrap">
           {!viewingAddress ? (
             <div className="pf-empty">
@@ -309,6 +308,7 @@ const Profile: React.FC = () => {
             </>
           )}
         </div>
+        </PageShell>
       </div>
     </>
   );

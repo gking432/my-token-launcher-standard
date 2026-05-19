@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import AppHeader from './AppHeader';
+import PageShell from './PageShell';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
@@ -11,7 +11,7 @@ import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
-import { priceAtAPT } from '../lib/bondingCurve';
+import { priceAtAPT, BONDING_CURVE } from '../lib/bondingCurve';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
@@ -1200,6 +1200,40 @@ const TokenPage: React.FC = () => {
 
         .tp-tab-panel { padding: 20px 0; }
 
+        /* Graduation progress */
+        .tp-grad-card {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 14px; padding: 18px 20px; margin-bottom: 14px;
+        }
+        .tp-grad-header {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 12px; margin-bottom: 12px;
+        }
+        .tp-grad-title {
+          font-size: 13px; font-weight: 700; color: var(--text-primary);
+          margin-bottom: 4px;
+        }
+        .tp-grad-sub {
+          font-size: 12.5px; color: var(--text-muted); font-weight: 500;
+        }
+        .tp-grad-pct {
+          font-size: 22px; font-weight: 800; color: var(--accent);
+          font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+        }
+        .tp-grad-bar {
+          height: 10px; border-radius: 999px;
+          background: var(--bg-tertiary); overflow: hidden;
+        }
+        .tp-grad-bar-fill {
+          height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+          border-radius: 999px; transition: width 0.4s ease;
+        }
+        .tp-grad-meta {
+          display: flex; justify-content: space-between;
+          font-size: 12px; color: var(--text-muted);
+          font-variant-numeric: tabular-nums; margin-top: 8px; font-weight: 500;
+        }
+
         /* Insights grid */
         .tp-insight-grid {
           display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
@@ -1380,8 +1414,7 @@ const TokenPage: React.FC = () => {
       `}</style>
 
       <div className="tp-page">
-        <AppHeader />
-
+        <PageShell>
         {/* ── JUST LAUNCHED BANNER ── */}
         {justLaunched && (
           <div className="tp-banner">
@@ -1524,7 +1557,35 @@ const TokenPage: React.FC = () => {
 
               <div className="tp-tab-panel">
                 {/* ── INSIGHTS ── */}
-                {activeInsightTab === 'insights' && (
+                {activeInsightTab === 'insights' && (() => {
+                  const aptRaisedNum = aptRaised ? aptRaised / 1e8 : 0;
+                  const gradPct = Math.min(100, (aptRaisedNum / BONDING_CURVE.GRADUATION_APT) * 100);
+                  const aptToGo = Math.max(0, BONDING_CURVE.GRADUATION_APT - aptRaisedNum);
+                  const tokensSold = tokenData?.tokensSold ?? 0;
+                  const curvePct = Math.min(100, (tokensSold / BONDING_CURVE.MAX_TOKENS) * 100);
+                  return (
+                  <>
+                  <div className="tp-grad-card">
+                    <div className="tp-grad-header">
+                      <div>
+                        <div className="tp-grad-title">Graduation progress</div>
+                        <div className="tp-grad-sub">
+                          {gradPct >= 100
+                            ? 'Graduated · all supply unlocked'
+                            : `${aptToGo.toFixed(2)} APT until this token graduates`}
+                        </div>
+                      </div>
+                      <div className="tp-grad-pct">{gradPct.toFixed(1)}%</div>
+                    </div>
+                    <div className="tp-grad-bar">
+                      <div className="tp-grad-bar-fill" style={{ width: `${gradPct}%` }} />
+                    </div>
+                    <div className="tp-grad-meta">
+                      <span>{aptRaisedNum.toFixed(2)} APT raised</span>
+                      <span>{BONDING_CURVE.GRADUATION_APT} APT target</span>
+                    </div>
+                  </div>
+
                   <div className="tp-insight-grid">
                     <div className="tp-insight-card">
                       <div className="tp-insight-label">Price (USD)</div>
@@ -1539,10 +1600,6 @@ const TokenPage: React.FC = () => {
                       <div className="tp-insight-value">{formatLargeNumber(tokenData?.marketCapUSD)}</div>
                     </div>
                     <div className="tp-insight-card">
-                      <div className="tp-insight-label">APT raised</div>
-                      <div className="tp-insight-value">{aptRaised ? `${(aptRaised / 1e8).toFixed(4)} APT` : '—'}</div>
-                    </div>
-                    <div className="tp-insight-card">
                       <div className="tp-insight-label">Holders</div>
                       <div className="tp-insight-value">{holderCount ?? '—'}</div>
                     </div>
@@ -1555,8 +1612,22 @@ const TokenPage: React.FC = () => {
                         {tokenData?.change24h != null ? `${tokenData.change24h >= 0 ? '+' : ''}${tokenData.change24h.toFixed(2)}%` : '—'}
                       </div>
                     </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Curve sold</div>
+                      <div className="tp-insight-value">{curvePct.toFixed(2)}%</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Tokens sold</div>
+                      <div className="tp-insight-value">{formatLargeNumber(tokensSold)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Total supply</div>
+                      <div className="tp-insight-value">{formatLargeNumber(BONDING_CURVE.TOTAL_SUPPLY)}</div>
+                    </div>
                   </div>
-                )}
+                  </>
+                  );
+                })()}
 
                 {/* ── TRANSACTIONS ── */}
                 {activeInsightTab === 'transactions' && (
@@ -1754,9 +1825,13 @@ const TokenPage: React.FC = () => {
                 {tokenDetails?.creatorAddress && (
                   <div className="tp-info-row">
                     <span className="tp-info-key">Creator</span>
-                    <span className="tp-info-val" style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+                    <Link
+                      to={`/profile/${tokenDetails.creatorAddress}`}
+                      className="tp-info-val"
+                      style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
+                    >
                       {truncateAddress(tokenDetails.creatorAddress)}
-                    </span>
+                    </Link>
                   </div>
                 )}
                 {tokenDetails?.creationDate && (
@@ -1787,6 +1862,7 @@ const TokenPage: React.FC = () => {
             </div>
           </div>
         </main>
+        </PageShell>
       </div>
     </>
   );

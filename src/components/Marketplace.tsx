@@ -6,7 +6,7 @@ import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
-import AppHeader from './AppHeader';
+import PageShell from './PageShell';
 import TokenAvatar from './TokenAvatar';
 
 type SortKey = 'newest' | 'price' | 'change' | 'mc';
@@ -316,8 +316,7 @@ const Marketplace: React.FC = () => {
       `}</style>
 
       <div className="mp-page">
-        <AppHeader />
-
+        <PageShell>
         <main className="mp-main">
           <div className="mp-page-head">
             <div>
@@ -561,6 +560,7 @@ const Marketplace: React.FC = () => {
           {' · '}
           <Link to="/about" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>About</Link>
         </footer>
+        </PageShell>
       </div>
     </>
   );

@@ -1,35 +1,79 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTokenData } from '../hooks/useTokenData';
 import BoostBar from './BoostBar';
+import TokenAvatar from './TokenAvatar';
 import { truncateAddress } from '../utils/format';
 
-const AppHeader: React.FC = () => {
+interface AppHeaderProps {
+  hideNav?: boolean;
+}
+
+const AppHeader: React.FC<AppHeaderProps> = ({ hideNav = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { account, connect, disconnect, wallets } = useWallet();
+  const { tokens } = useTokenData();
   const navigate = useNavigate();
 
   const [walletOpen, setWalletOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchIndex, setSearchIndex] = useState(0);
   const [copied, setCopied] = useState(false);
 
   const walletRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (walletRef.current && !walletRef.current.contains(e.target as Node)) {
         setWalletOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const matches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase().replace(/^\$/, '');
+    if (!q) return [];
+    return tokens
+      .filter(t => {
+        const sym = (t.symbol || '').toLowerCase().replace(/^\$/, '');
+        const name = (t.name || '').toLowerCase();
+        return sym.includes(q) || name.includes(q);
+      })
+      .slice(0, 8);
+  }, [searchQuery, tokens]);
+
+  useEffect(() => { setSearchIndex(0); }, [searchQuery]);
+
+  const gotoToken = (addr: string) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    navigate(`/newtoken/${addr}`);
+  };
+
   const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      navigate(`/marketplace?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
+    if (matches.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchIndex(i => Math.min(i + 1, matches.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const picked = matches[searchIndex];
+      const addr = picked.metadataAddress || picked.txHash;
+      if (addr) gotoToken(addr);
+    } else if (e.key === 'Escape') {
+      setSearchOpen(false);
     }
   };
 
@@ -84,6 +128,39 @@ const AppHeader: React.FC = () => {
           position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
           color: var(--text-muted); font-size: 13px; pointer-events: none;
           line-height: 1;
+        }
+        .ah-search-pop {
+          position: absolute; top: calc(100% + 6px); left: 0;
+          width: 320px; max-height: 380px; overflow-y: auto;
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 12px;
+          box-shadow: 0 12px 32px ${isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.12)'};
+          padding: 6px; z-index: 300;
+        }
+        .ah-search-empty {
+          padding: 16px 12px; color: var(--text-muted);
+          font-size: 13px; text-align: center;
+        }
+        .ah-search-item {
+          display: flex; align-items: center; gap: 10px;
+          width: 100%; padding: 8px 10px; border-radius: 9px;
+          background: none; border: none; cursor: pointer;
+          font-family: inherit; text-align: left;
+          transition: background 0.1s;
+        }
+        .ah-search-item.active, .ah-search-item:hover { background: var(--bg-secondary); }
+        .ah-search-icon-img {
+          width: 32px; height: 32px; border-radius: 8px;
+          flex-shrink: 0; font-size: 13px; color: var(--text-secondary);
+          font-weight: 700;
+        }
+        .ah-search-meta { min-width: 0; flex: 1; }
+        .ah-search-name {
+          font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ah-search-sym {
+          font-size: 12px; color: var(--text-muted); font-weight: 600;
         }
         .ah-links {
           display: flex; gap: 2px; list-style: none; margin: 0; padding: 0;
@@ -174,7 +251,11 @@ const AppHeader: React.FC = () => {
           font-family: inherit;
         }
         .ah-theme-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        @media (max-width: 900px) { .ah-links { display: none; } }
+        .ah-links-mobile-only { display: none; }
+        @media (max-width: 900px) {
+          .ah-links { display: none; }
+          .ah-links-mobile-only { display: flex; }
+        }
         @media (max-width: 680px) {
           .ah-search { width: 140px; }
           .ah-search:focus { width: 180px; }
@@ -191,19 +272,50 @@ const AppHeader: React.FC = () => {
 
           <div className="ah-spacer" />
 
-          <div className="ah-search-wrap">
+          <div className="ah-search-wrap" ref={searchRef}>
             <span className="ah-search-icon">&#9906;</span>
             <input
               type="text"
               className="ah-search"
               placeholder="Search tokens…"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
               onKeyDown={handleSearchKey}
             />
+            {searchOpen && searchQuery.trim() && (
+              <div className="ah-search-pop">
+                {matches.length === 0 ? (
+                  <div className="ah-search-empty">No tokens match "{searchQuery}"</div>
+                ) : (
+                  matches.map((t, i) => {
+                    const addr = t.metadataAddress || t.txHash;
+                    return (
+                      <button
+                        key={addr}
+                        className={`ah-search-item${i === searchIndex ? ' active' : ''}`}
+                        onMouseEnter={() => setSearchIndex(i)}
+                        onClick={() => addr && gotoToken(addr)}
+                      >
+                        <TokenAvatar
+                          image={t.image}
+                          symbol={t.symbol}
+                          className="ah-search-icon-img"
+                          background="var(--bg-tertiary)"
+                        />
+                        <div className="ah-search-meta">
+                          <div className="ah-search-name">{t.name}</div>
+                          <div className="ah-search-sym">{t.symbol.startsWith('$') ? t.symbol : `$${t.symbol}`}</div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
 
-          <ul className="ah-links">
+          <ul className={`ah-links${hideNav ? ' ah-links-mobile-only' : ''}`}>
             <li><Link to="/marketplace">Marketplace</Link></li>
             <li><Link to="/boost" className="ah-link-boost">Boost</Link></li>
             <li><Link to="/launch">Launch</Link></li>
