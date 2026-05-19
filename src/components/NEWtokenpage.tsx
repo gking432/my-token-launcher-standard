@@ -1746,7 +1746,6 @@ const TokenPage: React.FC = () => {
                           <th className="tp-tx-th">Type</th>
                           <th className="tp-tx-th">Amount</th>
                           <th className="tp-tx-th">APT</th>
-                          <th className="tp-tx-th">Price</th>
                           <th className="tp-tx-th">Time</th>
                         </tr>
                       </thead>
@@ -1754,6 +1753,11 @@ const TokenPage: React.FC = () => {
                         {recentTrades.slice(0, 50).map((trade, i) => {
                           const isBuy = trade.type === 'buy';
                           const isYou = trade.wallet?.toLowerCase() === account?.address?.toString().toLowerCase();
+                          // Contract events store pre-fee curve value. Adjust to show what
+                          // the user actually paid (buys: +1% fee) or received (sells: -1% fee).
+                          const adjustedApt = isBuy
+                            ? trade.aptValue * 1.01
+                            : trade.aptValue * 0.99;
                           return (
                             <tr key={i}>
                               <td className="tp-tx-td" style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 700 }}>
@@ -1761,12 +1765,7 @@ const TokenPage: React.FC = () => {
                                 {isYou && <span className="tp-tx-you">YOU</span>}
                               </td>
                               <td className="tp-tx-td">{Number(trade.amount).toLocaleString()}</td>
-                              <td className="tp-tx-td">{trade.aptValue.toFixed(4)} APT</td>
-                              <td className="tp-tx-td">
-                                {aptPrice && trade.tokensSoldAfter != null
-                                  ? formatPrice(priceAtAPT(trade.tokensSoldAfter) * aptPrice)
-                                  : '—'}
-                              </td>
+                              <td className="tp-tx-td">{adjustedApt.toFixed(4)} APT</td>
                               <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{timeAgo(trade.timestampMs)}</td>
                             </tr>
                           );
@@ -1788,7 +1787,6 @@ const TokenPage: React.FC = () => {
                     .filter(([, bal]) => bal > 0)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 100);
-                  const totalTokens = sorted.reduce((s, [, b]) => s + b, 0);
                   return sorted.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>
                       No holder data yet
@@ -1806,7 +1804,7 @@ const TokenPage: React.FC = () => {
                       <tbody>
                         {sorted.map(([wallet, bal], i) => {
                           const isYou = wallet === account?.address?.toString().toLowerCase();
-                          const pct = totalTokens > 0 ? ((bal / totalTokens) * 100).toFixed(2) : '—';
+                          const pct = ((bal / 1_000_000_000) * 100).toFixed(2);
                           return (
                             <tr key={wallet}>
                               <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
