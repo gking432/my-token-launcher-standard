@@ -134,6 +134,7 @@ struct DebugEvent has drop, store {
     extend_ref: ExtendRef,
     resource_signer_cap: account::SignerCapability, // Added
     apt_amount: u64,
+    treasury_address: address,
     graduation_events: event::EventHandle<TokenGraduatedEvent>
 }
 
@@ -280,6 +281,7 @@ struct DebugEvent has drop, store {
 
 public entry fun register_resource_account(admin: &signer) {
     let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
+    assert!(signer::address_of(admin) == module_addr, E_NOT_ADMIN);
     let resource_addr = account::create_resource_address(&module_addr, b"token_launcher");
     if (!coin::is_account_registered<AptosCoin>(resource_addr)) {
         coin::register<AptosCoin>(admin); // Admin registers it
@@ -290,6 +292,7 @@ public entry fun register_resource_account(admin: &signer) {
 
 public entry fun initialize(admin: &signer) {
     let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
+    assert!(signer::address_of(admin) == module_addr, E_NOT_ADMIN);
     if (!exists<ModuleState>(module_addr)) {
         let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"token_launcher");
         let resource_addr = signer::address_of(&resource_signer);
@@ -304,6 +307,7 @@ public entry fun initialize(admin: &signer) {
             extend_ref: object::generate_extend_ref(&object::create_object(resource_addr)),
             resource_signer_cap,
             apt_amount: 0,
+            treasury_address: PLATFORM_TREASURY_ADDRESS,
             graduation_events: account::new_event_handle<TokenGraduatedEvent>(&resource_signer)
         });
     };
@@ -324,6 +328,16 @@ public entry fun initialize(admin: &signer) {
         module_state.liquidity_contribution_bps = new_contribution_bps;
     }
 
+    public entry fun set_treasury_address(
+        admin: &signer,
+        new_treasury: address
+    ) acquires ModuleState {
+        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
+        assert!(signer::address_of(admin) == module_addr, E_NOT_ADMIN);
+        let state = borrow_global_mut<ModuleState>(module_addr);
+        state.treasury_address = new_treasury;
+    }
+
     public entry fun pre_initialize_vault(_account: &signer, _ticker: vector<u8>) {
     }
 
@@ -335,17 +349,16 @@ public entry fun initialize(admin: &signer) {
     total_supply: u64
 ) acquires ModuleState, TokenCounter {
     let creator_addr = signer::address_of(creator);
-    
-    // Launch fee collection
-    let creator_balance = coin::balance<AptosCoin>(creator_addr);
-    assert!(creator_balance >= LAUNCH_FEE_APT, E_INSUFFICIENT_LAUNCH_FEE);
-    
-    // Transfer launch fee to platform treasury
-    coin::transfer<AptosCoin>(creator, PLATFORM_TREASURY_ADDRESS, LAUNCH_FEE_APT);
-    
     let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     let state = borrow_global_mut<ModuleState>(module_addr);
     let counter = borrow_global_mut<TokenCounter>(module_addr);
+
+    // Launch fee collection
+    let creator_balance = coin::balance<AptosCoin>(creator_addr);
+    assert!(creator_balance >= LAUNCH_FEE_APT, E_INSUFFICIENT_LAUNCH_FEE);
+
+    // Transfer launch fee to platform treasury
+    coin::transfer<AptosCoin>(creator, state.treasury_address, LAUNCH_FEE_APT);
     counter.count = counter.count + 1;
 
     // Check for ticker conflict
@@ -549,7 +562,7 @@ public entry fun buy_tokens(
 
     // Distribute fees
     let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, platform_fee as u64);
+    coin::transfer<AptosCoin>(&resource_signer, state.treasury_address, platform_fee as u64);
     coin::transfer<AptosCoin>(&resource_signer, creator_addr, creator_fee as u64);
 
     // Update vault state
@@ -591,7 +604,7 @@ public entry fun buy_tokens(
         
         // Pay graduation fees
         let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-        coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, GRADUATION_PLATFORM_FEE_APT);
+        coin::transfer<AptosCoin>(&resource_signer, state.treasury_address, GRADUATION_PLATFORM_FEE_APT);
         coin::transfer<AptosCoin>(&resource_signer, creator_addr, GRADUATION_CREATOR_FEE_APT);
         
         // Allocate tokens during graduation
@@ -746,7 +759,7 @@ public entry fun sell_tokens(
 
     // Distribute fees first
     let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
-    coin::transfer<AptosCoin>(&resource_signer, PLATFORM_TREASURY_ADDRESS, platform_fee as u64);
+    coin::transfer<AptosCoin>(&resource_signer, state.treasury_address, platform_fee as u64);
     coin::transfer<AptosCoin>(&resource_signer, creator_addr, creator_fee as u64);
 
     // Seller gets remaining amount
@@ -770,20 +783,6 @@ struct TokenGraduatedEvent has drop, store {
     metadata_addr: address,
     market_cap_at_graduation: u64,
     timestamp: u64,
-}
-
-public entry fun withdraw_apt(admin: &signer, amount: u64) acquires ModuleState {
-    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
-    let admin_addr = signer::address_of(admin);
-    assert!(admin_addr == module_addr, E_NOT_ADMIN);
-    let state = borrow_global_mut<ModuleState>(module_addr);
-    let resource_addr = object::address_from_extend_ref(&state.extend_ref); // Get resource account address
-    assert!(state.apt_amount >= amount, E_INSUFFICIENT_APT);
-    let actual_balance = coin::balance<AptosCoin>(resource_addr); // Check resource account balance
-    assert!(actual_balance >= amount, E_INSUFFICIENT_APT);
-    let module_signer = object::generate_signer_for_extending(&state.extend_ref);
-    coin::transfer<AptosCoin>(&module_signer, admin_addr, amount); // Withdraw from resource account to admin
-    state.apt_amount = state.apt_amount - amount;
 }
 
     public entry fun create_liquidity_pool(

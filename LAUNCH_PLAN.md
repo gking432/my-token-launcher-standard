@@ -10,6 +10,21 @@ ordering, dependencies, and decision gates.
 
 ---
 
+## ⚠️ The contract must be correct before mainnet — there is no undo
+
+Unlike a web app, a smart contract deployed to mainnet cannot be patched like pushing a hotfix. Changing it requires publishing a new version of the code to the same address (an "upgrade"), which works fine if you planned for it — but every change to live code carries risk, requires the upgrade key, and must not break the compatibility rules. A mistake that locks funds, or a bug that drains the vault, cannot be reversed. User funds can be permanently lost.
+
+**What this means in practice:**
+
+- Do not deploy to mainnet until Phases 1–5 are complete and the external audit (Phase 4) has returned a clean result. The audit exists precisely to catch what we miss.
+- Every contract change gets compiled, unit-tested, and end-to-end tested on a fresh testnet deploy before it is considered done (Phase 3).
+- The upgrade/deploy key must be held on a hardware wallet or multisig before mainnet — if that key is lost or compromised, the ability to push any future fix is gone.
+- "Ship it and fix it later" is not an option when "later" means a published upgrade to a live system that holds real user funds.
+
+This is why the plan exists and why the sequence matters.
+
+---
+
 ## Decisions
 
 ### Locked ✅
@@ -48,14 +63,15 @@ The contract design must be **frozen** at the end of this phase so legal and aud
 begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
 
 **1a. Custody & safety** *(also unblocks the legal posture)*
-- [ ] Remove `withdraw_apt`, or restrict it so it can never touch live bonding-curve
-      reserves (gate behind Decision: treasury/admin custody + a strict cap on
-      graduated-pool proceeds only).
-      *This is the single highest-leverage change — security AND the money-transmitter
-      argument both hinge on it.*
-- [ ] Make `PLATFORM_TREASURY_ADDRESS` a mutable `ModuleState` field with an
-      admin-only setter (timelocked).
-- [ ] Add admin checks to `initialize` and `register_resource_account`.
+- [x] Remove `withdraw_apt` entirely — no one, including the admin, can manually pull
+      APT from the vault. The only way funds leave is through coded sell/graduation paths.
+- [x] Make `PLATFORM_TREASURY_ADDRESS` a mutable `ModuleState` field (`treasury_address`)
+      initialized to the existing constant. Add `set_treasury_address(admin, new_addr)`
+      entry function (admin-only). All four fee-transfer sites now read from
+      `state.treasury_address` at runtime.
+      *Note: no timelock on the setter yet — flagged as optional hardening before mainnet.*
+- [x] Add admin checks to `initialize` and `register_resource_account`.
+      *(All three items coded on branch; pending compile + testnet verification.)*
 
 **1b. Correctness**
 - [ ] Unify the bonding-curve price formula into one shared function. Delete the
