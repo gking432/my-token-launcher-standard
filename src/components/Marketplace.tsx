@@ -6,7 +6,6 @@ import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useBoostData, BOOST_WINDOWS } from '../data/useBoostStore';
 import PageShell from './PageShell';
 import TokenAvatar from './TokenAvatar';
 
@@ -72,21 +71,6 @@ const Marketplace: React.FC = () => {
     });
   }, [catalogTokens, liveByAddr, aptPrice]);
 
-  const boostMap = useBoostData(BOOST_WINDOWS['24h']);
-  const boostedLeader = useMemo(() => {
-    let topAddr: string | null = null;
-    let topApt = 0;
-    for (const [addr, apt] of Object.entries(boostMap)) {
-      if (apt > topApt) { topApt = apt; topAddr = addr; }
-    }
-    if (!topAddr) return null;
-    const t = rawTokens.find(rt => (rt.metadataAddress || rt.txHash || '').toLowerCase() === topAddr);
-    return t ? { token: t, apt: topApt } : null;
-  }, [boostMap, rawTokens]);
-  const boostedLeaderAddr = boostedLeader
-    ? (boostedLeader.token.metadataAddress || boostedLeader.token.txHash || '').toLowerCase()
-    : null;
-
   const tokens = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = q
@@ -94,10 +78,7 @@ const Marketplace: React.FC = () => {
           t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q)
         )
       : rawTokens;
-    const withoutBoosted = boostedLeaderAddr
-      ? filtered.filter(t => (t.metadataAddress || t.txHash || '').toLowerCase() !== boostedLeaderAddr)
-      : filtered;
-    return [...withoutBoosted].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
         case 'newest': cmp = new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime(); break;
@@ -107,7 +88,7 @@ const Marketplace: React.FC = () => {
       }
       return sortDir === 'asc' ? -cmp : cmp;
     });
-  }, [rawTokens, searchQuery, sortKey, sortDir, boostedLeaderAddr]);
+  }, [rawTokens, searchQuery, sortKey, sortDir]);
 
   const formatPrice = (n: number) => {
     if (n < 0.0001) return `$${n.toFixed(8)}`;
@@ -242,31 +223,6 @@ const Marketplace: React.FC = () => {
         }
         .mp-table tbody tr:last-child { border-bottom: none; }
         .mp-table tbody tr:hover { background: var(--bg-hover); }
-        .mp-boosted-row {
-          background: linear-gradient(90deg, var(--boost-light) 0%, transparent 60%);
-          border-left: 3px solid var(--boost);
-        }
-        .mp-boosted-row:hover { background: linear-gradient(90deg, var(--boost-light) 0%, var(--bg-hover) 70%) !important; }
-        .mp-boosted-tag {
-          display: inline-block; margin-left: 8px;
-          background: var(--boost); color: #fff;
-          font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em;
-          padding: 2px 6px; border-radius: 4px; vertical-align: middle;
-          text-transform: uppercase;
-        }
-        .mp-card-boosted {
-          position: relative;
-          border-color: var(--boost) !important;
-          box-shadow: 0 0 0 1px var(--boost), 0 6px 20px rgba(234,88,12,0.18);
-        }
-        .mp-card-boosted-tag {
-          position: absolute; top: -10px; left: 16px;
-          background: var(--boost); color: #fff;
-          font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em;
-          padding: 3px 10px; border-radius: 6px;
-          text-transform: uppercase;
-          box-shadow: 0 2px 8px rgba(234,88,12,0.4);
-        }
         .mp-td { padding: 14px 18px; vertical-align: middle; }
         .mp-td-rank { font-size: 13px; font-weight: 600; color: var(--text-muted); width: 48px; text-align: center; }
         .mp-token-cell { display: flex; align-items: center; gap: 13px; min-width: 0; }
@@ -493,71 +449,6 @@ const Marketplace: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {boostedLeader && !loading && (() => {
-                    const token = boostedLeader.token;
-                    const change = token.change24h;
-                    const changeColor = change == null
-                      ? 'var(--text-muted)'
-                      : change >= 0 ? 'var(--positive)' : 'var(--negative)';
-                    const starred = !!(token.metadataAddress || token.txHash) &&
-                      isInWatchlist(token.metadataAddress || token.txHash);
-                    return (
-                      <tr className="mp-boosted-row" onClick={() => handleTradeClick(token)}>
-                        <td className="mp-td mp-td-rank" title={`${boostedLeader.apt.toFixed(2)} APT boosted (24h)`}>
-                          <span style={{ color: 'var(--boost)', fontWeight: 800, fontSize: 13 }}>↑1</span>
-                        </td>
-                        <td className="mp-td">
-                          <div className="mp-token-cell">
-                            <TokenAvatar
-                              image={token.image}
-                              symbol={token.symbol}
-                              className="mp-token-icon"
-                              background={getIconBg(token.symbol)}
-                            />
-                            <div style={{ minWidth: 0 }}>
-                              <div className="mp-token-name">
-                                {token.name}
-                                <span className="mp-boosted-tag">BOOSTED</span>
-                              </div>
-                              <div className="mp-token-sym">{symbolWithDollar(token.symbol)}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="mp-td mp-td-price">{priceLabel(token)}</td>
-                        <td className="mp-td mp-td-change" style={{ color: changeColor }}>
-                          {change == null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`}
-                        </td>
-                        <td className="mp-td mp-td-mc">
-                          {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
-                        </td>
-                        <td className="mp-td">
-                          <div className="mp-td-actions">
-                            <Link
-                              to={`/boost?token=${token.metadataAddress || token.txHash}`}
-                              className="mp-boost-btn"
-                              onClick={e => e.stopPropagation()}
-                              title="Overtake this boost"
-                            >
-                              Overtake
-                            </Link>
-                            <button
-                              className="mp-trade-btn"
-                              onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
-                            >
-                              Trade
-                            </button>
-                            <button
-                              className={`mp-star-btn${starred ? ' starred' : ''}`}
-                              onClick={e => handleStarClick(token, e)}
-                              title={starred ? 'Remove from watchlist' : 'Add to watchlist'}
-                            >
-                              {starred ? '★' : '☆'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })()}
                   {loading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <tr key={`skel-${i}`} className="mp-skel-row">
@@ -717,58 +608,6 @@ const Marketplace: React.FC = () => {
               </div>
             ) : (
               <div className="mp-grid">
-                {boostedLeader && (() => {
-                  const token = boostedLeader.token;
-                  const change = token.change24h;
-                  const isPos = change == null || change >= 0;
-                  const changeColor = change == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
-                  const changeBg = change == null
-                    ? 'var(--bg-secondary)'
-                    : isPos
-                      ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.10)')
-                      : (isDark ? 'rgba(215,0,21,0.15)' : 'rgba(215,0,21,0.08)');
-                  const starred = !!(token.metadataAddress || token.txHash) &&
-                    isInWatchlist(token.metadataAddress || token.txHash);
-                  return (
-                    <div className="mp-card mp-card-boosted" onClick={() => handleTradeClick(token)}>
-                      <div className="mp-card-boosted-tag">BOOSTED · {boostedLeader.apt.toFixed(2)} APT</div>
-                      <div className="mp-card-head">
-                        <div className="mp-card-identity">
-                          <TokenAvatar image={token.image} symbol={token.symbol} className="mp-card-icon" background={getIconBg(token.symbol)} />
-                          <div style={{ minWidth: 0 }}>
-                            <div className="mp-card-name">{token.name}</div>
-                            <div className="mp-card-sym">{symbolWithDollar(token.symbol)}</div>
-                          </div>
-                        </div>
-                        <span className="mp-card-badge" style={{ color: changeColor, background: changeBg }}>
-                          {change == null ? 'New' : `${isPos ? '+' : ''}${change.toFixed(2)}%`}
-                        </span>
-                      </div>
-                      <div className="mp-card-price">{priceLabel(token)}</div>
-                      <div className="mp-card-mc">
-                        MCap: {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
-                      </div>
-                      <div className="mp-card-footer">
-                        <Link
-                          to={`/boost?token=${token.metadataAddress || token.txHash}`}
-                          className="mp-boost-btn"
-                          onClick={e => e.stopPropagation()}
-                          title="Overtake this boost"
-                        >
-                          Overtake
-                        </Link>
-                        <button className="mp-card-trade" onClick={e => { e.stopPropagation(); handleTradeClick(token); }}>Trade</button>
-                        <button
-                          className={`mp-card-star${starred ? ' starred' : ''}`}
-                          onClick={e => handleStarClick(token, e)}
-                          title={starred ? 'Remove from watchlist' : 'Add to watchlist'}
-                        >
-                          {starred ? '★' : '☆'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
                 {tokens.map((token, i) => {
                   const change = token.change24h;
                   const isPos = change == null || change >= 0;
