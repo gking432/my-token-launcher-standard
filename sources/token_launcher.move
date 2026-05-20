@@ -14,12 +14,6 @@ module 0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d::token
     use aptos_framework::event;
     use aptos_framework::guid;
    
-   #[event]
-struct DebugState has copy, drop, store {
-    total_supply: u64,      // Match vault field type
-    remaining_supply: u64,  // Match vault field type
-    diff: u64,             // Match vault subtraction result
-}
     const E_PRICE_MISMATCH: u64 = 1014; // Use a unique number not used by other error codes
     const MODULE_ADDRESS: address = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
     const RESOURCE_ADDRESS: address = @0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5;
@@ -96,11 +90,6 @@ struct TokenSaleEvent has drop, store {
     tokens_sold: u128,
 }
 
-    #[event]
-struct DebugEvent has drop, store {
-    msg: vector<u8>,
-    value: u128, // Use u128 to handle minted_supply, remaining_supply, etc.
-}
     #[event]
    struct TokenCreatedEvent has drop, store {
     creator: address,
@@ -444,7 +433,6 @@ public entry fun buy_tokens(
     let resource_addr = @0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5;
     let token_metadata = table::borrow(&state.token_metadata, creator_addr);
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
-    event::emit(DebugEvent { msg: b"Metadata Addr Used", value: 0 });
     let vault = borrow_global_mut<TokenVault>(metadata_addr);
 
     // Prevent trading after graduation
@@ -457,8 +445,6 @@ public entry fun buy_tokens(
     let tokens_bought = amount;
     assert!(vault.remaining_supply >= tokens_bought * vault.decimals_factor, E_INSUFFICIENT_SUPPLY);
     assert!(tokens_bought <= 798_600_000, E_EXCEEDS_MAX_SALE);
-    event::emit(DebugEvent { msg: b"Tokens Bought", value: (tokens_bought as u128) });
-    event::emit(DebugEvent { msg: b"Decimals Factor", value: (vault.decimals_factor as u128) });
 
     let preminted_tokens = 200_000_000u64;
     let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 0 } else { ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens };
@@ -491,9 +477,6 @@ public entry fun buy_tokens(
     let total_cost = apt_cost + platform_fee + creator_fee;
     let total_cost_u64 = total_cost as u64;
     
-    event::emit(DebugEvent { msg: b"Platform Fee", value: platform_fee });
-    event::emit(DebugEvent { msg: b"Creator Fee", value: creator_fee });
-    event::emit(DebugEvent { msg: b"Total Cost", value: total_cost });
 
     // Transfer total cost (bonding curve + fees)
     coin::transfer<AptosCoin>(buyer, resource_addr, total_cost_u64);
@@ -602,8 +585,6 @@ public entry fun sell_tokens(
 
     let seller_store = get_or_create_token_store(seller, vault.metadata);
     let seller_balance = fungible_asset::balance(seller_store);
-    event::emit(DebugEvent { msg: b"Seller Balance", value: seller_balance as u128 });
-    event::emit(DebugEvent { msg: b"Amount to Burn", value: amount as u128 });
     assert!(seller_balance >= amount * vault.decimals_factor, E_INSUFFICIENT_LIQUIDITY);
 
     let preminted_tokens = 200_000_000u64;
@@ -639,13 +620,9 @@ public entry fun sell_tokens(
     let total_return = apt_out - platform_fee - creator_fee;
     let total_return_u64 = total_return as u64;
     
-    event::emit(DebugEvent { msg: b"Platform Fee", value: platform_fee });
-    event::emit(DebugEvent { msg: b"Creator Fee", value: creator_fee });
-    event::emit(DebugEvent { msg: b"Total Return", value: total_return });
 
     let actual_balance = coin::balance<AptosCoin>(resource_addr);
     state.apt_amount = actual_balance;
-    event::emit(DebugEvent { msg: b"Resource Balance", value: actual_balance as u128 });
     assert!(state.apt_amount >= apt_out_u64, E_INSUFFICIENT_APT);
 
     // Update vault state
