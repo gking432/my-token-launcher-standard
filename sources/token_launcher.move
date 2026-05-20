@@ -8,8 +8,7 @@ module 0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d::token
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::table;
-    use aptos_std::bcs;
- 
+
     use aptos_framework::account;
     use aptos_framework::timestamp;
     use aptos_framework::event;
@@ -129,8 +128,6 @@ struct DebugEvent has drop, store {
 
     struct ModuleState has key {
     token_metadata: table::Table<address, TokenMetadata>,
-    liquidity_pools: table::Table<vector<u8>, LiquidityPool>,
-    dex_pools: table::Table<vector<u8>, DexPool>,
     liquidity_contribution_bps: u64,
     extend_ref: ExtendRef,
     resource_signer_cap: account::SignerCapability, // Added
@@ -192,30 +189,6 @@ struct DebugEvent has drop, store {
     struct TokenMetadata has key, store {
         entries: vector<TokenMetadataEntry>,
         market_cap: u64
-    }
-
-    struct LiquidityPool has key, store {
-        token_metadata: Object<Metadata>,
-        token_store: Object<fungible_asset::FungibleStore>,
-        apt_amount: u64,
-        token_b_metadata: Object<Metadata>,
-        token_b_store: Object<fungible_asset::FungibleStore>,
-        token_b_amount: u64
-    }
-
-    struct DexPool has key, store {
-        token_metadata: Object<Metadata>,
-        token_store: Object<fungible_asset::FungibleStore>,
-        apt_amount: u64,
-        token_b_metadata: Object<Metadata>,
-        token_b_store: Object<fungible_asset::FungibleStore>,
-        token_b_amount: u64
-    }
-
-    fun create_pool_key(creator_addr: address, ticker: vector<u8>): vector<u8> {
-        let key = bcs::to_bytes(&creator_addr);
-        vector::append(&mut key, ticker);
-        key
     }
 
     // Get or create a token store for the owner, tracked in BuyerStore
@@ -301,8 +274,6 @@ public entry fun initialize(admin: &signer) {
         };
         move_to(admin, ModuleState {
             token_metadata: table::new(),
-            liquidity_pools: table::new(),
-            dex_pools: table::new(),
             liquidity_contribution_bps: 1000,
             extend_ref: object::generate_extend_ref(&object::create_object(resource_addr)),
             resource_signer_cap,
@@ -757,254 +728,6 @@ struct TokenGraduatedEvent has drop, store {
     market_cap_at_graduation: u64,
     timestamp: u64,
 }
-
-    public entry fun create_liquidity_pool(
-        creator: &signer,
-        token_a_ticker: vector<u8>,
-        token_b_ticker: vector<u8>,
-        token_a_amount: u64,
-        token_b_amount: u64
-    ) acquires ModuleState, BuyerStore {
-        let creator_addr = signer::address_of(creator);
-        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
-        let state = borrow_global_mut<ModuleState>(module_addr);
-        let token_metadata = table::borrow(&state.token_metadata, creator_addr);
-
-        let token_a_metadata_addr = find_metadata_addr(&token_metadata.entries, token_a_ticker);
-        let token_b_metadata_addr = find_metadata_addr(&token_metadata.entries, token_b_ticker);
-        let token_a_metadata = object::address_to_object<Metadata>(token_a_metadata_addr);
-        let token_b_metadata = object::address_to_object<Metadata>(token_b_metadata_addr);
-
-        let token_a_store = get_or_create_token_store(creator, token_a_metadata);
-        let token_b_store = get_or_create_token_store(creator, token_b_metadata);
-        let token_a_pool_store = get_or_create_token_store(creator, token_a_metadata);
-        let token_b_pool_store = get_or_create_token_store(creator, token_b_metadata);
-
-        assert!(fungible_asset::balance(token_a_store) >= token_a_amount, E_INSUFFICIENT_LIQUIDITY);
-        assert!(fungible_asset::balance(token_b_store) >= token_b_amount, E_INSUFFICIENT_LIQUIDITY);
-
-        fungible_asset::transfer(creator, token_a_store, token_a_pool_store, token_a_amount);
-        fungible_asset::transfer(creator, token_b_store, token_b_pool_store, token_b_amount);
-
-        let pool_key = create_pool_key(creator_addr, token_a_ticker);
-        table::add(&mut state.liquidity_pools, pool_key, LiquidityPool {
-            token_metadata: token_a_metadata,
-            token_store: token_a_pool_store,
-            apt_amount: 0,
-            token_b_metadata: token_b_metadata,
-            token_b_store: token_b_pool_store,
-            token_b_amount: token_b_amount
-        });
-    }
-
-    fun internal_swap<CoinType>(
-        trader: &signer,
-        creator_addr: address,
-        ticker: vector<u8>,
-        input_amount: u64,
-        min_output_amount: u64,
-        is_token_to_coin: bool
-    ) acquires ModuleState, BuyerStore {
-        let trader_addr = signer::address_of(trader);
-        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
-        let state = borrow_global_mut<ModuleState>(module_addr);
-        let token_metadata = table::borrow(&state.token_metadata, creator_addr);
-        let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
-
-        let pool_key = create_pool_key(creator_addr, ticker);
-
-        let is_liquidity_pool = table::contains(&state.liquidity_pools, pool_key);
-        let is_dex_pool = table::contains(&state.dex_pools, pool_key);
-        assert!(is_liquidity_pool || is_dex_pool, E_POOL_NOT_FOUND);
-
-        let output_amount: u128;
-        let trader_store: Object<fungible_asset::FungibleStore>;
-
-        if (is_liquidity_pool) {
-            let pool = table::borrow_mut(&mut state.liquidity_pools, pool_key);
-            assert!(object::object_address(&pool.token_metadata) == metadata_addr, E_METADATA_NOT_FOUND);
-
-            if (is_token_to_coin) {
-                let token_balance = fungible_asset::balance(pool.token_store);
-                let apt_balance = pool.apt_amount;
-                assert!(token_balance > 0 && apt_balance > 0, E_ZERO_DIVISION);
-                let k = (token_balance as u128) * (apt_balance as u128);
-                let new_token_balance = (token_balance as u128) + (input_amount as u128);
-                assert!(new_token_balance > 0, E_ZERO_DIVISION);
-                let new_apt_balance = k / new_token_balance;
-                output_amount = (apt_balance as u128) - new_apt_balance;
-
-                assert!(output_amount >= (min_output_amount as u128), E_SLIPPAGE_TOO_HIGH);
-
-                trader_store = get_or_create_token_store(trader, pool.token_metadata);
-
-                fungible_asset::transfer(trader, trader_store, pool.token_store, input_amount);
-
-                pool.apt_amount = (new_apt_balance as u64);
-                pool.token_b_amount = new_token_balance as u64;
-
-                coin::transfer<AptosCoin>(trader, trader_addr, (output_amount as u64));
-            } else {
-                let token_balance = fungible_asset::balance(pool.token_store);
-                let apt_balance = pool.apt_amount;
-                assert!(token_balance > 0 && apt_balance > 0, E_ZERO_DIVISION);
-                let k = (token_balance as u128) * (apt_balance as u128);
-                let new_apt_balance = (apt_balance as u128) + (input_amount as u128);
-                assert!(new_apt_balance > 0, E_ZERO_DIVISION);
-                let new_token_balance = k / new_apt_balance;
-                output_amount = (token_balance as u128) - new_token_balance;
-
-                assert!(output_amount >= (min_output_amount as u128), E_SLIPPAGE_TOO_HIGH);
-
-                trader_store = get_or_create_token_store(trader, pool.token_metadata);
-
-                pool.apt_amount = (new_apt_balance as u64);
-                pool.token_b_amount = new_token_balance as u64;
-
-                fungible_asset::transfer(trader, pool.token_store, trader_store, (output_amount as u64));
-            }
-        } else {
-            let pool = table::borrow_mut(&mut state.dex_pools, pool_key);
-            assert!(object::object_address(&pool.token_metadata) == metadata_addr, E_METADATA_NOT_FOUND);
-
-            if (is_token_to_coin) {
-                let token_balance = fungible_asset::balance(pool.token_store);
-                let apt_balance = pool.apt_amount;
-                assert!(token_balance > 0 && apt_balance > 0, E_ZERO_DIVISION);
-                let k = (token_balance as u128) * (apt_balance as u128);
-                let new_token_balance = (token_balance as u128) + (input_amount as u128);
-                assert!(new_token_balance > 0, E_ZERO_DIVISION);
-                let new_apt_balance = k / new_token_balance;
-                output_amount = (apt_balance as u128) - new_apt_balance;
-
-                assert!(output_amount >= (min_output_amount as u128), E_SLIPPAGE_TOO_HIGH);
-
-                trader_store = get_or_create_token_store(trader, pool.token_metadata);
-
-                fungible_asset::transfer(trader, trader_store, pool.token_store, input_amount);
-
-                pool.apt_amount = (new_apt_balance as u64);
-                pool.token_b_amount = new_token_balance as u64;
-
-                coin::transfer<AptosCoin>(trader, trader_addr, (output_amount as u64));
-            } else {
-                let token_balance = fungible_asset::balance(pool.token_store);
-                let apt_balance = pool.apt_amount;
-                assert!(token_balance > 0 && apt_balance > 0, E_ZERO_DIVISION);
-                let k = (token_balance as u128) * (apt_balance as u128);
-                let new_apt_balance = (apt_balance as u128) + (input_amount as u128);
-                assert!(new_apt_balance > 0, E_ZERO_DIVISION);
-                let new_token_balance = k / new_apt_balance;
-                output_amount = (token_balance as u128) - new_token_balance;
-
-                assert!(output_amount >= (min_output_amount as u128), E_SLIPPAGE_TOO_HIGH);
-
-                trader_store = get_or_create_token_store(trader, pool.token_metadata);
-
-                pool.apt_amount = (new_apt_balance as u64);
-                pool.token_b_amount = new_token_balance as u64;
-
-                fungible_asset::transfer(trader, pool.token_store, trader_store, (output_amount as u64));
-            }
-        };
-
-        // Track store in BuyerStore for backward compatibility
-        if (!exists<BuyerStore>(trader_addr)) {
-            move_to(trader, BuyerStore { stores: vector[TokenStoreEntry { metadata_addr, store: trader_store }] });
-        } else {
-            let buyer_store_ref = borrow_global_mut<BuyerStore>(trader_addr);
-            let i = 0;
-            let len = vector::length(&buyer_store_ref.stores);
-            let found = false;
-            while (i < len) {
-                let entry = vector::borrow_mut(&mut buyer_store_ref.stores, i);
-                if (entry.metadata_addr == metadata_addr) {
-                    entry.store = trader_store;
-                    found = true;
-                    break;
-                };
-                i = i + 1;
-            };
-            if (!found) {
-                vector::push_back(&mut buyer_store_ref.stores, TokenStoreEntry { metadata_addr, store: trader_store });
-            };
-        };
-    }
-
-    public entry fun swap_token_a_for_token_b(
-        trader: &signer,
-        creator_addr: address,
-        ticker: vector<u8>,
-        amount: u64,
-        min_output: u64
-    ) acquires ModuleState, BuyerStore {
-        internal_swap<AptosCoin>(trader, creator_addr, ticker, amount, min_output, true);
-    }
-
-    public entry fun swap_token_b_for_token_a(
-        trader: &signer,
-        creator_addr: address,
-        ticker: vector<u8>,
-        amount: u64,
-        min_output: u64
-    ) acquires ModuleState, BuyerStore {
-        internal_swap<AptosCoin>(trader, creator_addr, ticker, amount, min_output, false);
-    }
-
-    public entry fun migrate_to_dex(
-        creator: &signer,
-        ticker: vector<u8>
-    ) acquires ModuleState, TokenVault, BuyerStore {
-        let creator_addr = signer::address_of(creator);
-        let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
-        let state = borrow_global_mut<ModuleState>(module_addr);
-        let token_metadata = table::borrow(&state.token_metadata, creator_addr);
-        let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
-        let vault = borrow_global_mut<TokenVault>(metadata_addr);
-
-        assert!(vault.is_graduated, E_NOT_GRADUATED);
-
-        let pool_key = create_pool_key(creator_addr, ticker);
-        assert!(table::contains(&state.liquidity_pools, pool_key), E_POOL_NOT_FOUND);
-        let pool = table::borrow(&state.liquidity_pools, pool_key);
-        assert!(pool.apt_amount >= 1000000, E_INSUFFICIENT_LIQUIDITY);
-
-        let token_metadata_value = pool.token_metadata;
-        let apt_amount_value = pool.apt_amount + state.apt_amount; // Use ModuleState APT
-        let old_token_store = pool.token_store;
-        let old_token_b_store = pool.token_b_store;
-        let token_b_metadata_value = pool.token_b_metadata;
-        let token_b_amount_value = pool.token_b_amount;
-
-        let dex_token_store = get_or_create_token_store(creator, token_metadata_value);
-        let dex_token_b_store = get_or_create_token_store(creator, token_b_metadata_value);
-
-        let vault_signer = object::generate_signer_for_extending(&vault.extend_ref);
-        fungible_asset::mint_to(&vault.mint_ref, dex_token_store, vault.remaining_supply); // Mint remaining to DEX
-        coin::transfer<AptosCoin>(&vault_signer, module_addr, state.apt_amount);
-
-        let balance = fungible_asset::balance(old_token_store);
-        if (balance > 0) {
-            fungible_asset::transfer(creator, old_token_store, dex_token_store, balance);
-        };
-
-        let b_balance = fungible_asset::balance(old_token_b_store);
-        if (b_balance > 0) {
-            fungible_asset::transfer(creator, old_token_b_store, dex_token_b_store, b_balance);
-        };
-
-        let removed_pool = table::remove(&mut state.liquidity_pools, pool_key);
-        let LiquidityPool { token_metadata: _, token_store: _, apt_amount: _, token_b_metadata: _, token_b_store: _, token_b_amount: _ } = removed_pool;
-
-        table::add(&mut state.dex_pools, pool_key, DexPool {
-            token_metadata: token_metadata_value,
-            token_store: dex_token_store,
-            apt_amount: apt_amount_value,
-            token_b_metadata: token_b_metadata_value,
-            token_b_store: dex_token_b_store,
-            token_b_amount: token_b_amount_value
-        });
-    }
 
     fun find_metadata_addr(entries: &vector<TokenMetadataEntry>, ticker: vector<u8>): address {
         let i = 0;
