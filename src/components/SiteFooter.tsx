@@ -1,4 +1,6 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
+import { BOOST_ENABLED } from '../featureFlags';
 
 const SiteFooter: React.FC = () => (
   <>
@@ -72,7 +74,7 @@ const SiteFooter: React.FC = () => (
             <ul>
               <li><Link to="/marketplace">Marketplace</Link></li>
               <li><Link to="/launch">Launch a token</Link></li>
-              <li><Link to="/boost">Boost</Link></li>
+              {BOOST_ENABLED && <li><Link to="/boost">Boost</Link></li>}
             </ul>
           </div>
           <div className="mm-footer-section">

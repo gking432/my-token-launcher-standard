@@ -7,6 +7,7 @@ import { useWatchlist } from '../contexts/WatchlistContext';
 import BoostBar from './BoostBar';
 import TokenAvatar from './TokenAvatar';
 import { truncateAddress } from '../utils/format';
+import { BOOST_ENABLED } from '../featureFlags';
 
 interface AppHeaderProps {
   launchCta?: boolean;
@@ -562,7 +563,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           </div>{/* .ah-nav-right */}
         </div>
       </header>
-      {!hideBoostBar && <BoostBar />}
+      {BOOST_ENABLED && !hideBoostBar && <BoostBar />}
 
       {mobileOpen && (
         <>
@@ -582,7 +583,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <nav className="ah-mobile-nav">
               <Link to="/"            onClick={() => setMobileOpen(false)}>Home</Link>
               <Link to="/marketplace" onClick={() => setMobileOpen(false)}>Marketplace</Link>
-              <Link to="/boost"       onClick={() => setMobileOpen(false)} className="boost">Boost</Link>
+              {BOOST_ENABLED && <Link to="/boost" onClick={() => setMobileOpen(false)} className="boost">Boost</Link>}
               <Link to="/launch"      onClick={() => setMobileOpen(false)}>Launch</Link>
               <Link to="/about"       onClick={() => setMobileOpen(false)}>About</Link>
               {account && (

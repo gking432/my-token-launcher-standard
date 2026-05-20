@@ -1,85 +1,63 @@
 # MoveMint — Path to Mainnet Launch
 
-This is the execution plan that ties together the three workstreams we've discussed:
-the **audit checklist** (`AUDIT_CHECKLIST.md`), the **graduation fix**, and the broader
-**contract changes**. It sequences everything from "where we are now" (polished testnet
-prototype) to "live on mainnet with real APT."
+This is the execution plan that ties together the three workstreams: the **audit checklist**
+(`AUDIT_CHECKLIST.md`), the **graduation fix**, and the broader **contract changes**. It
+sequences everything from "where we are now" (polished testnet prototype) to "live on
+mainnet with real APT."
 
 Read `AUDIT_CHECKLIST.md` for the detailed per-issue breakdown; this document is the
 ordering, dependencies, and decision gates.
 
 ---
 
-## Decisions needed before engineering starts
+## Decisions
 
-These shape the whole plan. Resolve these first.
+### Locked ✅
 
-### Decision 1 — Which DEX model? (BLOCKING)
+| Decision | Resolution |
+|---|---|
+| **DEX model** | **External DEX (Option A).** Delete the homegrown AMM (`create_liquidity_pool`, `internal_swap`, `dex_pools`, etc.) entirely. |
+| **Graduation trigger** | **In-contract atomic (B1).** The threshold-crossing `buy_tokens` call seeds the DEX pool and locks LP in one transaction. No off-chain keeper, no client-side migration. |
 
-The codebase currently contains **two contradictory designs** for what happens after a
-token graduates:
+### Open ⬜
 
-| Option | What it is | In the code | Trade-off |
-|---|---|---|---|
-| **A. External DEX** (recommended) | At graduation, seed a pool on an established Aptos DEX (Hyperion, Liquidswap, Econia) and lock the LP | `src/utils/graduation.ts`, `src/hooks/useGraduation.ts` (Hyperion, currently mock) | Battle-tested AMM, far smaller audit surface, real liquidity/routing. Dependency on a third-party DEX + its SDK. |
-| **B. In-contract AMM** | Keep the homegrown constant-product AMM inside `token_launcher.move` | `create_liquidity_pool`, `internal_swap`, `dex_pools`, `migrate_to_dex` | No external dependency, but you now own and must audit a full AMM. `internal_swap` is currently buggy (self-transfer). Large audit + maintenance burden. |
+**Treasury/admin custody** — Decide before Phase 1a engineering starts. Affects how
+`withdraw_apt` is gated and who can rotate the treasury address. Recommended: 2-of-3
+multisig on a hardware wallet.
 
-**Recommendation: Option A (external DEX).** Maintaining your own AMM is a massive
-security liability for no benefit — real launchpads (pump.fun, etc.) migrate to an
-established DEX. Choosing A lets us *delete* the homegrown AMM code entirely, shrinking
-the contract and the audit scope.
-
-The rest of this plan assumes Option A. If you pick B, Phase 2 changes substantially.
-
-### Decision 2 — Who triggers graduation execution?
-
-Today `GraduationListener.tsx` runs in a random visitor's browser and asks *them* to sign
-the migration transaction. That's broken. Pick one:
-- **B1. Fully in-contract** — graduation does the migration atomically inside `buy_tokens`
-  (the buy that crosses the threshold pays for and executes the pool seeding). Cleanest,
-  no off-chain trust, but the threshold-crossing buyer pays the gas.
-- **B2. Trusted keeper** — a small backend service holds a dedicated keyed wallet, watches
-  for graduation events, and executes the migration. More moving parts, ongoing ops.
-
-**Recommendation: B1 (in-contract atomic migration)** if the chosen DEX exposes an
-on-chain entry function for pool creation; otherwise **B2**.
-
-### Decision 3 — Mainnet treasury & admin custody
-
-Decide now whether the platform treasury and module admin will live on a hardware wallet
-or a multisig (recommended: multisig). This affects the contract changes in Phase 1
-(mutable treasury address, admin gating).
+**Boost APT destination** (treasury / creator-split / burn) — Deferred. Not needed
+until the Boost release (Phase 7). Decide then.
 
 ---
 
-## Phase 0 — Immediate, do this week (no dependencies)
+## Phase 0 — Do now, no dependencies
 
-These don't block anything and shouldn't wait.
-
-- [ ] **Rotate the 4 leaked private keys.** Identify what `0xf378…`, `0x4470…`,
-      `0x320d…`, `0xab58…` control, move any funds out, rotate any roles. Treat as
-      permanently compromised. (Audit checklist Part 2 #1.)
-- [ ] Confirm no `.env` secrets are tracked anywhere in the repo or its history.
-- [ ] Stand up the mainnet treasury/admin custody chosen in Decision 3 (get the
-      multisig/hardware wallet ready; don't deploy with a hot key).
+- [ ] **Rotate the 4 leaked private keys.** Addresses derived from `fresh_module_6.key`,
+      `generic_dev4.key`, `new-key`, `new-key.pem` (`0xf378…`, `0x4470…`, `0x320d…`,
+      `0xab58…`) are permanently compromised. Move any funds, rotate any admin/treasury
+      roles, treat the keypairs as burned regardless of repo visibility.
+- [ ] Confirm no `.env` files or secrets are tracked anywhere in the repo or its history.
+- [ ] Stand up the chosen treasury/admin custody (multisig / hardware wallet) so Phase 1
+      contract changes can hard-code the right custody model.
 
 ---
 
 ## Phase 1 — Contract changes (the engineering core)
 
-All items from `AUDIT_CHECKLIST.md` Part 1, ordered. This is the critical path; the
-contract design must be **frozen** at the end of this phase so legal and audit can begin.
+The contract design must be **frozen** at the end of this phase so legal and audit can
+begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
 
-**1a. Custody & safety (also unblocks the legal posture):**
+**1a. Custody & safety** *(also unblocks the legal posture)*
 - [ ] Remove `withdraw_apt`, or restrict it so it can never touch live bonding-curve
-      reserves (Decision 3 multisig + a strict cap on graduated-pool proceeds only).
+      reserves (gate behind Decision: treasury/admin custody + a strict cap on
+      graduated-pool proceeds only).
       *This is the single highest-leverage change — security AND the money-transmitter
       argument both hinge on it.*
-- [ ] Make `PLATFORM_TREASURY_ADDRESS` a mutable `ModuleState` field with an admin-only
-      setter (timelocked).
+- [ ] Make `PLATFORM_TREASURY_ADDRESS` a mutable `ModuleState` field with an
+      admin-only setter (timelocked).
 - [ ] Add admin checks to `initialize` and `register_resource_account`.
 
-**1b. Correctness:**
+**1b. Correctness**
 - [ ] Unify the bonding-curve price formula into one shared function. Delete the
       divergent `calculate_price` (line 274) and have the slippage guard and the cost
       calc use the *same* math. Add a test asserting they agree.
@@ -88,32 +66,52 @@ contract design must be **frozen** at the end of this phase so legal and audit c
 - [ ] Implement `claim_creator_tokens(creator, ticker)` so the 20M creator allocation
       isn't stranded.
 
-**1c. Cleanup / scope reduction:**
+**1c. Cleanup / scope reduction**
+- [ ] Delete `create_liquidity_pool`, `internal_swap`, `swap_token_a_for_token_b`,
+      `swap_token_b_for_token_a`, `LiquidityPool`, `DexPool`, `dex_pools`,
+      `migrate_to_dex` — the full homegrown AMM.
 - [ ] Remove all `DebugEvent` / `DebugState` emissions.
-- [ ] If Decision 1 = A: **delete** `create_liquidity_pool`, `internal_swap`,
-      `swap_token_a_for_token_b`, `swap_token_b_for_token_a`, `dex_pools`, and the
-      homegrown `LiquidityPool` machinery. If Decision 1 = B: fix the `internal_swap`
-      self-transfer bug instead.
 - [ ] Pass real icon/project URL into `create_token` instead of the `example.com` stubs.
-- [ ] Enforce global ticker uniqueness (or make creator address unmistakable in the UI).
+- [ ] Enforce global ticker uniqueness (or make creator address unmistakable in UI).
+- [ ] **No boost contract work in this phase.** `boost_token` is deferred to Phase 7.
+
+---
+
+## Phase 1F — Frontend launch scope (hide Boost)
+
+Boost today is a non-functional localStorage prototype. It must not ship visible at
+launch. Keep all the code (it's the Phase 7 second-wave feature) — just gate it.
+
+- [ ] Add one feature flag: `BOOST_ENABLED = false` in `src/config/features.ts`
+      (env-driven via `VITE_FEATURE_BOOST` so it can flip without a redeploy).
+- [ ] Gate every Boost surface behind the flag:
+  - Nav link — `src/components/LeftSidebar.tsx`
+  - Route — `src/App.tsx` (`/boost` redirects to home when flag is off)
+  - `src/components/BoostBar.tsx` (renders across all pages — return null when off)
+  - Boost CTAs/cards in `src/components/HomePage.tsx`, `Marketplace.tsx`,
+    `NEWtokenpage.tsx`
+  - Boost copy/links in `src/components/SiteFooter.tsx`, `Docs.tsx`, `About.tsx`
+- [ ] Grep the full tree for `boost` (case-insensitive) when implementing to make sure
+      nothing leaks through.
+- [ ] Verify the `/boost` URL returns a clean redirect (not a broken page) when off.
 
 ---
 
 ## Phase 2 — Graduation, end to end
 
-Depends on Phase 1 and Decisions 1 & 2.
+Depends on Phase 1 and the two locked decisions.
 
-- [ ] Rebuild the graduation execution per Decision 2 (B1 in-contract, or B2 keeper).
-- [ ] If Option A + B1: write the on-chain migration that, on the threshold-crossing
-      buy, seeds the chosen DEX pool with the 200M reserve + raised APT and locks/burns
-      the LP. Make it atomic (revert the whole graduation if pool seeding fails).
-- [ ] If keeping any client-side path: replace the mock pieces in `graduation.ts`
-      (`getPositionInfoFromPool`, `calculateGraduationPrice`, `lockLPTokens`,
-      `getTokenMetadata`) with real DEX SDK calls + real event parsing. Use the unified
-      curve price from Phase 1, not the `aptSpent/tokensSold` placeholder.
-- [ ] Delete the random-visitor trigger in `GraduationListener.tsx`.
-- [ ] Frontend: graduation progress bar already works (`NEWtokenpage.tsx:1679`); wire the
-      "graduated → trade on DEX" hand-off so a graduated token routes trades to the pool.
+- [ ] Build the atomic graduation block inside `buy_tokens`: when `total_apt_spent`
+      crosses 1283 APT, call the chosen DEX's pool-creation entry function, deposit the
+      200M reserve tokens + raised APT, receive and lock the LP, mint creator allocation
+      to a claimable store, emit graduation event. Revert the entire buy if any step
+      fails.
+- [ ] Delete the client-side graduation layer: `src/utils/graduation.ts`,
+      `src/hooks/useGraduation.ts`, `src/hooks/useGraduationRetry.ts`,
+      `src/utils/graduationStorage.ts`, `src/components/GraduationListener.tsx`.
+- [ ] Frontend: graduation progress bar already works (`NEWtokenpage.tsx:1679`); wire
+      the "graduated → trade on DEX" hand-off so a graduated token routes trades to the
+      DEX pool URL.
 
 ---
 
@@ -127,50 +125,54 @@ Depends on Phases 1–2.
 - [ ] Full testnet end-to-end on a fresh deploy: launch → buy up to graduation →
       migration → trade on DEX → creator claims tokens. Verify invariants (no APT
       created/destroyed, supply conserved at 1B).
-- [ ] Adversarial passes: try to call admin functions as non-admin, try to exceed
-      slippage, try to graduate twice, try to drain reserves.
+- [ ] Adversarial passes: non-admin calls to admin functions, slippage exceed, double-
+      graduate, drain attempts.
+- [ ] Confirm Boost is fully hidden with `BOOST_ENABLED=false` — no dead links, no
+      `/boost` access, no BoostBar visible.
 
 ---
 
 ## Phase 4 — External security audit
 
-Depends on Phase 3 (don't pay an auditor to review broken/unfrozen code).
+Depends on Phase 3. Don't pay an auditor to review broken or unfrozen code.
 
 - [ ] Engage a reputable Move/Aptos auditor (e.g. OtterSec, Zellic, MoveBit). Hand them
       `AUDIT_CHECKLIST.md` as the scope/known-issues doc.
+- [ ] Boost contract (`boost_token`) is **out of scope** here — it gets its own focused
+      audit before the Phase 7 release.
 - [ ] Budget: typically several weeks lead time + meaningful cost; plan for a fix-and-
       re-review cycle.
 - [ ] Remediate all findings; get a clean re-review before mainnet deploy.
 
 ---
 
-## Phase 5 — Legal & compliance (can start once contract design is frozen, end of Phase 1)
+## Phase 5 — Legal & compliance
 
-Runs in parallel with Phases 3–4.
+Can start once the contract design is frozen (end of Phase 1). Runs in parallel with
+Phases 3–4.
 
 - [ ] **Money-transmitter opinion** from a Wisconsin-licensed fintech/crypto attorney.
-      The goal: a written opinion that, post-`withdraw_apt` removal, you are
-      *non-custodial* and not a money transmitter federally (FinCEN) or under WI Act 267.
-      (See `AUDIT_CHECKLIST.md` Part 3 and the regulatory analysis.)
-- [ ] **Securities analysis** — separate from the above. Have counsel review whether the
-      tokens (and the Boost/leaderboard framing) create securities exposure; adjust
-      marketing/mechanics accordingly.
+      Goal: written opinion that, post-`withdraw_apt` removal, you are non-custodial and
+      not a money transmitter federally (FinCEN) or under WI Act 267.
+- [ ] **Securities analysis** — Howey test review. The Boost pay-to-win/champion mechanic
+      is **excluded** from launch scope so it doesn't need to be resolved now, but flag
+      it with counsel as a coming feature so they can advise on design constraints ahead
+      of Phase 7.
 - [ ] **Terms of Use** additions: governing law & jurisdiction, arbitration clause, 18+
       restriction, explicit securities disclaimer, geographic exclusions, what happens to
       funds if the project winds down.
 - [ ] **Privacy Policy** update: disclose that Vercel access logs may capture wallet
       addresses in URL params; GDPR decision (geofence EU or add controller disclosure).
-- [ ] Track Wisconsin AB 471 / SB 386 (the software/non-custodial exemption bill); if it
-      passes it further strengthens your position.
+- [ ] Track Wisconsin AB 471 / SB 386 (the software/non-custodial exemption bill).
 
 ---
 
-## Phase 6 — Mainnet launch
+## Phase 6 — Mainnet launch (Boost OFF)
 
 Depends on Phases 4 & 5 both clearing.
 
-- [ ] Deploy audited contract to mainnet; admin/treasury on multisig (Decision 3).
-- [ ] Switch all endpoints to mainnet (per `ROADMAP.md` Stage 1).
+- [ ] Deploy audited contract to mainnet; admin/treasury on multisig (custody Decision).
+- [ ] Switch all endpoints to mainnet. Launch with `VITE_FEATURE_BOOST=false`.
 - [ ] Add Vercel KV shared cache, Sentry monitoring, `/api/*` rate limiting.
 - [ ] Final dry run on testnet using a mainnet-mirroring config.
 - [ ] Publish updated Terms/Privacy before the first real transaction.
@@ -178,21 +180,48 @@ Depends on Phases 4 & 5 both clearing.
 
 ---
 
+## Phase 7 — Boost release (post-launch second wave)
+
+Self-contained. Schedule whenever you want the marketing moment.
+
+- [ ] **Decide** where boost APT goes (treasury / creator-split / burn). This affects the
+      MSB/money-transmitter analysis, since treasury-bound boost APT is platform revenue
+      like the 0.9% trade fee.
+- [ ] **Contract:** add `boost_token(buyer, token_metadata, amount)` entry function —
+      transfers APT per the decision above, emits `BoostEvent { token, wallet, amount,
+      timestamp }`. No on-chain ranking/window state needed; the rolling window is
+      applied client-side from indexed events.
+- [ ] Get the boost contract function audited (small, focused scope — can be done by the
+      same auditor as a change-order).
+- [ ] **Legal:** get securities sign-off on the pay-to-win "champion" mechanic before
+      going live.
+- [ ] **Frontend rewire:** `handleBoost` → real `signAndSubmitTransaction` calling
+      `boost_token`; replace `getBoostMap` with an indexer query over `BoostEvent`s
+      with the rolling 1h/6h/24h/7d window applied client-side; drop the `localStorage`
+      store entirely.
+- [ ] Flip `VITE_FEATURE_BOOST=true`. Run the reveal as a marketing moment.
+
+---
+
 ## Critical path at a glance
 
 ```
-Phase 0 (keys, custody)        ── now, parallel
-Decisions 1–3                  ── now, blocking
+Phase 0 (keys, custody)           ── now, parallel
+Decisions: treasury custody        ── now, blocking Phase 1a
+           boost APT dest.         ── deferred to Phase 7
         │
-Phase 1 (contract changes)     ── freeze design at end ──┐
-        │                                                │
-Phase 2 (graduation)                                     ├─► Phase 5 (legal) starts here
-        │                                                │
-Phase 3 (testing)                                        │
-        │                                                │
-Phase 4 (external audit) ◄───────────────────────────────┘
+Phase 1 (contract changes)        ── freeze design at end ──┐
+Phase 1F (hide Boost)             ── parallel with Phase 1  │
+        │                                                    │
+Phase 2 (graduation)                                         ├─► Phase 5 (legal) starts here
+        │                                                    │
+Phase 3 (testing)                                            │
+        │                                                    │
+Phase 4 (external audit) ◄──────────────────────────────────┘
         │
-Phase 6 (mainnet launch)
+Phase 6 (mainnet launch — Boost OFF)
+        │
+Phase 7 (Boost release — second wave)
 ```
 
 **The gating insight:** almost everything funnels through Phase 1. The `withdraw_apt`

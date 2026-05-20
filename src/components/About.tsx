@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from './AppHeader';
 import SiteFooter from './SiteFooter';
+import { BOOST_ENABLED } from '../featureFlags';
 
 const About: React.FC = () => {
   return (
@@ -244,11 +245,13 @@ const About: React.FC = () => {
                 <h3>Slippage protection</h3>
                 <p>Every buy and sell honors your slippage tolerance. Configure per-trade or accept the default.</p>
               </div>
+              {BOOST_ENABLED && (
               <div className="ab-feature">
                 <div className="ab-feature-icon">🏆</div>
                 <h3>Boost leaderboard</h3>
                 <p>Communities can promote their token by paying boost fees. The top spots are visible on every page.</p>
               </div>
+              )}
               <div className="ab-feature">
                 <div className="ab-feature-icon">📊</div>
                 <h3>Live charts &amp; trades</h3>

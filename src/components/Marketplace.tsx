@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { BOOST_ENABLED } from '../featureFlags';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
@@ -531,14 +532,14 @@ const Marketplace: React.FC = () => {
                           </td>
                           <td className="mp-td">
                             <div className="mp-td-actions">
-                              <Link
+                              {BOOST_ENABLED && <Link
                                 to={`/boost?token=${token.metadataAddress || token.txHash}`}
                                 className="mp-boost-btn"
                                 onClick={e => e.stopPropagation()}
                                 title="Boost this token"
                               >
                                 Boost
-                              </Link>
+                              </Link>}
                               <button
                                 className="mp-trade-btn"
                                 onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
@@ -643,14 +644,14 @@ const Marketplace: React.FC = () => {
                         MCap: {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
                       </div>
                       <div className="mp-card-footer">
-                        <Link
+                        {BOOST_ENABLED && <Link
                           to={`/boost?token=${token.metadataAddress || token.txHash}`}
                           className="mp-boost-btn"
                           onClick={e => e.stopPropagation()}
                           title="Boost this token"
                         >
                           Boost
-                        </Link>
+                        </Link>}
                         <button
                           className="mp-card-trade"
                           onClick={e => { e.stopPropagation(); handleTradeClick(token); }}

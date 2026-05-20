@@ -309,6 +309,20 @@ Missing before mainnet:
 
 ---
 
+## Boost — deferred to Phase 7 (not in launch audit scope)
+
+The Boost feature (`src/components/Boost.tsx`, `BoostBar.tsx`, `src/data/useBoostStore.ts`)
+is a non-functional localStorage prototype that will be hidden behind a feature flag
+before launch. The real on-chain implementation (`boost_token` entry function + frontend
+rewire) is scheduled for a post-launch Phase 7 release. The on-chain boost function will
+require its own focused audit before Phase 7 ships.
+
+The Boost pay-to-win "champion" mechanic also has securities-law implications that legal
+counsel should be briefed on now (even though it's not launching) so they can advise on
+design constraints ahead of Phase 7.
+
+---
+
 ## Summary — Priority order
 
 | Priority | Item |

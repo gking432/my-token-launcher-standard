@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { truncateAddress } from '../utils/format';
 import { useToast } from '../contexts/ToastContext';
 import { getLocalSocials } from '../lib/localSocials';
+import { BOOST_ENABLED } from '../featureFlags';
 
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
@@ -1598,7 +1599,7 @@ const TokenPage: React.FC = () => {
               </div>
             </div>
 
-            {tokenDetails?.metadataAddress && (
+            {BOOST_ENABLED && tokenDetails?.metadataAddress && (
               <Link
                 to={`/boost?token=${tokenDetails.metadataAddress}`}
                 className="tp-boost-btn"

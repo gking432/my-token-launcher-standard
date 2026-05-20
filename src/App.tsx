@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
 
@@ -10,6 +10,7 @@ import Profile from "./components/Profile";
 import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
+import { BOOST_ENABLED } from "./featureFlags";
 import About from "./components/About";
 import Docs from "./components/Docs";
 import Privacy from "./components/Privacy";
@@ -47,7 +48,7 @@ const App: React.FC = () => {
                   <Route path="/homepage"          element={<HomePage />} />
                   <Route path="/marketplace"       element={<Marketplace />} />
                   <Route path="/marketplace/:metadataAddress" element={<Marketplace />} />
-                  <Route path="/boost"             element={<Boost />} />
+                  <Route path="/boost"             element={BOOST_ENABLED ? <Boost /> : <Navigate to="/" replace />} />
                   <Route path="/about"             element={<About />} />
                   <Route path="/docs"              element={<Docs />} />
                   <Route path="/privacy"           element={<Privacy />} />

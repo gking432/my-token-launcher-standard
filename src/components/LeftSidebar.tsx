@@ -2,16 +2,19 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import TokenAvatar from './TokenAvatar';
+import { BOOST_ENABLED } from '../featureFlags';
 
 export const SIDEBAR_WIDTH_PX = 232;
 
-const NAV_ITEMS: { to: string; label: string; emoji: string; key: string; boost?: boolean }[] = [
+const ALL_NAV_ITEMS: { to: string; label: string; emoji: string; key: string; boost?: boolean }[] = [
   { to: '/',            label: 'Home',        emoji: '◎', key: 'home' },
   { to: '/marketplace', label: 'Marketplace', emoji: '⌗', key: 'marketplace' },
   { to: '/boost',       label: 'Boost',       emoji: '◆', key: 'boost', boost: true },
   { to: '/launch',      label: 'Launch',      emoji: '↑', key: 'launch' },
   { to: '/about',       label: 'About',       emoji: '?', key: 'about' },
 ];
+
+const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => item.key !== 'boost' || BOOST_ENABLED);
 
 const LeftSidebar: React.FC = () => {
   const { pathname } = useLocation();

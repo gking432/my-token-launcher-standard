@@ -8,6 +8,7 @@ import AppHeader from './AppHeader';
 import TokenAvatar from './TokenAvatar';
 import SiteFooter from './SiteFooter';
 import { truncateAddress } from '../utils/format';
+import { BOOST_ENABLED } from '../featureFlags';
 
 type SortOrder = 'newest' | 'oldest' | 'highest_mc' | 'lowest_mc' | 'highest_vol' | 'lowest_vol';
 
@@ -745,14 +746,14 @@ const HomePage: React.FC = () => {
                           </div>
                         ) : <div />}
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <Link
+                          {BOOST_ENABLED && <Link
                             to={`/boost?token=${token.metadataAddress || token.txHash}`}
                             className="mm-card-boost"
                             onClick={e => e.stopPropagation()}
                             title="Boost this token"
                           >
                             Boost
-                          </Link>
+                          </Link>}
                           <button
                             className="mm-card-trade"
                             onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
@@ -807,14 +808,14 @@ const HomePage: React.FC = () => {
                             {token.marketCapUSD != null ? formatBig(token.marketCapUSD) : '—'}
                           </td>
                           <td className="mm-lt-td" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <Link
+                            {BOOST_ENABLED && <Link
                               to={`/boost?token=${token.metadataAddress || token.txHash}`}
                               className="mm-lt-boost"
                               onClick={e => e.stopPropagation()}
                               title="Boost this token"
                             >
                               Boost
-                            </Link>
+                            </Link>}
                             <button
                               className="mm-lt-trade"
                               onClick={e => { e.stopPropagation(); handleTradeClick(token); }}
