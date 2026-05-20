@@ -40,6 +40,12 @@ This is why the plan exists and why the sequence matters.
 `withdraw_apt` is gated and who can rotate the treasury address. Recommended: 2-of-3
 multisig on a hardware wallet.
 
+**Where token images are hosted** — Needed for real image upload (Phase 1d). You cannot
+store an image file on-chain; you store a *link* to it, and the file must live somewhere.
+Pick one: IPFS (decentralized, crypto-standard, via a service like Pinata/web3.storage),
+a normal cloud/CDN (Vercel Blob / S3 / Cloudinary — simplest), or Arweave (permanent).
+Recommended starting point: Vercel Blob or IPFS via Pinata.
+
 **Boost APT destination** (treasury / creator-split / burn) — Deferred. Not needed
 until the Boost release (Phase 7). Decide then.
 
@@ -72,6 +78,12 @@ begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
       *Note: no timelock on the setter yet — flagged as optional hardening before mainnet.*
 - [x] Add admin checks to `initialize` and `register_resource_account`.
       *(All three items coded on branch; pending compile + testnet verification.)*
+- [ ] **Timelock on `set_treasury_address` (hardening, before mainnet).** Right now an
+      admin can change the fee destination instantly. A timelock makes it a two-step
+      change with a delay (e.g. propose now, execute after 48h), so if the admin key is
+      ever stolen there's a window to notice and react before fees get redirected. Only
+      affects fee routing, not user funds — so it's hardening, not a blocker. Do it during
+      the pre-mainnet hardening pass.
 
 **1b. Correctness**
 - [ ] Unify the bonding-curve price formula into one shared function. Delete the
@@ -87,9 +99,20 @@ begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
       `swap_token_b_for_token_a`, `LiquidityPool`, `DexPool`, `dex_pools`,
       `migrate_to_dex` — the full homegrown AMM.
 - [ ] Remove all `DebugEvent` / `DebugState` emissions.
-- [ ] Pass real icon/project URL into `create_token` instead of the `example.com` stubs.
 - [ ] Enforce global ticker uniqueness (or make creator address unmistakable in UI).
 - [ ] **No boost contract work in this phase.** `boost_token` is deferred to Phase 7.
+
+**1d. Real image upload** *(today the logo only lives in the uploader's own browser —
+nobody else sees it; the contract hardcodes `example.com`)*. Needs the image-hosting
+decision (see Decisions). Two halves:
+- [ ] Off-chain: an upload pipeline. When a creator picks a logo, upload the file to the
+      chosen host (IPFS / Vercel Blob / etc.) and get back a public URL. (New API endpoint
+      + the host account.)
+- [ ] On-chain: add `icon_uri` (and optionally `project_uri`/description) parameters to
+      `create_token`, store them in the token metadata instead of the `example.com` stubs.
+- [ ] Frontend: pass the uploaded URL into the `create_token` call (currently it sends
+      only name/symbol/decimals/supply) and read the on-chain `icon_uri` when displaying,
+      falling back to the local cache for older tokens.
 
 ---
 
@@ -98,17 +121,17 @@ begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
 Boost today is a non-functional localStorage prototype. It must not ship visible at
 launch. Keep all the code (it's the Phase 7 second-wave feature) — just gate it.
 
-- [ ] Add one feature flag: `BOOST_ENABLED = false` in `src/config/features.ts`
+- [x] Add one feature flag: `BOOST_ENABLED = false` in `src/featureFlags.ts`
       (env-driven via `VITE_FEATURE_BOOST` so it can flip without a redeploy).
-- [ ] Gate every Boost surface behind the flag:
+- [x] Gate every Boost surface behind the flag:
   - Nav link — `src/components/LeftSidebar.tsx`
   - Route — `src/App.tsx` (`/boost` redirects to home when flag is off)
-  - `src/components/BoostBar.tsx` (renders across all pages — return null when off)
+  - `src/components/BoostBar.tsx` (gated in `AppHeader.tsx` — not rendered when off)
   - Boost CTAs/cards in `src/components/HomePage.tsx`, `Marketplace.tsx`,
     `NEWtokenpage.tsx`
-  - Boost copy/links in `src/components/SiteFooter.tsx`, `Docs.tsx`, `About.tsx`
-- [ ] Grep the full tree for `boost` (case-insensitive) when implementing to make sure
-      nothing leaks through.
+  - Boost copy/links in `src/components/SiteFooter.tsx`, `About.tsx`; mobile nav in
+    `AppHeader.tsx`
+- [x] Grep the full tree for `boost` (case-insensitive) — confirmed nothing leaks through.
 - [ ] Verify the `/boost` URL returns a clean redirect (not a broken page) when off.
 
 ---
