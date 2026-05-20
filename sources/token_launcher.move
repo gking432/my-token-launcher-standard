@@ -69,6 +69,7 @@ const E_ALREADY_GRADUATED: u64 = 1019;
 const E_MARKET_CAP_TOO_LOW: u64 = 1020;
 const E_INSUFFICIENT_LIQUIDITY_FOR_FEE: u64 = 1021;
 const E_NOT_GRADUATED: u64 = 1022;
+const E_ALREADY_CLAIMED: u64 = 1023;
 
 // Production Graduation Threshold
 const GRADUATION_MARKET_CAP_APT: u64 = 1283_00000000; // 1283 APT raised
@@ -176,8 +177,9 @@ struct DebugEvent has drop, store {
         remaining_supply: u64,
         price_per_token: u64,
         total_apt_spent: u64,
-        decimals_factor: u64,  // Added field for token decimals scaling
+        decimals_factor: u64,
         is_graduated: bool,
+        creator_tokens_claimed: bool,
     }
 
     struct TokenMetadataEntry has store {
@@ -272,11 +274,9 @@ struct DebugEvent has drop, store {
         result
     }
 
-    fun calculate_price(tokens_sold: u64): u128 {
-        let price_numerator = 19_029_514_756u128;
-        let price_constant = 61_905_327u128; // 61.9053276 scaled
-        let denominator = 800_000_000u128 - (tokens_sold as u128);
-        (price_numerator / denominator) + (price_constant / 100_000_000u128)
+    fun unit_price(tokens_sold: u64): u128 {
+        let denominator = MAX_TOKENS - (tokens_sold as u128);
+        (PRICE_NUMERATOR * PRECISION_FACTOR) / denominator + PRICE_CONSTANT / (SCALE / PRECISION_FACTOR)
     }
 
 public entry fun register_resource_account(admin: &signer) {
@@ -413,6 +413,7 @@ public entry fun initialize(admin: &signer) {
         total_apt_spent: 0,
         decimals_factor,
         is_graduated: false,
+        creator_tokens_claimed: false,
     });
     move_to(&metadata_signer, VaultState {
         creator: creator_addr,
@@ -488,51 +489,21 @@ public entry fun buy_tokens(
     event::emit(DebugEvent { msg: b"Tokens Bought", value: (tokens_bought as u128) });
     event::emit(DebugEvent { msg: b"Decimals Factor", value: (vault.decimals_factor as u128) });
 
-    let total_supply = 800_000_000u128;
     let preminted_tokens = 200_000_000u64;
     let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 0 } else { ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens };
     let tokens_sold_after = tokens_sold_before + tokens_bought;
     assert!(tokens_sold_after < 800_000_000, E_EXCEEDS_SUPPLY);
-    event::emit(DebugEvent { msg: b"Tokens Sold Before", value: (tokens_sold_before as u128) });
-    event::emit(DebugEvent { msg: b"Tokens Sold After", value: (tokens_sold_after as u128) });
 
-    // Calculate slippage using helper function
-    let price_before = calculate_price(tokens_sold_before);
-    let price_after = calculate_price(tokens_sold_after);
+    // Unified price formula: slippage check and cost use the same calculation
+    let price_before = unit_price(tokens_sold_before);
+    let price_after = unit_price(tokens_sold_after);
     let price_impact = ((price_after - price_before) * 10000) / price_before;
     assert!(price_impact <= (max_slippage_bps as u128), E_SLIPPAGE_TOO_HIGH);
-    event::emit(DebugEvent { msg: b"Price Impact", value: price_impact as u128 });
 
-    // Calculate apt_cost using the corrected hyperbolic price formula
-    // Price formula: Price (Octas/token) = (4,757,378,689 / (800,000,000 - s)) + 61.9053276
-    // Scaled by 10^6 for fixed-point arithmetic, with constant scaled by 10^8
-    let scale = 100_000_000u128; // 10^8 for Octas
-    let price_numerator = 19_029_514_756u128; // Unscaled numerator
-    let price_constant = 6_190_532_760u128; // 61.9053276 * 10^8
-    let price_denominator_base = 800_000_000u128;
-    let price_scale = 1_000_000u128; // 10^6 to match price scaling
-    let constant_scale = 100_000_000u128; // 10^8 for constant precision
-
-    // Compute price before and after purchase (Octas/token * 10^6)
-    let denominator_before = price_denominator_base - (tokens_sold_before as u128);
-    let denominator_after = price_denominator_base - (tokens_sold_after as u128);
-    // Hyperbolic term: (numerator * 10^6) / denominator
-    let hyperbolic_before = (price_numerator * price_scale) / denominator_before;
-    let hyperbolic_after = (price_numerator * price_scale) / denominator_after;
-    // Constant term: 61.9053276 * 10^6 = (6,190,532,760 / 10^2)
-    let constant_term = price_constant / (constant_scale / price_scale); // 6,190,532,760 / 100
-    // Total price
-    let price_before = hyperbolic_before + constant_term; // Octas/token * 10^6
-    let price_after = hyperbolic_after + constant_term; // Octas/token * 10^6
-    let average_price = (price_before + price_after) / 2; // Octas/token * 10^6
-    event::emit(DebugEvent { msg: b"Price Before", value: price_before });
-    event::emit(DebugEvent { msg: b"Price After", value: price_after });
-    event::emit(DebugEvent { msg: b"Average Price", value: average_price });
-    // Compute cost: (average_price * tokens_bought * 1000) / scale
-    let apt_cost = (average_price * (tokens_bought as u128) * 100) / scale; // Convert to Octas
+    let average_price = (price_before + price_after) / 2;
+    let apt_cost = (average_price * (tokens_bought as u128) * 100) / 100_000_000u128;
     assert!(apt_cost > 0, E_INVALID_COST);
     let apt_cost_u64 = apt_cost as u64;
-    event::emit(DebugEvent { msg: b"APT Cost u64 Final", value: (apt_cost_u64 as u128) });
 
     // Calculate trading fees ON TOP of bonding curve cost
     let (platform_fee, creator_fee) = if (vault.is_graduated) {
@@ -606,7 +577,10 @@ public entry fun buy_tokens(
         let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
         coin::transfer<AptosCoin>(&resource_signer, state.treasury_address, GRADUATION_PLATFORM_FEE_APT);
         coin::transfer<AptosCoin>(&resource_signer, creator_addr, GRADUATION_CREATOR_FEE_APT);
-        
+        state.apt_amount = if (state.apt_amount >= GRADUATION_FEE_TOTAL_APT) {
+            state.apt_amount - GRADUATION_FEE_TOTAL_APT
+        } else { 0 };
+
         // Allocate tokens during graduation
         {
             let creator_tokens = 20_000_000 * vault.decimals_factor;
@@ -661,49 +635,22 @@ public entry fun sell_tokens(
     event::emit(DebugEvent { msg: b"Amount to Burn", value: amount as u128 });
     assert!(seller_balance >= amount * vault.decimals_factor, E_INSUFFICIENT_LIQUIDITY);
 
-    let total_supply = 800_000_000u128;
     let preminted_tokens = 200_000_000u64;
-    let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 
-        0 
-    } else { 
-        ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens 
+    let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) {
+        0
+    } else {
+        ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens
     };
-    event::emit(DebugEvent { msg: b"Tokens Sold Before", value: tokens_sold_before as u128 });
 
-    // Calculate slippage using helper function (reverse for sells)
-    let price_before = calculate_price(tokens_sold_before);
-    let price_after = calculate_price(tokens_sold_before - amount);
+    // Unified price formula: slippage check and payout use the same calculation
+    let price_before = unit_price(tokens_sold_before);
+    let price_after = unit_price(tokens_sold_before - amount);
     let price_impact = ((price_before - price_after) * 10000) / price_before;
     assert!(price_impact <= (max_slippage_bps as u128), E_SLIPPAGE_TOO_HIGH);
-    event::emit(DebugEvent { msg: b"Price Impact", value: price_impact as u128 });
 
-    // Calculate apt_out using the same formula as buy_tokens
-    let scale = 100_000_000u128; // 10^8 for Octas
-    let price_numerator = 19_029_514_756u128; // Unscaled numerator
-    let price_constant = 6_190_532_760u128; // 61.9053276 * 10^8
-    let price_scale = 1_000_000u128; // 10^6 for price scaling
-    let constant_scale = 100_000_000u128; // 10^8 for constant precision
-
-    // Calculate price before and after selling
-    let denominator_before = total_supply - (tokens_sold_before as u128);
-    let denominator_after = denominator_before + (amount as u128);
-    
-    // Hyperbolic term: (numerator * 10^6) / denominator
-    let hyperbolic_before = (price_numerator * price_scale) / denominator_before;
-    let hyperbolic_after = (price_numerator * price_scale) / denominator_after;
-    
-    // Constant term: 61.9053276 * 10^6
-    let constant_term = price_constant / (constant_scale / price_scale);
-    
-    // Total price
-    let price_before_curve = hyperbolic_before + constant_term;
-    let price_after_curve = hyperbolic_after + constant_term;
-    let average_price = (price_before_curve + price_after_curve) / 2;
-    
-    // Calculate APT to return
-    let apt_out = (average_price * (amount as u128) * 100) / scale;
+    let average_price = (price_before + price_after) / 2;
+    let apt_out = (average_price * (amount as u128) * 100) / 100_000_000u128;
     let apt_out_u64 = apt_out as u64;
-    event::emit(DebugEvent { msg: b"APT Out", value: apt_out as u128 });
     assert!(apt_out > 0 || amount == 0, E_INSUFFICIENT_APT_OUT);
 
     // Calculate trading fees ON TOP of bonding curve return
@@ -774,6 +721,32 @@ public entry fun sell_tokens(
         timestamp: timestamp::now_microseconds(),
         tokens_sold: (tokens_sold_before as u128),
     });
+}
+
+public entry fun claim_creator_tokens(
+    creator: &signer,
+    ticker: vector<u8>
+) acquires ModuleState, TokenVault, VaultState, BuyerStore {
+    let creator_addr = signer::address_of(creator);
+    let module_addr = @0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d;
+    let state = borrow_global<ModuleState>(module_addr);
+    let token_metadata_entry = table::borrow(&state.token_metadata, creator_addr);
+    let metadata_addr = find_metadata_addr(&token_metadata_entry.entries, ticker);
+    let vault = borrow_global_mut<TokenVault>(metadata_addr);
+    let vault_state = borrow_global<VaultState>(metadata_addr);
+
+    assert!(vault_state.creator == creator_addr, E_NOT_ADMIN);
+    assert!(vault.is_graduated, E_NOT_GRADUATED);
+    assert!(!vault.creator_tokens_claimed, E_ALREADY_CLAIMED);
+
+    vault.creator_tokens_claimed = true;
+    let creator_allocation = 20_000_000u64 * vault.decimals_factor;
+    let metadata = vault.metadata;
+    let resource_signer = account::create_signer_with_capability(&state.resource_signer_cap);
+    let resource_store = get_or_create_token_store(&resource_signer, metadata);
+    let creator_store = get_or_create_token_store(creator, metadata);
+    let fa = fungible_asset::withdraw(&resource_signer, resource_store, creator_allocation);
+    fungible_asset::deposit(creator_store, fa);
 }
 
 // --- NEW: GRADUATION FUNCTION ---
@@ -1068,19 +1041,18 @@ public fun get_price_impact(
     let metadata_addr = find_metadata_addr(&token_metadata.entries, ticker);
     let vault = borrow_global<TokenVault>(metadata_addr);
 
-    let total_supply = 800_000_000u128;
     let preminted_tokens = 200_000_000u64;
-    let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) { 
-        0 
-    } else { 
-        ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens 
+    let tokens_sold_before = if (vault.remaining_supply == 800_000_000 * vault.decimals_factor) {
+        0
+    } else {
+        ((vault.total_supply - vault.remaining_supply) / vault.decimals_factor) - preminted_tokens
     };
 
-    let price_before = calculate_price(tokens_sold_before);
+    let price_before = unit_price(tokens_sold_before);
     let price_after = if (is_buy) {
-        calculate_price(tokens_sold_before + amount)
+        unit_price(tokens_sold_before + amount)
     } else {
-        calculate_price(tokens_sold_before - amount)
+        unit_price(tokens_sold_before - amount)
     };
 
     if (is_buy) {
