@@ -122,6 +122,27 @@ const Launch: React.FC = () => {
     setShowPreLaunchModal(true);
   };
 
+  const uploadImage = async (dataUrl: string): Promise<string> => {
+    try {
+      const commaIdx = dataUrl.indexOf(',');
+      if (commaIdx === -1) return '';
+      const header = dataUrl.slice(0, commaIdx);
+      const data = dataUrl.slice(commaIdx + 1);
+      const contentType = header.match(/data:([^;]+)/)?.[1] || 'image/png';
+      const ext = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: `logo.${ext}`, contentType, data }),
+      });
+      if (!res.ok) return '';
+      const json = await res.json();
+      return json.url || '';
+    } catch {
+      return '';
+    }
+  };
+
   const handleLaunchToken = async (initialPurchaseAmount: string) => {
     if (!pendingLaunchData || !account) return;
     setLoading(true);
@@ -131,6 +152,11 @@ const Launch: React.FC = () => {
       const supply = 1_000_000_000;
       const symbolBytes = stringToBytes(pendingLaunchData.symbol);
 
+      let iconUrl = '';
+      if (logoPreview) {
+        iconUrl = await uploadImage(logoPreview);
+      }
+
       const createTransaction: InputTransactionData = {
         data: {
           function: `${tokenLauncherAddress}::token_launcher::create_token`,
@@ -138,6 +164,7 @@ const Launch: React.FC = () => {
           functionArguments: [
             stringToBytes(pendingLaunchData.name),
             symbolBytes,
+            stringToBytes(iconUrl),
             6,
             supply,
           ],

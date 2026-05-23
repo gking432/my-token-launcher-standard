@@ -305,6 +305,7 @@ public entry fun initialize(admin: &signer) {
     creator: &signer,
     name: vector<u8>,
     ticker: vector<u8>,
+    icon_uri: vector<u8>,
     decimals: u8,
     total_supply: u64
 ) acquires ModuleState, TokenCounter {
@@ -346,7 +347,7 @@ public entry fun initialize(admin: &signer) {
         utf8(name),
         utf8(ticker),
         decimals,
-        utf8(b"http://example.com/icon.png"),
+        utf8(icon_uri),
         utf8(b"http://example.com")
     );
 
@@ -412,10 +413,11 @@ public entry fun initialize_vault(
     creator: &signer,
     name: vector<u8>,
     ticker: vector<u8>,
+    icon_uri: vector<u8>,
     decimals: u8,
     total_supply: u64
 ) acquires ModuleState, TokenCounter {
-    create_token(creator, name, ticker, decimals, total_supply);
+    create_token(creator, name, ticker, icon_uri, decimals, total_supply);
 }
 
 

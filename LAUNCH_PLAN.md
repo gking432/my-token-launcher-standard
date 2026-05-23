@@ -40,11 +40,8 @@ This is why the plan exists and why the sequence matters.
 `withdraw_apt` is gated and who can rotate the treasury address. Recommended: 2-of-3
 multisig on a hardware wallet.
 
-**Where token images are hosted** — Needed for real image upload (Phase 1d). You cannot
-store an image file on-chain; you store a *link* to it, and the file must live somewhere.
-Pick one: IPFS (decentralized, crypto-standard, via a service like Pinata/web3.storage),
-a normal cloud/CDN (Vercel Blob / S3 / Cloudinary — simplest), or Arweave (permanent).
-Recommended starting point: Vercel Blob or IPFS via Pinata.
+**Where token images are hosted** — ✅ **Decided: Vercel Blob** (free on Hobby plan).
+`api/upload.js` implemented. Add `BLOB_READ_WRITE_TOKEN` in Vercel dashboard to activate.
 
 **Boost APT destination** (treasury / creator-split / burn) — Deferred. Not needed
 until the Boost release (Phase 7). Decide then.
@@ -106,17 +103,16 @@ begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
       and creator address for disambiguation. No contract change needed.
 - [ ] **No boost contract work in this phase.** `boost_token` is deferred to Phase 7.
 
-**1d. Real image upload** *(today the logo only lives in the uploader's own browser —
-nobody else sees it; the contract hardcodes `example.com`)*. Needs the image-hosting
-decision (see Decisions). Two halves:
-- [ ] Off-chain: an upload pipeline. When a creator picks a logo, upload the file to the
-      chosen host (IPFS / Vercel Blob / etc.) and get back a public URL. (New API endpoint
-      + the host account.)
-- [ ] On-chain: add `icon_uri` (and optionally `project_uri`/description) parameters to
-      `create_token`, store them in the token metadata instead of the `example.com` stubs.
-- [ ] Frontend: pass the uploaded URL into the `create_token` call (currently it sends
-      only name/symbol/decimals/supply) and read the on-chain `icon_uri` when displaying,
-      falling back to the local cache for older tokens.
+**1d. Real image upload** *(decided: Vercel Blob — free on Hobby plan)*
+- [x] Off-chain: `api/upload.js` — Vercel serverless function; receives base64 image,
+      calls `@vercel/blob` `put()`, returns public URL. **User must add
+      `BLOB_READ_WRITE_TOKEN` env var in Vercel dashboard (Storage → Blob → Connect).**
+- [x] On-chain: `icon_uri: vector<u8>` added to `create_token` and `initialize_vault`;
+      stored in fungible asset metadata instead of `example.com` stub.
+- [x] Frontend: `NEWLaunch.tsx` uploads image before the wallet tx, passes the Vercel
+      Blob URL as `icon_uri`; `useTokenData.ts` already reads on-chain `icon_uri` first
+      and falls back to localStorage for pre-upgrade tokens.
+      **Requires contract redeploy to testnet before images go live.**
 
 ---
 
