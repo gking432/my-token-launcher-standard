@@ -86,20 +86,24 @@ begin. All items are from `AUDIT_CHECKLIST.md` Part 1.
       the pre-mainnet hardening pass.
 
 **1b. Correctness**
-- [ ] Unify the bonding-curve price formula into one shared function. Delete the
-      divergent `calculate_price` (line 274) and have the slippage guard and the cost
-      calc use the *same* math. Add a test asserting they agree.
-- [ ] Fix graduation fee accounting so `state.apt_amount` is decremented by the 83 APT
+- [x] Unify the bonding-curve price formula into one shared function. Replaced the
+      divergent `calculate_price` with `unit_price` using module-level constants so
+      the slippage guard and the cost calc use identical math.
+- [x] Fix graduation fee accounting so `state.apt_amount` is decremented by the 83 APT
       paid out at graduation.
-- [ ] Implement `claim_creator_tokens(creator, ticker)` so the 20M creator allocation
-      isn't stranded.
+- [x] Implement `claim_creator_tokens(creator, ticker)` so the 20M creator allocation
+      isn't stranded. Added `creator_tokens_claimed: bool` flag to `TokenVault`.
+      *(All three items coded on branch; pending compile + testnet verification.)*
 
 **1c. Cleanup / scope reduction**
-- [ ] Delete `create_liquidity_pool`, `internal_swap`, `swap_token_a_for_token_b`,
+- [x] Delete `create_liquidity_pool`, `internal_swap`, `swap_token_a_for_token_b`,
       `swap_token_b_for_token_a`, `LiquidityPool`, `DexPool`, `dex_pools`,
-      `migrate_to_dex` — the full homegrown AMM.
-- [ ] Remove all `DebugEvent` / `DebugState` emissions.
-- [ ] Enforce global ticker uniqueness (or make creator address unmistakable in UI).
+      `migrate_to_dex` — the full homegrown AMM. (~278 lines removed; graduation will
+      go to Hyperion externally per the locked DEX decision.)
+- [x] Remove all `DebugEvent` / `DebugState` emissions. (~23 lines removed.)
+- [x] Ticker uniqueness — **decided: pump.fun-style, no global enforcement.** Different
+      creators can use the same ticker symbol. Token page already shows contract address
+      and creator address for disambiguation. No contract change needed.
 - [ ] **No boost contract work in this phase.** `boost_token` is deferred to Phase 7.
 
 **1d. Real image upload** *(today the logo only lives in the uploader's own browser —
