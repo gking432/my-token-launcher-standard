@@ -80,7 +80,7 @@ interface CacheEntry {
 
 // Cache for token data to avoid repeated API calls
 let tokenCache: CacheEntry | null = null;
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
+const CACHE_TTL = 30 * 1000; // 30 seconds
 
 // Request deduplication
 let activeRequest: Promise<TokenCreationEvent[]> | null = null;

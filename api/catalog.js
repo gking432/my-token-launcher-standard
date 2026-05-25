@@ -182,7 +182,7 @@ module.exports = async (req, res) => {
 
   const now = Date.now();
   if (cache && now < cache.freshUntil) {
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
     return res.json({ tokens: cache.value, cached: true });
   }
 
@@ -193,7 +193,7 @@ module.exports = async (req, res) => {
   try {
     const value = await inFlight;
     cache = { value, freshUntil: now + FRESH_TTL_MS, staleUntil: now + STALE_TTL_MS };
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
     return res.json({ tokens: value });
   } catch (err) {
     console.error('[/api/catalog] fetch failed:', err.message);

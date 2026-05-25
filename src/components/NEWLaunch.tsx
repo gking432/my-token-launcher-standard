@@ -11,6 +11,7 @@ import SiteFooter from './SiteFooter';
 import { useToast } from '../contexts/ToastContext';
 import { setLocalImage, MAX_IMAGE_BYTES } from '../lib/localImages';
 import { setLocalSocials } from '../lib/localSocials';
+import { clearTokenCache } from '../utils/aptosIndexer';
 
 window.Buffer = window.Buffer || Buffer;
 
@@ -177,6 +178,7 @@ const Launch: React.FC = () => {
       }
       const createHash = createResponse.hash;
       await client.waitForTransaction({ transactionHash: createHash });
+      clearTokenCache();
 
       const users = JSON.parse(localStorage.getItem("users") || "{}");
       if (!users[walletString]) users[walletString] = { launchedTokens: [] };
