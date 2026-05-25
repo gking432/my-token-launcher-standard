@@ -273,7 +273,7 @@ const TokenPage: React.FC = () => {
     const watchlistItem = {
       name: tokenDetails.name.replace('$', ''),
       symbol: tokenDetails.symbol,
-      icon: firstLetter,
+      icon: tokenDetails.image && tokenDetails.image.startsWith('http') ? tokenDetails.image : firstLetter,
       iconBg: iconBg,
       metadataAddress: tokenDetails.metadataAddress || tokenDetails.txHash,
       creatorAddress: tokenDetails.creatorAddress
