@@ -2,7 +2,7 @@
 // a 2-second in-memory cache, so 100 users polling the same token = ~1 fullnode
 // call every 2s in each region. Add a CDN cache header on top for further dedup.
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
+const MODULE_ADDRESS = '0xec714c0618845f5033b9d6f1bd9d32b6a00ab611e38738a3073a118a37d61a5c';
 const FULLNODE = 'https://fullnode.testnet.aptoslabs.com/v1';
 const VAULT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenVault`;
 const FA_METADATA_TYPE = '0x1::fungible_asset::Metadata';

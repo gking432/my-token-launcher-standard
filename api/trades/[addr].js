@@ -9,7 +9,7 @@
 // Cold fetch: ~1-3s for a token with <200 trades (concurrency=8 fullnode calls).
 // Subsequent reads: <1ms from the 60s in-memory cache.
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
+const MODULE_ADDRESS = '0xec714c0618845f5033b9d6f1bd9d32b6a00ab611e38738a3073a118a37d61a5c';
 const PURCHASE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`;
 const SALE_EVENT_TYPE     = `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`;
 

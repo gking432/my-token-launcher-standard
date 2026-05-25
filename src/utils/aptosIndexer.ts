@@ -315,7 +315,7 @@ export async function fetchActivitiesFallback(
     (a, b) => parseInt(a.transaction_version) - parseInt(b.transaction_version),
   );
 
-  const RESOURCE_ADDR = '0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5';
+  const RESOURCE_ADDR = '0x24cca4b277151d5655efbcb1b6912f4b40b06132530e60c62e26a68a0d0a5233';
   let tokensSold = 0; // whole token units
   const purchases: any[] = [];
   const sales: any[] = [];

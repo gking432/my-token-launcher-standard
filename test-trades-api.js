@@ -1,7 +1,7 @@
 // Diagnostic script — tests the trades API logic directly against the live indexer.
 // Run: REACT_APP_GEOMI_API_KEY=aptoslabs_... node test-trades-api.js 0xTOKEN_ADDR
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
+const MODULE_ADDRESS = '0xec714c0618845f5033b9d6f1bd9d32b6a00ab611e38738a3073a118a37d61a5c';
 const PURCHASE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenPurchaseEvent`;
 const SALE_EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenSaleEvent`;
 const INDEXER = 'https://api.testnet.aptoslabs.com/v1/graphql';
