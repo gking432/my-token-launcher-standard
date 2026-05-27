@@ -8,6 +8,7 @@ import BoostBar from './BoostBar';
 import TokenAvatar from './TokenAvatar';
 import { truncateAddress } from '../utils/format';
 import { BOOST_ENABLED } from '../featureFlags';
+import Logo from './Logo';
 
 interface AppHeaderProps {
   launchCta?: boolean;
@@ -147,7 +148,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-logo-img {
           height: 34px; width: auto; display: block;
-          filter: ${isDark ? 'brightness(1.1)' : 'none'};
         }
         .ah-search-wrap { position: relative; }
         .ah-search {
@@ -406,7 +406,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           {/* ── LEFT: logo + nav links ── */}
           <div className="ah-nav-left">
             <Link to="/" className="ah-logo">
-              <img src="/logo.svg" alt="MoveMint" className="ah-logo-img" />
+              <Logo height={34} />
             </Link>
           </div>
 
@@ -566,7 +566,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <aside className="ah-mobile-drawer">
             <div className="ah-mobile-head">
               <Link to="/" className="ah-logo" onClick={() => setMobileOpen(false)}>
-                <img src="/logo.svg" alt="MoveMint" className="ah-logo-img" />
+                <Logo height={34} />
               </Link>
               <button className="ah-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 ✕

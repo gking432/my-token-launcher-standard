@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { BOOST_ENABLED } from '../featureFlags';
+import Logo from './Logo';
 
 const SiteFooter: React.FC = () => (
   <>
@@ -43,9 +44,7 @@ const SiteFooter: React.FC = () => (
       }
       .mm-footer-bottom a { color: var(--text-muted); text-decoration: none; margin-left: 22px; }
       .mm-footer-bottom a:hover { color: var(--text-secondary); }
-      .mm-logo-img {
-        height: 28px; width: auto; display: block;
-      }
+      .mm-logo-wrap { line-height: 0; }
       @media (max-width: 900px) {
         .mm-footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
       }
@@ -59,8 +58,8 @@ const SiteFooter: React.FC = () => (
       <div className="mm-footer-inner">
         <div className="mm-footer-top">
           <div>
-            <div className="mm-footer-brand">
-              <img src="/logo.svg" alt="MoveMint" className="mm-logo-img" />
+            <div className="mm-footer-brand mm-logo-wrap">
+              <Logo height={28} />
             </div>
             <p className="mm-footer-desc">
               A token launchpad built for the Aptos network. Launch in seconds, trade instantly.
