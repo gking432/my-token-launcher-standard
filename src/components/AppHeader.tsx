@@ -406,7 +406,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           {/* ── LEFT: logo + nav links ── */}
           <div className="ah-nav-left">
             <Link to="/" className="ah-logo">
-              <Logo height={34} />
+              <Logo size={22} />
             </Link>
           </div>
 
@@ -566,7 +566,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <aside className="ah-mobile-drawer">
             <div className="ah-mobile-head">
               <Link to="/" className="ah-logo" onClick={() => setMobileOpen(false)}>
-                <Logo height={34} />
+                <Logo size={22} />
               </Link>
               <button className="ah-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 ✕
