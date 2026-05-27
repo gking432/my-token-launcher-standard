@@ -12,7 +12,7 @@ export interface Palette {
   isLight: boolean;
 }
 
-const FALLBACK_PALETTE = ['#5E5CE6', '#059669', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
+const FALLBACK_PALETTE = ['#5E5CE6', '#33972e', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');

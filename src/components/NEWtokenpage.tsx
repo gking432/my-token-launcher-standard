@@ -1332,7 +1332,7 @@ const TokenPage: React.FC = () => {
         .tp-trade-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
         .tp-trade-tab.buy-active {
           background: var(--accent); color: #fff; border-color: var(--accent);
-          box-shadow: 0 3px 12px rgba(5,150,105,0.3);
+          box-shadow: 0 3px 12px rgba(51,151,46,0.3);
         }
         .tp-trade-tab.sell-active {
           background: var(--negative); color: #fff; border-color: var(--negative);
@@ -1430,7 +1430,7 @@ const TokenPage: React.FC = () => {
           transition: filter 0.15s, transform 0.1s;
         }
         .tp-trade-action:active { transform: scale(0.98); }
-        .tp-trade-action.buy { background: var(--accent); color: #fff; box-shadow: 0 4px 16px rgba(5,150,105,0.3); }
+        .tp-trade-action.buy { background: var(--accent); color: #fff; box-shadow: 0 4px 16px rgba(51,151,46,0.3); }
         .tp-trade-action.buy:hover { filter: brightness(1.06); }
         .tp-trade-action.sell { background: var(--negative); color: #fff; }
         .tp-trade-action.sell:hover { filter: brightness(0.92); }
@@ -1572,7 +1572,7 @@ const TokenPage: React.FC = () => {
                     style={{
                       color: tokenData.change24h >= 0 ? 'var(--positive)' : 'var(--negative)',
                       background: tokenData.change24h >= 0
-                        ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.10)')
+                        ? (isDark ? 'rgba(64,187,56,0.15)' : 'rgba(51,151,46,0.10)')
                         : (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.10)'),
                     }}
                   >

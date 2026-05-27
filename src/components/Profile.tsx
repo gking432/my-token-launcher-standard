@@ -116,7 +116,7 @@ const Profile: React.FC = () => {
           display: flex; align-items: center; justify-content: center;
           color: #fff; font-size: 28px; font-weight: 700;
           flex-shrink: 0;
-          box-shadow: 0 4px 14px rgba(5,150,105,0.25);
+          box-shadow: 0 4px 14px rgba(51,151,46,0.25);
         }
         .pf-hero-text { flex: 1; min-width: 0; }
         .pf-hero-label {
@@ -141,7 +141,7 @@ const Profile: React.FC = () => {
         .pf-btn:hover { background: var(--bg-hover); border-color: var(--accent); }
         .pf-btn.primary {
           background: var(--accent); color: #fff; border-color: var(--accent);
-          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 10px rgba(51,151,46,0.3);
         }
         .pf-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
         .pf-section-title {

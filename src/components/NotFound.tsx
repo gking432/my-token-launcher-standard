@@ -39,7 +39,7 @@ const NotFound: React.FC = () => {
         }
         .nf-btn-primary {
           background: var(--accent); color: #fff;
-          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 10px rgba(51,151,46,0.3);
         }
         .nf-btn-primary:hover { background: var(--accent-hover); }
         .nf-btn-secondary {

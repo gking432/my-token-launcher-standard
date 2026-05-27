@@ -26,7 +26,7 @@ const About: React.FC = () => {
           background: linear-gradient(145deg, var(--accent), var(--accent-hover));
           color: #fff; font-size: 30px; font-weight: 800;
           margin-bottom: 24px;
-          box-shadow: 0 8px 24px rgba(5,150,105,0.35);
+          box-shadow: 0 8px 24px rgba(51,151,46,0.35);
         }
         .ab-hero h1 {
           font-size: 56px; font-weight: 700; letter-spacing: -0.04em;
@@ -50,7 +50,7 @@ const About: React.FC = () => {
         }
         .ab-cta.primary {
           background: var(--accent); color: #fff;
-          box-shadow: 0 2px 12px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 12px rgba(51,151,46,0.3);
         }
         .ab-cta.primary:hover { background: var(--accent-hover); }
         .ab-cta.secondary {

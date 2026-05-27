@@ -117,7 +117,7 @@ const HomePage: React.FC = () => {
     : '—';
 
   // Restrained icon palette — muted, premium. No bright/saturated colors.
-  const iconPalette = ['#5E5CE6', '#059669', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
+  const iconPalette = ['#5E5CE6', '#33972e', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
   const getIconBg = (sym: string) => iconPalette[(sym.replace('$', '').charCodeAt(0) || 0) % iconPalette.length];
 
   const handleTradeClick = (t: Token) => {
@@ -160,7 +160,7 @@ const HomePage: React.FC = () => {
           position: absolute; inset: 0; pointer-events: none; z-index: 0;
           background:
             radial-gradient(ellipse 760px 480px at 78% 18%, var(--accent-light) 0%, transparent 62%),
-            radial-gradient(ellipse 620px 420px at 12% 88%, ${isDark ? 'rgba(16,185,129,0.07)' : 'rgba(5,150,105,0.06)'} 0%, transparent 70%);
+            radial-gradient(ellipse 620px 420px at 12% 88%, ${isDark ? 'rgba(64,187,56,0.07)' : 'rgba(51,151,46,0.06)'} 0%, transparent 70%);
         }
         .mm-hero-bg::before {
           content: ''; position: absolute; inset: 0;
@@ -180,7 +180,7 @@ const HomePage: React.FC = () => {
           font-size: 13px; font-weight: 600;
           color: var(--accent);
           background: var(--accent-light);
-          border: 1px solid ${isDark ? 'rgba(16,185,129,0.25)' : 'rgba(5,150,105,0.18)'};
+          border: 1px solid ${isDark ? 'rgba(64,187,56,0.25)' : 'rgba(51,151,46,0.18)'};
           padding: 6px 13px; border-radius: 980px;
           margin-bottom: 22px;
         }
@@ -190,9 +190,9 @@ const HomePage: React.FC = () => {
           animation: mm-pulse 2s infinite;
         }
         @keyframes mm-pulse {
-          0%   { box-shadow: 0 0 0 0 ${isDark ? 'rgba(16,185,129,0.5)' : 'rgba(5,150,105,0.45)'}; }
-          70%  { box-shadow: 0 0 0 8px rgba(5,150,105,0); }
-          100% { box-shadow: 0 0 0 0 rgba(5,150,105,0); }
+          0%   { box-shadow: 0 0 0 0 ${isDark ? 'rgba(64,187,56,0.5)' : 'rgba(51,151,46,0.45)'}; }
+          70%  { box-shadow: 0 0 0 8px rgba(51,151,46,0); }
+          100% { box-shadow: 0 0 0 0 rgba(51,151,46,0); }
         }
         .mm-hero-title {
           font-size: clamp(40px, 5vw, 66px);
@@ -226,7 +226,7 @@ const HomePage: React.FC = () => {
           transition: background 0.15s, transform 0.1s;
           display: inline-flex; align-items: center; gap: 7px;
           border: none; cursor: pointer;
-          box-shadow: 0 4px 16px rgba(5,150,105,0.32);
+          box-shadow: 0 4px 16px rgba(51,151,46,0.32);
         }
         .mm-btn-primary:hover { background: var(--accent-hover); }
         .mm-btn-primary:active { transform: scale(0.98); }
@@ -580,7 +580,7 @@ const HomePage: React.FC = () => {
               <div className="mm-preview-glow" />
               <div className="mm-preview-card">
                 <div className="mm-preview-head">
-                  <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#059669,#0ea5e9)' }}>
+                  <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#33972e,#0ea5e9)' }}>
                     A
                   </div>
                   <div>
@@ -700,7 +700,7 @@ const HomePage: React.FC = () => {
                   const badgeBg = change == null
                     ? 'var(--bg-secondary)'
                     : isPos
-                      ? (isDark ? 'rgba(16,185,129,0.16)' : 'rgba(5,150,105,0.10)')
+                      ? (isDark ? 'rgba(64,187,56,0.16)' : 'rgba(51,151,46,0.10)')
                       : (isDark ? 'rgba(255,69,58,0.16)' : 'rgba(215,0,21,0.10)');
                   const displaySymbol = symbolWithDollar(token.symbol);
 

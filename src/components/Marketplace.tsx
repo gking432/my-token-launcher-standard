@@ -107,7 +107,7 @@ const Marketplace: React.FC = () => {
     t.priceUSD != null ? formatPrice(t.priceUSD) : t.price != null ? `${t.price.toFixed(8)} APT` : '—';
   const symbolWithDollar = (s: string) => (s.startsWith('$') ? s : `$${s}`);
 
-  const iconPalette = ['#5E5CE6', '#059669', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
+  const iconPalette = ['#5E5CE6', '#33972e', '#FF9F0A', '#BF5AF2', '#0A84FF', '#FF6482', '#A2845E', '#30B0C7'];
   const getIconBg = (sym: string) => iconPalette[(sym.replace('$', '').charCodeAt(0) || 0) % iconPalette.length];
 
   const handleTradeClick = (t: Token) => {
@@ -616,7 +616,7 @@ const Marketplace: React.FC = () => {
                   const changeBg = change == null
                     ? 'var(--bg-secondary)'
                     : isPos
-                      ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.10)')
+                      ? (isDark ? 'rgba(64,187,56,0.15)' : 'rgba(51,151,46,0.10)')
                       : (isDark ? 'rgba(215,0,21,0.15)' : 'rgba(215,0,21,0.08)');
                   const starred = !!(token.metadataAddress || token.txHash) &&
                     isInWatchlist(token.metadataAddress || token.txHash);

@@ -142,16 +142,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           display: flex; align-items: center; gap: 6px; justify-content: flex-end;
         }
         .ah-logo {
-          display: flex; align-items: center; gap: 9px; flex-shrink: 0;
-          font-size: 18px; font-weight: 700; letter-spacing: -0.025em;
-          color: var(--text-primary); text-decoration: none;
+          display: flex; align-items: center; flex-shrink: 0;
+          text-decoration: none;
         }
-        .ah-logo-mark {
-          width: 28px; height: 28px; border-radius: 9px;
-          background: linear-gradient(145deg, var(--accent), var(--accent-hover));
-          display: flex; align-items: center; justify-content: center;
-          color: #fff; font-size: 15px; font-weight: 800;
-          box-shadow: 0 2px 8px rgba(5,150,105,0.35); flex-shrink: 0;
+        .ah-logo-img {
+          height: 34px; width: auto; display: block;
+          filter: ${isDark ? 'brightness(1.1)' : 'none'};
         }
         .ah-search-wrap { position: relative; }
         .ah-search {
@@ -217,7 +213,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           background: var(--accent); color: #fff;
           padding: 8px 16px; border-radius: 10px;
           font-size: 13.5px; font-weight: 600; border: none; cursor: pointer;
-          font-family: inherit; box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+          font-family: inherit; box-shadow: 0 2px 10px rgba(51,151,46,0.3);
           transition: background 0.15s; white-space: nowrap;
         }
         .ah-connect-btn:hover { background: var(--accent-hover); }
@@ -286,7 +282,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           padding: 8px 18px; border-radius: 10px;
           font-size: 13.5px; font-weight: 600;
           text-decoration: none; white-space: nowrap;
-          box-shadow: 0 2px 10px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 10px rgba(51,151,46,0.3);
           transition: background 0.15s;
           display: inline-flex; align-items: center; gap: 6px;
           border: none; cursor: pointer; font-family: inherit;
@@ -410,8 +406,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           {/* ── LEFT: logo + nav links ── */}
           <div className="ah-nav-left">
             <Link to="/" className="ah-logo">
-              <div className="ah-logo-mark">M</div>
-              MoveMint
+              <img src="/logo.svg" alt="MoveMint" className="ah-logo-img" />
             </Link>
           </div>
 
@@ -571,8 +566,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <aside className="ah-mobile-drawer">
             <div className="ah-mobile-head">
               <Link to="/" className="ah-logo" onClick={() => setMobileOpen(false)}>
-                <div className="ah-logo-mark">M</div>
-                MoveMint
+                <img src="/logo.svg" alt="MoveMint" className="ah-logo-img" />
               </Link>
               <button className="ah-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 ✕

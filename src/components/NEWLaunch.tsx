@@ -448,7 +448,7 @@ const Launch: React.FC = () => {
           border: none; border-radius: 12px;
           font-size: 15.5px; font-weight: 600; font-family: inherit;
           cursor: pointer;
-          box-shadow: 0 2px 12px rgba(5,150,105,0.3);
+          box-shadow: 0 2px 12px rgba(51,151,46,0.3);
           transition: background 0.15s, transform 0.05s;
         }
         .lp-submit:hover:not(:disabled) { background: var(--accent-hover); }

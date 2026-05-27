@@ -18,7 +18,7 @@ const SiteFooter: React.FC = () => (
       .mm-footer-brand {
         font-size: 17px; font-weight: 700; letter-spacing: -0.022em;
         color: var(--text-primary); margin-bottom: 10px;
-        display: flex; align-items: center; gap: 9px;
+        display: flex; align-items: center;
       }
       .mm-footer-desc {
         font-size: 13px; color: var(--text-secondary);
@@ -43,11 +43,8 @@ const SiteFooter: React.FC = () => (
       }
       .mm-footer-bottom a { color: var(--text-muted); text-decoration: none; margin-left: 22px; }
       .mm-footer-bottom a:hover { color: var(--text-secondary); }
-      .mm-logo-mark {
-        width: 24px; height: 24px; border-radius: 7px;
-        background: linear-gradient(145deg, var(--accent), var(--accent-hover));
-        display: flex; align-items: center; justify-content: center;
-        color: #fff; font-size: 13px; font-weight: 800;
+      .mm-logo-img {
+        height: 28px; width: auto; display: block;
       }
       @media (max-width: 900px) {
         .mm-footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
@@ -63,7 +60,7 @@ const SiteFooter: React.FC = () => (
         <div className="mm-footer-top">
           <div>
             <div className="mm-footer-brand">
-              <div className="mm-logo-mark">M</div> MoveMint
+              <img src="/logo.svg" alt="MoveMint" className="mm-logo-img" />
             </div>
             <p className="mm-footer-desc">
               A token launchpad built for the Aptos network. Launch in seconds, trade instantly.
