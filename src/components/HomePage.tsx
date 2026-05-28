@@ -149,7 +149,7 @@ const HomePage: React.FC = () => {
           -moz-osx-font-smoothing: grayscale;
         }
 
-        .mm-page { width: 100%; min-height: 100vh; background: var(--bg-primary); overflow-x: hidden; }
+        .mm-page { width: 100%; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-primary); overflow-x: hidden; }
 
         /* ── HERO ── */
         .mm-hero {
@@ -355,6 +355,7 @@ const HomePage: React.FC = () => {
 
         /* ── TOKENS SECTION ── */
         .mm-tokens {
+          flex: 1;
           padding: 88px 24px 100px;
           background: var(--bg-primary);
         }

@@ -9,11 +9,14 @@ const NotFound: React.FC = () => {
       <style>{`
         .nf-page {
           min-height: 100vh;
+          display: flex;
+          flex-direction: column;
           background: var(--bg-secondary);
           color: var(--text-primary);
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
         .nf-wrap {
+          flex: 1;
           max-width: 640px; margin: 0 auto;
           padding: 96px 24px 64px; text-align: center;
         }

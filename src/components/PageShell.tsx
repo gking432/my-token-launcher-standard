@@ -11,22 +11,29 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
   return (
     <>
       <style>{`
+        .ps-page {
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+        }
         .ps-shell {
           display: flex;
           align-items: stretch;
-          min-height: calc(100vh - var(--mm-header-offset, 60px));
+          flex: 1;
         }
         .ps-main {
           flex: 1;
           min-width: 0;
         }
       `}</style>
-      <AppHeader />
-      <div className="ps-shell">
-        <LeftSidebar />
-        <main className="ps-main">{children}</main>
+      <div className="ps-page">
+        <AppHeader />
+        <div className="ps-shell">
+          <LeftSidebar />
+          <main className="ps-main">{children}</main>
+        </div>
+        <SiteFooter />
       </div>
-      <SiteFooter />
     </>
   );
 };

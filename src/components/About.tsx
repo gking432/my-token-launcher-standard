@@ -10,11 +10,13 @@ const About: React.FC = () => {
       <style>{`
         .ab-page {
           min-height: 100vh;
+          display: flex;
+          flex-direction: column;
           background: var(--bg-secondary);
           color: var(--text-primary);
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
-        .ab-wrap { max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; }
+        .ab-wrap { flex: 1; max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; }
 
         .ab-hero {
           text-align: center;

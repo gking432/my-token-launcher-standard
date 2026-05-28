@@ -5,9 +5,9 @@ import SiteFooter from './SiteFooter';
 const Privacy: React.FC = () => (
   <>
     <style>{`
-      .lg-page { min-height: 100vh; background: var(--bg-secondary); color: var(--text-primary);
+      .lg-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-secondary); color: var(--text-primary);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; }
-      .lg-wrap { max-width: 760px; margin: 0 auto; padding: 60px 32px 80px; }
+      .lg-wrap { flex: 1; max-width: 760px; margin: 0 auto; padding: 60px 32px 80px; }
       .lg-eyebrow { font-size: 12px; font-weight: 700; color: var(--accent);
         text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
       .lg-wrap h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em;

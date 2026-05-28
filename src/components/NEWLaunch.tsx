@@ -298,11 +298,14 @@ const Launch: React.FC = () => {
       <style>{`
         .lp-page {
           min-height: 100vh;
+          display: flex;
+          flex-direction: column;
           background: var(--bg-secondary);
           color: var(--text-primary);
           font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
         .lp-wrap {
+          flex: 1;
           max-width: 1280px;
           margin: 0 auto;
           padding: 40px 24px 64px;

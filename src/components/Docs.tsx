@@ -7,9 +7,9 @@ import { BONDING_CURVE } from '../lib/bondingCurve';
 const Docs: React.FC = () => (
   <>
     <style>{`
-      .dx-page { min-height: 100vh; background: var(--bg-secondary); color: var(--text-primary);
+      .dx-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-secondary); color: var(--text-primary);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; }
-      .dx-wrap { max-width: 760px; margin: 0 auto; padding: 60px 32px 80px; }
+      .dx-wrap { flex: 1; max-width: 760px; margin: 0 auto; padding: 60px 32px 80px; }
       .dx-eyebrow { font-size: 12px; font-weight: 700; color: var(--accent);
         text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
       .dx-wrap h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.025em;
