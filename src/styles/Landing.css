@@ -206,7 +206,7 @@ body {
 }
 
 .button {
-    background: linear-gradient(135deg, var(--mint-accent), #059669);
+    background: linear-gradient(135deg, var(--mint-accent), #33972e);
     color: white;
     padding: 14px 28px;
     font-size: 15px;
@@ -286,10 +286,10 @@ body {
 }
 
 .primary-btn {
-    background: #30b080; /* Matches your token accent green */
+    background: #33972e; /* Matches your token accent green */
     color: #fff;
     padding: 12px 24px;
-    border: 2px solid #30b080;
+    border: 2px solid #33972e;
     border-radius: 4px;
     font-size: 16px;
     line-height: 1; /* Match primary button */
@@ -305,9 +305,9 @@ body {
 
 .secondary-btn {
     background: transparent;
-    color: #30b080; /* Matches primary color but as text */
+    color: #33972e; /* Matches primary color but as text */
     padding: 12px 24px;
-    border: 2px solid #30b080;
+    border: 2px solid #33972e;
     border-radius: 4px;
     font-size: 16px;
     line-height: 1; /* Match primary button */

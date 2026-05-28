@@ -25,14 +25,14 @@ async function fetchTrades(addr: string): Promise<TokenTradesResult> {
   return res.json();
 }
 
-// Trade history (chronological, ascending). Polls every 8s; server-cached for 5s.
+// Trade history (chronological, ascending). Polls every 60s; server-cached for 60s.
 // Used by transactions tab, OHLC chart, top holders — all see the same data.
 export function useTokenTrades(addr: string | undefined) {
   return useQuery({
     queryKey: ['tokenTrades', addr?.toLowerCase()],
     queryFn: () => fetchTrades(addr!.toLowerCase()),
     enabled: !!addr,
-    refetchInterval: 8_000,
-    staleTime: 4_000,
+    refetchInterval: 60_000,
+    staleTime: 55_000,
   });
 }

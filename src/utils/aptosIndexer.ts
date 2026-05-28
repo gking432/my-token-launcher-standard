@@ -80,7 +80,7 @@ interface CacheEntry {
 
 // Cache for token data to avoid repeated API calls
 let tokenCache: CacheEntry | null = null;
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
+const CACHE_TTL = 30 * 1000; // 30 seconds
 
 // Request deduplication
 let activeRequest: Promise<TokenCreationEvent[]> | null = null;
@@ -246,33 +246,28 @@ async function fetchTokenCreatedEvents(): Promise<any[]> {
   return json.tokens || [];
 }
 
-// Fetch graduation events from Geomi indexer
+// Fetch graduation events from the Aptos fullnode event handle (free, no API key).
 async function fetchGraduationEvents(): Promise<any[]> {
-  const tableName = 'token_graduated_events';
-  console.log(`🔍 Querying ${tableName} table...`);
-  
-  const query = `
-    query GetGraduationEvents {
-      ${tableName}(order_by: {timestamp: desc}) {
-        event_index
-        sequence_number
-        metadata_addr
-        market_cap_at_graduation
-        timestamp
-      }
-    }
-  `;
-
   try {
-    const data = await graphqlQuery(query);
-    if (data[tableName]) {
-      console.log(`✅ Successfully queried ${tableName}: ${data[tableName].length} events`);
-      return data[tableName] || [];
+    const url = `https://fullnode.testnet.aptoslabs.com/v1/accounts/${MODULE_ADDRESS}/events/${MODULE_ADDRESS}::token_launcher::ModuleState/graduation_events?limit=100`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`⚠️ Graduation events fetch returned ${res.status}`);
+      return [];
     }
-    return [];
+    const events = await res.json();
+    if (!Array.isArray(events)) return [];
+    // Normalise to the shape the rest of the code expects
+    return events.map((e: any, idx: number) => ({
+      event_index: idx,
+      sequence_number: e.sequence_number ?? idx,
+      metadata_addr: e.data?.metadata_addr ?? '',
+      market_cap_at_graduation: e.data?.market_cap_at_graduation ?? '0',
+      timestamp: e.data?.timestamp ?? '0',
+    }));
   } catch (error: any) {
-    console.error(`❌ Failed to query ${tableName}:`, error);
-    return []; // Return empty array on error for graduation events
+    console.error('❌ Failed to fetch graduation events:', error);
+    return [];
   }
 }
 
@@ -320,7 +315,7 @@ export async function fetchActivitiesFallback(
     (a, b) => parseInt(a.transaction_version) - parseInt(b.transaction_version),
   );
 
-  const RESOURCE_ADDR = '0x2867f67700ccd1b3575ecf551137729c06af169a266fc2340d64f667ed9ac9d5';
+  const RESOURCE_ADDR = '0x24cca4b277151d5655efbcb1b6912f4b40b06132530e60c62e26a68a0d0a5233';
   let tokensSold = 0; // whole token units
   const purchases: any[] = [];
   const sales: any[] = [];
@@ -375,8 +370,6 @@ export async function fetchActivitiesFallback(
 }
 
 export async function fetchPurchaseEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
-  // No-addr case (homepage 24h volume): use server-side /api/purchases proxy
-  // to avoid per-user 429 rate-limit from direct browser→Geomi calls.
   if (!metadataAddr) {
     try {
       const res = await fetch('/api/purchases');
@@ -388,11 +381,46 @@ export async function fetchPurchaseEvents(metadataAddr?: string, limit: number =
       return [];
     }
   }
-  return fetchGeomiPurchaseEvents(metadataAddr.toLowerCase(), limit);
+  // Per-token: use /api/trades/{addr} (standard indexer + fullnode, free)
+  try {
+    const res = await fetch(`/api/trades/${metadataAddr.toLowerCase()}`);
+    if (!res.ok) throw new Error(`/api/trades ${res.status}`);
+    const json = await res.json();
+    return (json.trades || []).filter((t: any) => t.type === 'buy').map((t: any) => ({
+      buyer: t.wallet,
+      metadata_addr: metadataAddr,
+      amount: String(t.amount),
+      price: '0',
+      liquidity_contribution: String(Math.round(t.aptValue * 1e8)),
+      timestamp: String(t.timestampMs * 1000),
+      tokens_sold: String(t.tokensSoldBefore),
+      transaction_version: String(t.txVersion),
+    }));
+  } catch (err) {
+    console.warn('[fetchPurchaseEvents] /api/trades failed:', err);
+    return [];
+  }
 }
 
 async function fetchSaleEvents(metadataAddr?: string, limit: number = 1000): Promise<any[]> {
-  return fetchGeomiSaleEvents(metadataAddr?.toLowerCase(), limit);
+  if (!metadataAddr) return [];
+  try {
+    const res = await fetch(`/api/trades/${metadataAddr.toLowerCase()}`);
+    if (!res.ok) throw new Error(`/api/trades ${res.status}`);
+    const json = await res.json();
+    return (json.trades || []).filter((t: any) => t.type === 'sell').map((t: any) => ({
+      seller: t.wallet,
+      metadata_addr: metadataAddr,
+      amount: String(t.amount),
+      apt_returned: String(Math.round(t.aptValue * 1e8)),
+      timestamp: String(t.timestampMs * 1000),
+      tokens_sold: String(t.tokensSoldBefore),
+      transaction_version: String(t.txVersion),
+    }));
+  } catch (err) {
+    console.warn('[fetchSaleEvents] /api/trades failed:', err);
+    return [];
+  }
 }
 
 // Kept for backward compatibility — callers that used this separately can now
@@ -456,6 +484,9 @@ async function getOptimizedTokenData(moduleAddress: string, ownerAddress?: strin
           creator: event.creator,
           metadata_address: event.metadata_addr,
           ticker: event.ticker,
+          name: event.name || event.ticker_decoded || event.ticker,
+          symbol: event.symbol || event.ticker_decoded || event.ticker,
+          icon_uri: event.icon_uri || '',
           total_supply: event.total_supply,
           tokens_sold: state?.tokensSold ?? 0,
           apt_raised: state?.aptRaised ?? 0,

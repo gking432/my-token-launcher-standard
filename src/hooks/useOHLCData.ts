@@ -17,6 +17,7 @@ export interface RecentTrade {
   amount: number;
   aptValue: number;
   timestampMs: number;
+  tokensSoldAfter: number;
 }
 
 export type Timeframe = '1m' | '15m' | '1H' | '4H' | '1D' | 'ALL';
@@ -59,6 +60,7 @@ export function useOHLCData(
         amount: t.amount,
         aptValue: t.aptValue,
         timestampMs: t.timestampMs,
+        tokensSoldAfter: t.tokensSoldAfter,
       }));
   }, [trades]);
 

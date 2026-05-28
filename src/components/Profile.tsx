@@ -1,209 +1,441 @@
-import React, { useEffect, useState } from "react";
-import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Link, useParams } from "react-router-dom";
-import { Types } from "aptos";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import './Profile.css';
-import '../styles/header.css';
+import React, { useMemo, useState } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
+import { Link, useParams } from 'react-router-dom';
+import PageShell from './PageShell';
+import { useTokenData } from '../hooks/useTokenData';
+import { useTokenList } from '../data/useTokenList';
+import { useAptPrice } from '../contexts/AptPriceContext';
+import { useWatchlist } from '../contexts/WatchlistContext';
+import { truncateAddress } from '../utils/format';
 
-interface Token {
-    name: string;
-    symbol: string;
-    supply: number;
-    txHash: string;
-    image: string | null;
-    launchDate: string;
-    creator: string;
-}
+const formatPriceUSD = (price: number | undefined | null): string => {
+  if (price == null || isNaN(price)) return '—';
+  if (price < 0.0001) return `$${price.toFixed(8)}`;
+  if (price < 0.01) return `$${price.toFixed(6)}`;
+  if (price < 1) return `$${price.toFixed(4)}`;
+  return `$${price.toFixed(2)}`;
+};
 
-const config = new AptosConfig({ network: Network.TESTNET, fullnode: "https://fullnode.testnet.aptoslabs.com/v1" });
-const client = new Aptos(config);
+const formatNumber = (n: number | undefined | null): string => {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(2)}K`;
+  return n.toFixed(0);
+};
 
 const Profile: React.FC = () => {
-    const { account } = useWallet();
-    const { address } = useParams();
-    const [tokens, setTokens] = useState<Token[]>([]);
-    const [viewingAddress, setViewingAddress] = useState<string | null>(null);
+  const { account } = useWallet();
+  const { address: routeAddress } = useParams();
+  const { tokens: catalogTokens, loading } = useTokenData();
+  const { aptPrice } = useAptPrice();
+  const { watchlist, removeFromWatchlist } = useWatchlist();
+  const [copied, setCopied] = useState(false);
 
-    const formatTimeAgo = (dateString: string) => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-        
-        if (diffInHours < 1) {
-            const minutes = Math.floor(diffInHours * 60);
-            return `${minutes} minutes ago`;
-        } else if (diffInHours < 24) {
-            const hours = Math.floor(diffInHours);
-            return `${hours} hours ago`;
-        } else {
-            return date.toLocaleDateString();
-        }
-    };
+  const viewingAddress = (routeAddress || (account ? String(account.address) : '')).toLowerCase();
 
-    const getTransactionTimestamp = async (txHash: string): Promise<string> => {
-        try {
-            const txn = await client.getTransactionByHash({ transactionHash: txHash });
-            if ('timestamp_usecs' in txn) {
-                return new Date(Number(txn.timestamp_usecs) / 1000).toISOString();
-            }
-        } catch (error) {
-            console.error("Error fetching transaction:", error);
-        }
-        return new Date().toISOString();
-    };
+  const launchedAddrs = useMemo(
+    () => catalogTokens.map(t => t.metadataAddress || t.txHash).filter(Boolean) as string[],
+    [catalogTokens]
+  );
+  const { data: liveByAddr } = useTokenList(launchedAddrs);
 
-    useEffect(() => {
-        const updateTokens = async () => {
-            const targetAddress = address || (account ? String(account.address) : null);
-            if (targetAddress) {
-                setViewingAddress(targetAddress);
-                let users = JSON.parse(localStorage.getItem("users") || "{}");
-
-                if (!users[targetAddress]) {
-                    users[targetAddress] = { launchedTokens: [] };
-                }
-
-                if (!users[targetAddress].launchedTokens || !Array.isArray(users[targetAddress].launchedTokens)) {
-                    users[targetAddress].launchedTokens = [];
-                }
-
-                // Update existing tokens to include creator field and correct launch date if missing
-                let needsUpdate = false;
-                const updatedTokens = await Promise.all(users[targetAddress].launchedTokens.map(async (token: Token) => {
-                    if (!token.creator || !token.launchDate) {
-                        needsUpdate = true;
-                        const launchDate = await getTransactionTimestamp(token.txHash);
-                        return {
-                            ...token,
-                            creator: targetAddress,
-                            launchDate
-                        };
-                    }
-                    return token;
-                }));
-
-                if (needsUpdate) {
-                    users[targetAddress].launchedTokens = updatedTokens;
-                    localStorage.setItem("users", JSON.stringify(users));
-                }
-
-                setTokens(updatedTokens);
-            }
+  const launched = useMemo(() => {
+    if (!viewingAddress) return [];
+    return catalogTokens
+      .filter(t => (t.creator || t.creatorAddress || '').toLowerCase() === viewingAddress)
+      .map(t => {
+        const live = liveByAddr?.[(t.metadataAddress || '').toLowerCase()];
+        const priceAPT = live?.spotPriceAPT ?? 0;
+        const priceUSD = aptPrice ? priceAPT * aptPrice : t.priceUSD;
+        const marketCapUSD = live?.marketCapAPT && aptPrice ? live.marketCapAPT * aptPrice : undefined;
+        return {
+          ...t,
+          priceUSD,
+          marketCapUSD,
+          aptRaised: live?.aptRaised,
+          isGraduated: live?.isGraduated ?? false,
         };
+      });
+  }, [catalogTokens, liveByAddr, viewingAddress, aptPrice]);
 
-        updateTokens();
-    }, [account, address]);
+  const isOwn = account && String(account.address).toLowerCase() === viewingAddress;
 
-    const truncateAddress = (address: any) => {
-        if (!address) return "Unknown";
-        const addressString = String(address);
-        return `${addressString.slice(0, 6)}...${addressString.slice(-4)}`;
-    };
+  const watching = useMemo(() => {
+    if (!isOwn) return [];
+    return watchlist.map(w => {
+      const t = catalogTokens.find(
+        c => (c.metadataAddress || '').toLowerCase() === w.metadataAddress.toLowerCase()
+      );
+      const live = t && liveByAddr?.[(t.metadataAddress || '').toLowerCase()];
+      const priceAPT = live?.spotPriceAPT ?? t?.price ?? 0;
+      const priceUSD = aptPrice ? priceAPT * aptPrice : t?.priceUSD;
+      const marketCapUSD = live?.marketCapAPT && aptPrice ? live.marketCapAPT * aptPrice : t?.marketCapUSD;
+      return {
+        metadataAddress: w.metadataAddress,
+        name: t?.name ?? w.name,
+        symbol: t?.symbol ?? w.symbol,
+        priceUSD,
+        marketCapUSD,
+        aptRaised: live?.aptRaised,
+        isGraduated: live?.isGraduated ?? false,
+      };
+    });
+  }, [isOwn, watchlist, catalogTokens, liveByAddr, aptPrice]);
 
-    const copyAddress = () => {
-        if (account?.address) {
-            navigator.clipboard.writeText(String(account.address));
-            alert("Address copied!");
+  const handleCopy = () => {
+    if (!viewingAddress) return;
+    navigator.clipboard.writeText(viewingAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <>
+      <style>{`
+        .pf-page {
+          min-height: 100vh;
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
         }
-    };
+        .pf-wrap {
+          padding: 40px 40px 64px;
+        }
+        .pf-hero {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          padding: 28px 32px;
+          display: flex; align-items: center; gap: 22px;
+          margin-bottom: 28px;
+        }
+        .pf-avatar {
+          width: 72px; height: 72px; border-radius: 50%;
+          background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 28px; font-weight: 700;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(51,151,46,0.25);
+        }
+        .pf-hero-text { flex: 1; min-width: 0; }
+        .pf-hero-label {
+          font-size: 12px; font-weight: 600; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+        }
+        .pf-hero-addr {
+          font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+          color: var(--text-primary); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+          word-break: break-all;
+        }
+        .pf-hero-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .pf-btn {
+          background: var(--bg-secondary);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
+          padding: 8px 14px; border-radius: 10px;
+          font-size: 13px; font-weight: 600; font-family: inherit;
+          cursor: pointer;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .pf-btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+        .pf-btn.primary {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+          box-shadow: 0 2px 10px rgba(51,151,46,0.3);
+        }
+        .pf-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        .pf-section-title {
+          display: flex; align-items: baseline; gap: 10px;
+          margin-bottom: 16px;
+        }
+        .pf-section-title h2 {
+          font-size: 20px; font-weight: 700; letter-spacing: -0.015em;
+          color: var(--text-primary); margin: 0;
+        }
+        .pf-section-title .count {
+          font-size: 13px; color: var(--text-muted); font-weight: 500;
+        }
+        .pf-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 16px;
+        }
+        .pf-card {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 20px;
+          cursor: pointer;
+          text-decoration: none; color: inherit;
+          display: flex; flex-direction: column; gap: 14px;
+          transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+        .pf-card:hover {
+          transform: translateY(-2px);
+          border-color: var(--accent);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+        }
+        .pf-card-top { display: flex; align-items: center; gap: 12px; }
+        .pf-token-icon {
+          width: 44px; height: 44px; border-radius: 12px;
+          background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-hover));
+          display: flex; align-items: center; justify-content: center;
+          color: var(--text-primary); font-size: 16px; font-weight: 700;
+          flex-shrink: 0;
+        }
+        .pf-card-name {
+          font-size: 15px; font-weight: 600; color: var(--text-primary);
+          letter-spacing: -0.01em;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .pf-card-symbol {
+          font-size: 12.5px; color: var(--text-muted); font-weight: 500;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        }
+        .pf-card-badge {
+          margin-left: auto; padding: 3px 8px; border-radius: 6px;
+          font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+        .pf-card-badge.graduated {
+          background: var(--accent-light); color: var(--accent);
+        }
+        .pf-unwatch {
+          background: none; border: none; cursor: pointer;
+          color: #f5b80a; font-size: 20px; line-height: 1;
+          padding: 4px 6px; border-radius: 6px;
+          font-family: inherit; margin-left: auto;
+          transition: background 0.12s, transform 0.12s;
+        }
+        .pf-unwatch:hover { background: var(--bg-hover); transform: scale(1.15); }
+        .pf-card-stats {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+          padding-top: 14px; border-top: 1px solid var(--border);
+        }
+        .pf-stat-label {
+          font-size: 11px; font-weight: 600; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;
+        }
+        .pf-stat-value {
+          font-size: 14px; font-weight: 600; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+        .pf-empty {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 60px 24px;
+          text-align: center;
+        }
+        @keyframes pf-skel {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .pf-skel {
+          display: inline-block; height: 14px; border-radius: 6px;
+          background: linear-gradient(90deg, var(--bg-secondary) 0px, var(--bg-hover) 80px, var(--bg-secondary) 160px);
+          background-size: 200px 100%;
+          animation: pf-skel 1.2s linear infinite;
+        }
+        .pf-skel-card {
+          background: var(--bg-primary);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 18px;
+        }
+        .pf-empty-title {
+          font-size: 17px; font-weight: 600; color: var(--text-primary);
+          margin-bottom: 6px;
+        }
+        .pf-empty-sub {
+          font-size: 14px; color: var(--text-secondary); margin-bottom: 18px;
+        }
+        @media (max-width: 700px) {
+          .pf-wrap { padding: 24px 16px 60px; }
+          .pf-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+        }
+        @media (max-width: 600px) {
+          .pf-hero { flex-direction: column; align-items: flex-start; gap: 14px; }
+          .pf-hero-addr { font-size: 18px; }
+          .pf-hero-actions { width: 100%; }
+        }
+        @media (max-width: 460px) {
+          .pf-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
 
-    return (
-        <div className="profile-page">
-            <div className="profile-container">
-                <h1 className="profile-title">Profile</h1>
-                {viewingAddress ? (
-                    <>
-                        <div className="profile-wallet">
-                            <strong>Wallet:</strong> {truncateAddress(viewingAddress)}
-                            <button className="copy-button" onClick={() => {
-                                navigator.clipboard.writeText(viewingAddress);
-                                alert("Address copied!");
-                            }}>Copy</button>
-                        </div>
-                        <h2 className="profile-subtitle">Launched Tokens ({tokens.length})</h2>
-
-                        {tokens.length > 0 ? (
-                            <div className="profile-tokens">
-                                {tokens.map((token, index) => (
-                                    <Link to={`/token/${token.txHash}`} key={index} className="token-link" style={{ textDecoration: 'none' }}>
-                                        <div className="token-icon">
-                                            <div className="token-image">
-                                                {token.image ? (
-                                                    <img src={token.image} alt={token.name} />
-                                                ) : (
-                                                    <div className="no-image">(no image)</div>
-                                                )}
-                                            </div>
-                                            <div className="token-content">
-                                                <div className="token-header">
-                                                    <div className="token-title">
-                                                        <p className="token-symbol">{token.symbol}</p>
-                                                        <p className="token-name">{token.name}</p>
-                                                    </div>
-                                                    <p className="token-contract">
-                                                        <strong>CA:</strong>{" "}
-                                                        <span className="contract-address">
-                                                            {truncateAddress(token.txHash)}
-                                                        </span>
-                                                        <button 
-                                                            className="copy-button small"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                navigator.clipboard.writeText(token.txHash);
-                                                                alert("Contract address copied!");
-                                                            }}
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                                            </svg>
-                                                        </button>
-                                                    </p>
-                                                </div>
-                                                <div className="token-details">
-                                                    <p className="token-supply">Supply: {token.supply.toLocaleString()}</p>
-                                                    <p className="token-launch-date">
-                                                        <strong>Launched:</strong> {formatTimeAgo(token.launchDate)}
-                                                    </p>
-                                                    <p className="token-creator">
-                                                        <strong>Creator:</strong>{" "}
-                                                        <Link 
-                                                            to={`/profile/${token.creator}`} 
-                                                            className="creator-link"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            {truncateAddress(token.creator)}
-                                                        </Link>
-                                                    </p>
-                                                </div>
-                                                <a 
-                                                    href={`https://explorer.aptoslabs.com/txn/${token.txHash}?network=testnet`} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="explorer-link"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    View on Explorer <span>↗</span>
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="profile-empty">
-                                <p>No tokens launched yet.</p>
-                                {!address && <Link to="/launch" className="create-link">Create a Token</Link>}
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <p className="profile-empty">Connect wallet to view profile.</p>
-                )}
+      <div className="pf-page">
+        <PageShell>
+        <div className="pf-wrap">
+          {!viewingAddress ? (
+            <div className="pf-empty">
+              <div className="pf-empty-title">Connect your wallet</div>
+              <div className="pf-empty-sub">Connect a wallet to see your launched tokens.</div>
             </div>
+          ) : (
+            <>
+              <div className="pf-hero">
+                <div className="pf-avatar">{viewingAddress.slice(2, 3).toUpperCase()}</div>
+                <div className="pf-hero-text">
+                  <div className="pf-hero-label">{isOwn ? 'Your wallet' : 'Profile'}</div>
+                  <div className="pf-hero-addr">{truncateAddress(viewingAddress)}</div>
+                </div>
+                <div className="pf-hero-actions">
+                  <button className="pf-btn" onClick={handleCopy}>
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                  <a
+                    className="pf-btn"
+                    href={`https://explorer.aptoslabs.com/account/${viewingAddress}?network=testnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Explorer ↗
+                  </a>
+                  {isOwn && (
+                    <Link to="/launch" className="pf-btn primary">Launch new token</Link>
+                  )}
+                </div>
+              </div>
+
+              <div className="pf-section-title">
+                <h2>Launched tokens</h2>
+                <span className="count">{launched.length}</span>
+              </div>
+
+              {loading && launched.length === 0 ? (
+                <div className="pf-grid">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={`pf-skel-${i}`} className="pf-skel-card">
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+                        <span className="pf-skel" style={{ width: 36, height: 36, borderRadius: 10 }}></span>
+                        <div style={{ flex: 1 }}>
+                          <span className="pf-skel" style={{ width: '60%' }}></span><br/>
+                          <span className="pf-skel" style={{ width: 40, height: 11, marginTop: 6 }}></span>
+                        </div>
+                      </div>
+                      <span className="pf-skel" style={{ width: '90%' }}></span><br/>
+                      <span className="pf-skel" style={{ width: '70%', marginTop: 6 }}></span>
+                    </div>
+                  ))}
+                </div>
+              ) : launched.length === 0 ? (
+                <div className="pf-empty">
+                  <div className="pf-empty-title">No tokens yet</div>
+                  <div className="pf-empty-sub">
+                    {isOwn
+                      ? "You haven't launched any tokens. Create one in minutes."
+                      : "This wallet hasn't launched any tokens."}
+                  </div>
+                  {isOwn && (
+                    <Link to="/launch" className="pf-btn primary" style={{ textDecoration: 'none' }}>
+                      Launch a token
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="pf-grid">
+                  {launched.map(t => (
+                    <Link
+                      key={t.metadataAddress || t.txHash}
+                      to={`/newtoken/${t.metadataAddress || t.txHash}`}
+                      className="pf-card"
+                    >
+                      <div className="pf-card-top">
+                        <div className="pf-token-icon">{(t.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="pf-card-name">{t.name}</div>
+                          <div className="pf-card-symbol">{t.symbol}</div>
+                        </div>
+                        {t.isGraduated && <span className="pf-card-badge graduated">Graduated</span>}
+                      </div>
+                      <div className="pf-card-stats">
+                        <div>
+                          <div className="pf-stat-label">Price</div>
+                          <div className="pf-stat-value">{formatPriceUSD(t.priceUSD)}</div>
+                        </div>
+                        <div>
+                          <div className="pf-stat-label">Market cap</div>
+                          <div className="pf-stat-value">{t.marketCapUSD ? `$${formatNumber(t.marketCapUSD)}` : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="pf-stat-label">APT raised</div>
+                          <div className="pf-stat-value">{t.aptRaised != null ? `${t.aptRaised.toFixed(2)} APT` : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="pf-stat-label">Supply</div>
+                          <div className="pf-stat-value">{t.supply ? formatNumber(Number(t.supply)) : '—'}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {isOwn && (
+                <>
+                  <div className="pf-section-title" style={{ marginTop: 36 }}>
+                    <h2>Watching</h2>
+                    <span className="count">{watching.length}</span>
+                  </div>
+                  {watching.length === 0 ? (
+                    <div className="pf-empty">
+                      <div className="pf-empty-title">Nothing watched yet</div>
+                      <div className="pf-empty-sub">
+                        Tap the ☆ on any token to start tracking it here.
+                      </div>
+                      <Link to="/marketplace" className="pf-btn primary" style={{ textDecoration: 'none' }}>
+                        Browse marketplace
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="pf-grid">
+                      {watching.map(w => (
+                        <Link
+                          key={w.metadataAddress}
+                          to={`/newtoken/${w.metadataAddress}`}
+                          className="pf-card"
+                        >
+                          <div className="pf-card-top">
+                            <div className="pf-token-icon">{(w.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div className="pf-card-name">{w.name}</div>
+                              <div className="pf-card-symbol">{w.symbol}</div>
+                            </div>
+                            {w.isGraduated && <span className="pf-card-badge graduated">Graduated</span>}
+                            <button
+                              className="pf-unwatch"
+                              title="Remove from watchlist"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFromWatchlist(w.metadataAddress); }}
+                            >★</button>
+                          </div>
+                          <div className="pf-card-stats">
+                            <div>
+                              <div className="pf-stat-label">Price</div>
+                              <div className="pf-stat-value">{formatPriceUSD(w.priceUSD)}</div>
+                            </div>
+                            <div>
+                              <div className="pf-stat-label">Market cap</div>
+                              <div className="pf-stat-value">{w.marketCapUSD ? `$${formatNumber(w.marketCapUSD)}` : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="pf-stat-label">APT raised</div>
+                              <div className="pf-stat-value">{w.aptRaised != null ? `${w.aptRaised.toFixed(2)} APT` : '—'}</div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
-    );
+        </PageShell>
+      </div>
+    </>
+  );
 };
 
 export default Profile;

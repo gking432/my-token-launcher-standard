@@ -1,55 +1,51 @@
 // Token catalog — finds all tokens ever created via the launcher contract.
 //
-// Data sources (Geomi-free):
-//   1. Standard Aptos indexer (account_transactions) — list of all tx versions
-//      that called token_launcher::create_token
-//   2. Fullnode (transactions/by_version/{v}) — actual event data per tx
+// Strategy:
+//   1. Indexer (unauthenticated, public tier): account_transactions for the
+//      module address. This query is O(1) on an indexed primary key, so it
+//      never times out — unlike user_transactions filtered by entry_function_id_str
+//      which scans the whole table and hits the 10s timeout on the public tier.
+//   2. Fullnode: fetch each transaction by version (concurrency-limited) and
+//      filter locally for TokenCreatedEvent.
 //
-// One indexer call + N fullnode calls per cold fetch. Results cached for 5
-// minutes, then served stale-while-revalidate. N is small (≈ # tokens ever
-// created), so the cold fetch is 2-10s; subsequent reads are <1ms from cache.
+// Cached 5 minutes, stale-while-revalidate 1 hour.
 
 const https = require('https');
 
-const MODULE_ADDRESS = '0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d';
-const ENTRY_FUNCTION = `${MODULE_ADDRESS}::token_launcher::create_token`;
+const MODULE_ADDRESS = '0xec714c0618845f5033b9d6f1bd9d32b6a00ab611e38738a3073a118a37d61a5c';
 const EVENT_TYPE = `${MODULE_ADDRESS}::token_launcher::TokenCreatedEvent`;
 
 const INDEXER_HOST = 'api.testnet.aptoslabs.com';
 const INDEXER_PATH = '/v1/graphql';
 const FULLNODE = 'https://fullnode.testnet.aptoslabs.com/v1';
 
-const FRESH_TTL_MS = 5 * 60_000;   // 5 minutes fresh
-const STALE_TTL_MS = 60 * 60_000;  // 1 hour stale-on-error
+const FRESH_TTL_MS = 5 * 60_000;
+const STALE_TTL_MS = 60 * 60_000;
 const FULLNODE_CONCURRENCY = 8;
 
 let cache = null;
 let inFlight = null;
 
-const CREATE_TXS_QUERY = `query GetCreateTxs($module: String!, $entryFn: String!, $limit: Int!) {
-  user_transactions(
-    where: {
-      entry_function_id_str: { _eq: $entryFn }
-    }
-    order_by: { version: desc }
+// account_transactions is indexed by account_address (primary key).
+// This query is fast on the public unauthenticated tier — no table scan.
+const ACCOUNT_TXS_QUERY = `query GetModuleTxs($account: String!, $limit: Int!) {
+  account_transactions(
+    where: { account_address: { _eq: $account } }
+    order_by: { transaction_version: desc }
     limit: $limit
   ) {
-    version
-    timestamp
+    transaction_version
   }
 }`;
 
 function postIndexer(query, variables) {
-  const apiKey = process.env.APTOS_API_KEY
-              || process.env.REACT_APP_APTOS_API_KEY
-              || process.env.REACT_APP_GEOMI_API_KEY  // shared key works for standard indexer
-              || '';
+  // No API key — monthly credit cap only blocks authenticated requests.
+  // Unauthenticated public-tier requests are subject to a separate, non-capped pool.
   const payload = JSON.stringify({ query, variables });
   const headers = {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(payload),
   };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -76,18 +72,12 @@ function postIndexer(query, variables) {
 }
 
 async function fetchTxByVersion(version) {
-  const apiKey = process.env.APTOS_API_KEY
-              || process.env.REACT_APP_APTOS_API_KEY
-              || process.env.REACT_APP_GEOMI_API_KEY
-              || '';
-  const res = await fetch(`${FULLNODE}/transactions/by_version/${version}`, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-  });
+  const res = await fetch(`${FULLNODE}/transactions/by_version/${version}`);
   if (!res.ok) return null;
   return res.json();
 }
 
-// Bounded-concurrency map so we don't fan out 100 parallel fullnode calls
+// Bounded-concurrency map so we don't fan out hundreds of parallel fullnode calls
 async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
   let i = 0;
@@ -103,7 +93,6 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-// Hex string ("0x46") → readable utf8 ("F" or "FOO")
 function hexToUtf8(hex) {
   if (!hex || typeof hex !== 'string') return '';
   const clean = hex.replace(/^0x/, '');
@@ -114,20 +103,35 @@ function hexToUtf8(hex) {
   return out;
 }
 
+async function fetchFungibleMetadata(addr) {
+  try {
+    const res = await fetch(
+      `${FULLNODE}/accounts/${addr}/resource/${encodeURIComponent('0x1::fungible_asset::Metadata')}`
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const d = json?.data ?? {};
+    return {
+      name:     d.name     || '',
+      symbol:   d.symbol   || '',
+      icon_uri: d.icon_uri || '',
+    };
+  } catch { return null; }
+}
+
 async function fetchCatalog() {
-  // 1. Indexer: find all tx versions that called create_token
-  const data = await postIndexer(CREATE_TXS_QUERY, {
-    module: MODULE_ADDRESS,
-    entryFn: ENTRY_FUNCTION,
+  // 1. Get all transaction versions that touched the module (fast indexed lookup)
+  const data = await postIndexer(ACCOUNT_TXS_QUERY, {
+    account: MODULE_ADDRESS,
     limit: 500,
   });
-  const txs = data.user_transactions || [];
-  console.log(`[catalog] indexer returned ${txs.length} create_token txs`);
+  const rows = data.account_transactions || [];
+  console.log(`[catalog] indexer returned ${rows.length} module account_transactions`);
 
-  if (txs.length === 0) return [];
+  if (rows.length === 0) return [];
 
-  // 2. Fullnode: fetch each transaction and pull the TokenCreatedEvent out
-  const versions = txs.map(t => t.version);
+  // 2. Fetch each transaction from fullnode and filter for TokenCreatedEvent
+  const versions = rows.map(r => r.transaction_version);
   const fullTxs = await mapLimit(versions, FULLNODE_CONCURRENCY, fetchTxByVersion);
 
   const tokens = [];
@@ -141,7 +145,7 @@ async function fetchCatalog() {
       sequence_number: evt.sequence_number || '0',
       creator: d.creator || '',
       metadata_addr: d.metadata_addr || '',
-      ticker: d.ticker || '',  // hex string from on-chain
+      ticker: d.ticker || '',
       ticker_decoded: hexToUtf8(d.ticker || ''),
       total_supply: d.total_supply || '0',
       minted_supply: d.minted_supply || '0',
@@ -153,7 +157,22 @@ async function fetchCatalog() {
     });
   }
 
-  console.log(`[catalog] extracted ${tokens.length} TokenCreatedEvents from ${fullTxs.length} txs`);
+  console.log(`[catalog] found ${tokens.length} TokenCreatedEvents among ${fullTxs.length} txs`);
+
+  // Enrich with fungible asset metadata (name, symbol, icon_uri) — parallel, bounded.
+  const metaList = await mapLimit(
+    tokens.map(t => t.metadata_addr),
+    FULLNODE_CONCURRENCY,
+    fetchFungibleMetadata
+  );
+  for (let i = 0; i < tokens.length; i++) {
+    const m = metaList[i];
+    if (!m) continue;
+    tokens[i].name     = m.name     || tokens[i].ticker_decoded;
+    tokens[i].symbol   = m.symbol   || tokens[i].ticker_decoded;
+    tokens[i].icon_uri = m.icon_uri || '';
+  }
+
   return tokens;
 }
 
@@ -163,7 +182,7 @@ module.exports = async (req, res) => {
 
   const now = Date.now();
   if (cache && now < cache.freshUntil) {
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
     return res.json({ tokens: cache.value, cached: true });
   }
 
@@ -174,7 +193,7 @@ module.exports = async (req, res) => {
   try {
     const value = await inFlight;
     cache = { value, freshUntil: now + FRESH_TTL_MS, staleUntil: now + STALE_TTL_MS };
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
     return res.json({ tokens: value });
   } catch (err) {
     console.error('[/api/catalog] fetch failed:', err.message);

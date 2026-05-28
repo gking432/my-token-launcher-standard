@@ -1,6 +1,6 @@
 const { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey, RawTransaction, AccountAddress, U64 } = require("@aptos-labs/ts-sdk");
 
-const MODULE_ADDRESS = "0x8c699e8fa969a555f46629c345d6c10d9512a3398a4353e7af4c2bcf95b9c96d";
+const MODULE_ADDRESS = "0xec714c0618845f5033b9d6f1bd9d32b6a00ab611e38738a3073a118a37d61a5c";
 const BUYER_ADDRESS = "0x0b48dab8685a30b756235e6df2284b6f572c9a60480cff0072bd7811b1ee9021";
 const METADATA_ADDRESS = "0x0e7b3d24a4711ca9be2dade384bf3e3151970511c6583c11802cc397f0f6f3cf";
 const TOKEN_AMOUNT = 10000;

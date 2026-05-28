@@ -1,21 +1,26 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
+import PageShell from './PageShell';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, UserTransactionResponse } from "@aptos-labs/ts-sdk";
 import { InputTransactionData } from "@aptos-labs/wallet-adapter-core";
 import { createChart, IChartApi, ISeriesApi, Time, ColorType } from "lightweight-charts";
-import GlobalSidebar from './GlobalSidebar';
+
 import { MODULE_ADDRESS } from "../config";
 import { useTokenData } from '../hooks/useTokenData';
 import { useBalanceContext } from '../contexts/BalanceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { useOHLCData, Timeframe } from '../hooks/useOHLCData';
+import { priceAtAPT, BONDING_CURVE } from '../lib/bondingCurve';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useTokenLive } from '../data/useTokenLive';
 import { useQueryClient } from '@tanstack/react-query';
+import { truncateAddress } from '../utils/format';
+import { useToast } from '../contexts/ToastContext';
+import { getLocalSocials } from '../lib/localSocials';
+import { BOOST_ENABLED } from '../featureFlags';
 
-console.log("API Key:", process.env.REACT_APP_APTOS_API_KEY);
 // Contract addresses for different networks
 const CONTRACT_ADDRESSES: Record<string, string> = {
   devnet: MODULE_ADDRESS,
@@ -56,11 +61,16 @@ const TokenPage: React.FC = () => {
   
   // Use watchlist context
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
+  const toast = useToast();
+  const explorerTxLink = (hash: string) => ({
+    label: 'View on explorer',
+    href: `https://explorer.aptoslabs.com/txn/${hash}?network=testnet`,
+  });
 
   const [copied, setCopied] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
-  const [slippage, setSlippage] = useState<number>(500); // Default 5% (500 bps)
+  const [slippage, setSlippage] = useState<number>(100); // Default 1% (100 bps)
   const [priceImpact, setPriceImpact] = useState<number>(0);
   const [showSlippageInput, setShowSlippageInput] = useState<boolean>(false);
 
@@ -68,14 +78,9 @@ const TokenPage: React.FC = () => {
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
-  const [amountString, setAmountString] = useState('0.001');
-  
-  // Update amount when amountString changes
-  useEffect(() => {
-    const numAmount = parseFloat(amountString);
-    setAmount(isNaN(numAmount) ? 0 : numAmount);
-  }, [amountString]);
-  const [total, setTotal] = useState('108.18');
+  const [amountString, setAmountString] = useState('1');
+  const [inputMode, setInputMode] = useState<'tokens' | 'apt'>('tokens');
+  const [total, setTotal] = useState('0');
   const [slippageExpanded, setSlippageExpanded] = useState(false);
   const [selectedSlippage, setSelectedSlippage] = useState('1.0');
   const [headerMinimized, setHeaderMinimized] = useState(false);
@@ -145,6 +150,7 @@ const TokenPage: React.FC = () => {
     creationDate: number;
     twitterLink?: string | null;
     websiteLink?: string | null;
+    telegram?: string | null;
     description?: string;
   }
 
@@ -186,6 +192,13 @@ const TokenPage: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const [linkCopied, setLinkCopied] = useState(false);
+  const handleShareLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   function stringToBytes(str: string): number[] {
@@ -260,7 +273,7 @@ const TokenPage: React.FC = () => {
     const watchlistItem = {
       name: tokenDetails.name.replace('$', ''),
       symbol: tokenDetails.symbol,
-      icon: firstLetter,
+      icon: tokenDetails.image && tokenDetails.image.startsWith('http') ? tokenDetails.image : firstLetter,
       iconBg: iconBg,
       metadataAddress: tokenDetails.metadataAddress || tokenDetails.txHash,
       creatorAddress: tokenDetails.creatorAddress
@@ -278,6 +291,7 @@ const TokenPage: React.FC = () => {
       if (location.state) {
         console.log("✅ Using token data from location.state:", location.state);
         const stateData = location.state as any;
+        const cachedSocials = getLocalSocials(stateData.metadataAddress || stateData.txHash || coinHash);
         const tokenDetailsData: TokenDetails = {
           name: stateData.name || 'Unknown',
           symbol: stateData.symbol || 'UNK',
@@ -286,8 +300,10 @@ const TokenPage: React.FC = () => {
           metadataAddress: stateData.metadataAddress || stateData.txHash || coinHash,
           creatorAddress: stateData.creatorAddress || stateData.creator || '',
           creationDate: stateData.creationDate || Math.floor(Date.now() / 1000),
-          twitterLink: stateData.twitterLink || null,
-          websiteLink: stateData.websiteLink || null,
+          description: stateData.description ?? cachedSocials?.description,
+          twitterLink: stateData.twitterLink ?? cachedSocials?.twitterLink ?? null,
+          websiteLink: stateData.websiteLink ?? cachedSocials?.websiteLink ?? null,
+          telegram: stateData.telegram ?? cachedSocials?.telegram ?? null,
         };
         console.log("🎯 Setting token details from state:", tokenDetailsData);
         setTokenDetails(tokenDetailsData);
@@ -324,6 +340,7 @@ const TokenPage: React.FC = () => {
       if (token) {
         console.log("✅ Found token in array:", token);
         
+        const cachedSocials = getLocalSocials(token.metadataAddress || token.txHash);
         const tokenDetailsData: TokenDetails = {
           name: token.name,
           symbol: token.symbol,
@@ -332,8 +349,10 @@ const TokenPage: React.FC = () => {
           metadataAddress: token.metadataAddress || token.txHash || '',
           creatorAddress: token.creatorAddress || token.creator || '',
           creationDate: new Date(token.launchDate).getTime() / 1000,
-          twitterLink: null,
-          websiteLink: null,
+          description: cachedSocials?.description,
+          twitterLink: cachedSocials?.twitterLink ?? null,
+          websiteLink: cachedSocials?.websiteLink ?? null,
+          telegram: cachedSocials?.telegram ?? null,
         };
         
         console.log("🎯 Setting token details from array:", tokenDetailsData);
@@ -356,14 +375,14 @@ const TokenPage: React.FC = () => {
   const handleBuy = async () => {
     console.log("handleBuy - account:", account, "amount:", amount, "creatorAddress:", tokenDetails?.creatorAddress, "symbol:", tokenDetails?.symbol, "slippage:", slippage);
     if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
+      toast.warning("Can't buy yet", "Connect a wallet and enter a valid amount.");
       return;
     }
 
     // Validate that we're buying at least 1 whole token (contract doesn't support fractional tokens)
     const tokenAmount = Math.floor(amount);
     if (tokenAmount < 1) {
-      alert(`⚠️ Cannot buy fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to buy.`);
+      toast.warning('Minimum is 1 token', `You entered ${amount} — round up to at least 1 whole token.`);
       return;
     }
   
@@ -404,7 +423,7 @@ const TokenPage: React.FC = () => {
         console.log("Transaction hash:", response.hash);
       }
       
-      alert(`Bought ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
+      toast.success(`Bought ${tokenAmount} ${tokenDetails.symbol}`, undefined, explorerTxLink(response.hash));
 
       // Refresh token balance and chart
       invalidateTokenData();
@@ -428,38 +447,24 @@ const TokenPage: React.FC = () => {
       
       // Enhanced error handling
       if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
-        // User rejected the transaction - likely due to wallet simulation error
-        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
-              `This is often caused by wallet simulation errors with fungible assets, especially for larger amounts.\n\n` +
-              `If you're trying to buy more than 1 token, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
-              `3. Refreshing the page and reconnecting your wallet\n` +
-              `4. Using a different wallet if available\n\n` +
-              `The transaction may work even if the simulation shows an error.`);
+        toast.error('Transaction rejected', 'The wallet declined the transaction. Wallet simulations sometimes fail on fungible assets — you can still approve through the warning.');
       } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
-        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
-        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset transactions during simulation.\n\n` +
-              `If you're trying to buy more than 1 token, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Buying 1 token at a time (you can do multiple transactions)\n` +
-              `3. Refreshing the page\n\n` +
-              `The transaction may still work - check the transaction hash in the console.`);
+        toast.error('Wallet simulation error', 'The wallet cannot verify FA transactions during simulation. Try approving anyway, or refresh and retry.');
       } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        toast.error('Slippage exceeded', `${currentSlippage}% was too tight. Try ${suggestedSlippage}% or reduce trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        toast.error('Invalid slippage', 'Use a value between 0.1% and 10%.');
       } else {
-        alert(`Failed to buy tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
+        toast.error('Buy failed', error.message || 'Unknown error. Check the console for details.');
       }
     }
   };
   
   const handleSell = async () => {
     if (!account || amount <= 0 || !tokenDetails?.creatorAddress || !tokenDetails?.symbol) {
-      alert("Connect wallet, enter a valid amount, or ensure token details are available.");
+      toast.warning("Can't sell yet", "Connect a wallet and enter a valid amount.");
       return;
     }
 
@@ -474,14 +479,14 @@ const TokenPage: React.FC = () => {
     });
     
     if (amount > currentTokenBalance) {
-      alert(`Insufficient token balance. You have ${currentTokenBalance.toFixed(6)} tokens, but trying to sell ${amount.toFixed(6)} tokens.`);
+      toast.error('Not enough tokens', `You hold ${currentTokenBalance.toFixed(2)} ${tokenDetails.symbol} — can't sell ${amount.toFixed(2)}.`);
       return;
     }
 
     // Validate that we're selling at least 1 whole token (contract doesn't support fractional tokens)
     const tokenAmount = Math.floor(amount);
     if (tokenAmount < 1) {
-      alert(`⚠️ Cannot sell fractional tokens. You entered ${amount}, but the minimum is 1 whole token.\n\nPlease enter at least 1 token to sell.`);
+      toast.warning('Minimum is 1 token', `You entered ${amount} — round up to at least 1 whole token.`);
       return;
     }
   
@@ -522,7 +527,7 @@ const TokenPage: React.FC = () => {
         console.log("Transaction hash:", response.hash);
       }
       
-      alert(`Sold ${amount} ${tokenDetails.symbol}! Tx: ${response.hash}`);
+      toast.success(`Sold ${tokenAmount} ${tokenDetails.symbol}`, undefined, explorerTxLink(response.hash));
 
       // Refresh token balance and chart
       invalidateTokenData();
@@ -546,32 +551,17 @@ const TokenPage: React.FC = () => {
       
       // Enhanced error handling
       if (error.message?.includes('rejected') || error.fullError?.includes('rejected')) {
-        // User rejected the transaction - likely due to wallet simulation error
-        alert(`⚠️ Transaction was rejected in wallet.\n\n` +
-              `This is often caused by wallet simulation errors with fungible assets.\n\n` +
-              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
-              `If you're sure you have enough tokens, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Refreshing the page and reconnecting your wallet\n` +
-              `3. Using a different wallet if available\n\n` +
-              `The transaction may work even if the simulation shows an error.`);
+        toast.error('Transaction rejected', 'The wallet declined the transaction. FA simulation warnings can be approved through if your balance is sufficient.');
       } else if (error.message?.includes('Insufficient balance') || error.message?.includes('insufficient balance')) {
-        // This is likely a wallet simulation error - fungible assets can't be verified during simulation
-        alert(`⚠️ Wallet simulation error: The wallet cannot verify fungible asset balances during simulation.\n\n` +
-              `Your balance shows ${currentTokenBalance.toFixed(6)} tokens. ` +
-              `If you're sure you have enough tokens, try:\n` +
-              `1. Approving the transaction despite the simulation warning\n` +
-              `2. Refreshing the page\n` +
-              `3. Disconnecting and reconnecting your wallet\n\n` +
-              `The transaction may still work - check the transaction hash in the console.`);
+        toast.error('Wallet simulation error', `Your balance shows ${currentTokenBalance.toFixed(2)} ${tokenDetails.symbol}. Try approving anyway or reconnect the wallet.`);
       } else if (error.errorCode === '1012' || error.message?.includes('1012')) {
         const currentSlippage = slippage / 100;
         const suggestedSlippage = Math.min(currentSlippage * 1.5, 10);
-        alert(`Slippage exceeded: ${currentSlippage}% is too low. Try increasing to ${suggestedSlippage}% or reduce your trade size.`);
+        toast.error('Slippage exceeded', `${currentSlippage}% was too tight. Try ${suggestedSlippage}% or reduce trade size.`);
       } else if (error.errorCode === '1017' || error.message?.includes('1017')) {
-        alert('Invalid slippage setting. Please use a value between 0.1% and 10%.');
+        toast.error('Invalid slippage', 'Use a value between 0.1% and 10%.');
       } else {
-        alert(`Failed to sell tokens: ${error.message || 'Unknown error'}\n\nCheck console for details.`);
+        toast.error('Sell failed', error.message || 'Unknown error. Check the console for details.');
       }
     }
   };
@@ -608,11 +598,7 @@ const TokenPage: React.FC = () => {
   // Add useEffect to fetch user's APT balance
   
 
-  // Add useEffect to calculate total when amount changes
-  useEffect(() => {
-    const calculatedTotal = calculateTotal(amount);
-    setTotal(calculatedTotal.toString());
-  }, [amount]);
+  // calculateTotal is defined further down; its tokensSold param is passed at call-site.
 
   // Debug logging to see what's in tokenDetails
   useEffect(() => {
@@ -625,7 +611,7 @@ const TokenPage: React.FC = () => {
 
   // Helper function to get percentage change color
   const getPercentageColor = (percentage: string) => {
-    if (percentage.startsWith('+')) return '#00d4aa'; // Green for positive
+    if (percentage.startsWith('+')) return t.accent; // Green for positive
     if (percentage.startsWith('-')) return '#ff6b6b'; // Red for negative
     return '#5b616e'; // Default color for neutral
   };
@@ -663,12 +649,13 @@ const TokenPage: React.FC = () => {
 
 
 
-  // Function to calculate total cost/return based on amount and current price
-  const calculateTotal = (amount: number) => {
+  // Function to calculate total cost/return based on amount and current price.
+  // tokensSold is passed explicitly so this function can be defined before tokenData.
+  const calculateTotal = (amount: number, tokensSold: number = 0) => {
     if (!amount || amount <= 0) return 0;
-    
+
     const total_supply = 800_000_000;
-    const tokens_sold_before = 0; // For first purchase
+    const tokens_sold_before = tokensSold;
     const tokens_sold_after = tokens_sold_before + amount;
     
     const scale = 100_000_000; // 10^8 for APT Octas
@@ -778,11 +765,6 @@ const TokenPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  // Add truncateAddress function from the transplanted engine
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
   // Helper to find token from tokens array using metadataAddress
   // Static catalog row (name, symbol, image, creator) — slow-changing data
   const catalogRow = useMemo(() => {
@@ -826,6 +808,65 @@ const TokenPage: React.FC = () => {
       change24h: catalogRow?.change24h,
     } as any;
   }, [catalogRow, live, aptPrice]);
+
+  // Invert the bonding curve: find token count whose cost ≈ aptInput.
+  const calculateTokensFromAPT = (aptInput: number, tokensSold: number = 0): number => {
+    if (!aptInput || aptInput <= 0) return 0;
+    const remaining = 800_000_000 - tokensSold;
+    if (remaining <= 1) return 0;
+    let low = 0;
+    let high = remaining - 1;
+    const maxCost = parseFloat(String(calculateTotal(high, tokensSold)));
+    if (aptInput >= maxCost) return Math.floor(high);
+    for (let i = 0; i < 60; i++) {
+      const mid = (low + high) / 2;
+      const cost = parseFloat(String(calculateTotal(mid, tokensSold)));
+      if (aptInput > 0 && Math.abs(cost - aptInput) / aptInput < 0.0001) {
+        return Math.floor(mid);
+      }
+      if (cost < aptInput) low = mid; else high = mid;
+      if (high - low < 0.5) break;
+    }
+    return Math.floor((low + high) / 2);
+  };
+
+  // Recompute amount + total whenever the user input, mode, or curve state changes.
+  useEffect(() => {
+    const num = parseFloat(amountString);
+    if (isNaN(num) || num <= 0) {
+      setAmount(0);
+      setTotal('0');
+      setPriceImpact(0);
+      return;
+    }
+    const tokensSold = tokenData?.tokensSold ?? 0;
+    let tokens: number;
+    if (inputMode === 'tokens') {
+      tokens = num;
+      setAmount(num);
+      setTotal(String(calculateTotal(num, tokensSold)));
+    } else {
+      tokens = calculateTokensFromAPT(num, tokensSold);
+      setAmount(tokens);
+      setTotal(String(tokens));
+    }
+    const tokensSoldAfter = activeTab === 'buy'
+      ? tokensSold + tokens
+      : Math.max(0, tokensSold - tokens);
+    const priceBefore = priceAtAPT(tokensSold);
+    const priceAfter = priceAtAPT(tokensSoldAfter);
+    if (priceBefore > 0 && tokens > 0) {
+      const impact = Math.abs(priceAfter - priceBefore) / priceBefore * 100;
+      setPriceImpact(impact);
+    } else {
+      setPriceImpact(0);
+    }
+  }, [amountString, inputMode, activeTab, tokenData?.tokensSold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSwapInputMode = () => {
+    setAmountString(total);
+    setInputMode(m => m === 'tokens' ? 'apt' : 'tokens');
+  };
 
   // Fetch OHLC candles, holder count, apt raised, and raw trades
   const { candles, recentTrades, loading: chartLoading, holderCount, aptRaised } = useOHLCData(
@@ -876,12 +917,12 @@ const TokenPage: React.FC = () => {
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#00d4aa',
-      downColor: '#ff4757',
-      borderUpColor: '#00d4aa',
-      borderDownColor: '#ff4757',
-      wickUpColor: '#00d4aa',
-      wickDownColor: '#ff4757',
+      upColor: t.accent,
+      downColor: t.negative,
+      borderUpColor: t.accent,
+      borderDownColor: t.negative,
+      wickUpColor: t.accent,
+      wickDownColor: t.negative,
       priceFormat: {
         type: 'custom',
         formatter: (price: number) => {
@@ -897,7 +938,7 @@ const TokenPage: React.FC = () => {
     });
 
     const volSeries = chart.addHistogramSeries({
-      color: '#00d4aa',
+      color: t.accent,
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     });
@@ -951,7 +992,7 @@ const TokenPage: React.FC = () => {
     volumeSeriesRef.current.setData(displayCandles.map(c => ({
       time: c.time as Time,
       value: c.volume,
-      color: c.close >= c.open ? '#00d4aa44' : '#ff475744',
+      color: c.close >= c.open ? t.accent + '44' : t.negative + '44',
     })));
 
     chartRef.current?.timeScale().fitContent();
@@ -1043,1502 +1084,956 @@ const TokenPage: React.FC = () => {
     return `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},70%,55%))`;
   }, [tokenDetails?.symbol]);
 
+  // Show a "just launched" banner when navigated here directly from the launch page
+  const justLaunched = !!(location.state as any)?.creationDate &&
+    Date.now() - ((location.state as any).creationDate * 1000 || 0) < 5 * 60_000;
+
+
+  const symbolWithDollar = (s: string) => (s.startsWith('$') ? s : `$${s}`);
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100vh',
-      width: '100vw',
-      fontFamily: "'Inter', sans-serif",
-      margin: 0,
-      padding: 0,
-      overflow: 'visible',
-      background: t.bgPrimary,
-      color: t.textPrimary,
-      transition: 'background 0.2s ease, color 0.2s ease',
-    }}>
-      {/* Header */}
-      {/* Token Leaderboard - Commented out for future CTA */}
-      {/* <div style={{
-        background: '#ffffff',
-        borderBottom: '1px solid #e7ebee',
-        padding: headerMinimized ? '4px 24px' : '8px 24px',
-        width: '100%',
-        flexShrink: 0,
-        position: 'relative',
-        transition: 'all 0.3s ease',
-        height: headerMinimized ? '30px' : 'auto',
-        overflow: headerMinimized ? 'hidden' : 'visible'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginBottom: headerMinimized ? '0' : '8px'
-        }}>
-          <div style={{
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#5b616e',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            TOKEN LEADERBOARD
+    <>
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .tp-page { width: 100%; min-height: 100vh; background: var(--bg-primary); }
+
+        /* ── BANNER ── */
+        .tp-banner {
+          background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+          color: #fff; text-align: center;
+          padding: 10px 20px; font-size: 13px; font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+
+        /* ── MAIN ── */
+        .tp-main { padding: 32px 40px 80px; }
+
+        /* ── TOKEN HEADER ── */
+        .tp-token-head {
+          display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+          margin-bottom: 28px; padding-bottom: 24px;
+          border-bottom: 1px solid var(--border);
+        }
+        .tp-token-identity { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+        .tp-token-avatar {
+          width: 48px; height: 48px; border-radius: 14px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 20px; font-weight: 800; color: #fff; flex-shrink: 0;
+          object-fit: cover;
+        }
+        .tp-token-label { min-width: 0; }
+        .tp-token-name-row { display: flex; align-items: center; gap: 8px; }
+        .tp-token-name {
+          font-size: 22px; font-weight: 800; color: var(--text-primary);
+          letter-spacing: -0.025em; line-height: 1.1;
+        }
+        .tp-watch-star {
+          background: transparent; border: 0; cursor: pointer;
+          font-size: 20px; line-height: 1; padding: 2px 4px;
+          color: var(--text-muted); font-family: inherit;
+          transition: color 0.15s, transform 0.1s;
+        }
+        .tp-watch-star:hover { color: var(--text-primary); transform: scale(1.1); }
+        .tp-watch-star.on { color: #f5c518; }
+        .tp-token-sym { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+
+        .tp-price-block { display: flex; align-items: baseline; gap: 10px; }
+        .tp-price {
+          font-size: 28px; font-weight: 800; color: var(--text-primary);
+          letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+        }
+        .tp-change {
+          font-size: 14px; font-weight: 700;
+          padding: 4px 9px; border-radius: 7px;
+        }
+
+        .tp-head-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+        .tp-head-stat-label {
+          font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px;
+        }
+        .tp-head-stat-value {
+          font-size: 14px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .tp-boost-btn {
+          display: flex; align-items: center; gap: 5px;
+          padding: 9px 14px; border-radius: 10px;
+          background: var(--boost); border: 1.5px solid var(--boost);
+          font-size: 13px; font-weight: 700; color: #fff;
+          text-decoration: none; flex-shrink: 0; margin-left: auto;
+          box-shadow: 0 2px 10px rgba(234,88,12,0.3);
+          transition: background 0.15s, border-color 0.15s, transform 0.05s;
+        }
+        .tp-boost-btn:hover { background: var(--boost-hover); border-color: var(--boost-hover); transform: translateY(-1px); }
+        .tp-share-btn {
+          padding: 9px 12px; border-radius: 10px;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          font-size: 13px; font-weight: 600; color: var(--text-primary);
+          cursor: pointer; font-family: inherit; flex-shrink: 0;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .tp-share-btn:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+        .tp-star-btn {
+          background: var(--bg-secondary);
+          border: 1.5px solid var(--border); border-radius: 10px;
+          width: 40px; height: 40px; font-size: 18px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: color 0.15s, border-color 0.15s; flex-shrink: 0;
+          color: var(--text-muted);
+        }
+        .tp-star-btn.starred { color: #f5c518; border-color: #f5c518; }
+        .tp-star-btn:hover { border-color: var(--text-muted); }
+
+        /* ── TWO-COLUMN LAYOUT ── */
+        .tp-layout {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 20px; align-items: start;
+        }
+
+        /* ── CHART AREA ── */
+        .tp-chart-controls {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+        }
+        .tp-tf-group, .tp-mode-group { display: flex; gap: 4px; }
+        .tp-tf-btn, .tp-mode-btn {
+          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-size: 12.5px; font-weight: 600; cursor: pointer;
+          font-family: inherit; transition: all 0.12s;
+        }
+        .tp-tf-btn:hover, .tp-mode-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-tf-btn.active, .tp-mode-btn.active {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+
+        .tp-chart-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 16px; overflow: hidden; position: relative;
+          box-shadow: 0 1px 4px rgba(0,0,0,${isDark ? '0.3' : '0.05'});
+        }
+        .tp-chart-inner { height: 500px; width: 100%; }
+        .tp-chart-overlay {
+          position: absolute; inset: 0; display: flex;
+          align-items: center; justify-content: center;
+          font-size: 14px; color: var(--text-muted); pointer-events: none;
+          background: var(--bg-primary);
+        }
+
+        /* ── INFO TABS ── */
+        .tp-tabs {
+          display: flex; gap: 0; margin-top: 20px;
+          border-bottom: 1px solid var(--border);
+        }
+        .tp-tab {
+          padding: 10px 20px; font-size: 14px; font-weight: 600;
+          color: var(--text-muted); background: none; border: none; cursor: pointer;
+          border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+          font-family: inherit; transition: color 0.15s, border-color 0.15s;
+        }
+        .tp-tab:hover { color: var(--text-primary); }
+        .tp-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+        .tp-tab-panel { padding: 20px 0; }
+
+        /* Graduation progress */
+        .tp-grad-card {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 14px; padding: 18px 20px; margin-bottom: 14px;
+        }
+        .tp-grad-header {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 12px; margin-bottom: 12px;
+        }
+        .tp-grad-title {
+          font-size: 13px; font-weight: 700; color: var(--text-primary);
+          margin-bottom: 4px;
+        }
+        .tp-grad-sub {
+          font-size: 12.5px; color: var(--text-muted); font-weight: 500;
+        }
+        .tp-grad-pct {
+          font-size: 22px; font-weight: 800; color: var(--accent);
+          font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+        }
+        .tp-grad-bar {
+          height: 10px; border-radius: 999px;
+          background: var(--bg-tertiary); overflow: hidden;
+        }
+        .tp-grad-bar-fill {
+          height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+          border-radius: 999px; transition: width 0.4s ease;
+        }
+        .tp-grad-meta {
+          display: flex; justify-content: space-between;
+          font-size: 12px; color: var(--text-muted);
+          font-variant-numeric: tabular-nums; margin-top: 8px; font-weight: 500;
+        }
+
+        /* Insights grid */
+        .tp-insight-grid {
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+        }
+        .tp-insight-card {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px;
+        }
+        .tp-insight-label {
+          font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px;
+        }
+        .tp-insight-value {
+          font-size: 18px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* Transactions table */
+        .tp-tx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .tp-tx-table thead tr { border-bottom: 1px solid var(--border); }
+        .tp-tx-th {
+          padding: 8px 10px; font-size: 11px; font-weight: 700;
+          color: var(--text-muted); text-transform: uppercase;
+          letter-spacing: 0.06em; text-align: left;
+        }
+        .tp-tx-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+        .tp-tx-table tbody tr:last-child { border-bottom: none; }
+        .tp-tx-table tbody tr:hover { background: var(--bg-hover); }
+        .tp-tx-td { padding: 10px 10px; vertical-align: middle; font-variant-numeric: tabular-nums; }
+        .tp-tx-you {
+          font-size: 10px; font-weight: 700; background: var(--accent);
+          color: #fff; padding: 2px 7px; border-radius: 5px; margin-left: 6px;
+        }
+
+        /* ── TRADING PANEL ── */
+        .tp-right { display: flex; flex-direction: column; gap: 14px; }
+
+        .tp-trade-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 18px; padding: 20px;
+          box-shadow: 0 4px 14px rgba(0,0,0,${isDark ? '0.35' : '0.07'});
+        }
+        .tp-trade-tabs {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 18px;
+        }
+        .tp-trade-tab {
+          padding: 11px; border-radius: 11px; font-size: 15px; font-weight: 700;
+          cursor: pointer; border: 1.5px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-family: inherit; transition: all 0.15s;
+        }
+        .tp-trade-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-trade-tab.buy-active {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+          box-shadow: 0 3px 12px rgba(51,151,46,0.3);
+        }
+        .tp-trade-tab.sell-active {
+          background: var(--negative); color: #fff; border-color: var(--negative);
+        }
+
+        .tp-balance {
+          font-size: 12.5px; color: var(--text-muted); font-weight: 600;
+          margin-bottom: 14px; padding: 10px 14px;
+          background: var(--bg-secondary); border-radius: 10px;
+        }
+        .tp-balance strong { color: var(--text-primary); }
+
+        .tp-field { margin-bottom: 12px; }
+        .tp-field-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;
+          display: block;
+        }
+        .tp-input {
+          width: 100%; background: var(--bg-secondary); border: 1.5px solid var(--border);
+          border-radius: 11px; padding: 12px 14px; font-size: 16px;
+          color: var(--text-primary); outline: none; font-family: inherit;
+          transition: border-color 0.15s, box-shadow 0.15s; font-variant-numeric: tabular-nums;
+        }
+        .tp-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .tp-input::placeholder { color: var(--text-muted); }
+        .tp-total-val {
+          width: 100%; padding: 12px 14px; font-size: 16px;
+          font-weight: 600; color: var(--text-primary);
+          background: var(--bg-secondary); border-radius: 11px;
+          font-variant-numeric: tabular-nums;
+        }
+        .tp-presets {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px;
+        }
+        .tp-preset-btn {
+          padding: 8px 0; border-radius: 9px;
+          font-size: 12.5px; font-weight: 600;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          color: var(--text-secondary); cursor: pointer;
+          font-family: inherit; transition: all 0.12s;
+          font-variant-numeric: tabular-nums;
+        }
+        .tp-preset-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+        .tp-swap-row {
+          display: flex; justify-content: center; margin: 2px 0 -4px;
+        }
+        .tp-swap-btn {
+          width: 32px; height: 32px; border-radius: 50%;
+          background: var(--bg-secondary); border: 1.5px solid var(--border);
+          color: var(--text-secondary); font-size: 14px; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          font-family: inherit;
+          transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
+        }
+        .tp-swap-btn:hover {
+          background: var(--bg-hover); color: var(--text-primary);
+          border-color: var(--accent); transform: rotate(180deg);
+        }
+
+        .tp-slippage-header {
+          display: flex; align-items: center; justify-content: space-between;
+          margin: 14px 0 0;
+        }
+        .tp-slippage-label {
+          font-size: 11px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em;
+        }
+        .tp-slippage-toggle {
+          background: none; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 600; color: var(--accent);
+          font-family: inherit; padding: 0;
+        }
+        .tp-slippage-options {
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px;
+        }
+        .tp-slip-btn {
+          padding: 8px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+          cursor: pointer; border: 1.5px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-family: inherit; transition: all 0.12s;
+        }
+        .tp-slip-btn:hover { background: var(--bg-hover); }
+        .tp-slip-btn.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+        .tp-impact-warn {
+          margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+          font-size: 12.5px; font-weight: 600;
+        }
+
+        .tp-trade-action {
+          width: 100%; padding: 14px; border-radius: 12px;
+          font-size: 16px; font-weight: 700; cursor: pointer;
+          border: none; font-family: inherit; margin-top: 14px;
+          transition: filter 0.15s, transform 0.1s;
+        }
+        .tp-trade-action:active { transform: scale(0.98); }
+        .tp-trade-action.buy { background: var(--accent); color: #fff; box-shadow: 0 4px 16px rgba(51,151,46,0.3); }
+        .tp-trade-action.buy:hover { filter: brightness(1.06); }
+        .tp-trade-action.sell { background: var(--negative); color: #fff; }
+        .tp-trade-action.sell:hover { filter: brightness(0.92); }
+        .tp-trade-action.disabled { background: var(--bg-secondary); color: var(--text-muted); cursor: not-allowed; }
+
+        /* ── TOKEN INFO CARD ── */
+        .tp-info-card {
+          background: var(--bg-primary); border: 1px solid var(--border);
+          border-radius: 16px; padding: 18px;
+        }
+        .tp-info-title {
+          font-size: 12px; font-weight: 700; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px;
+        }
+        .tp-info-row {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border);
+          font-size: 13px;
+        }
+        .tp-info-row:last-child { border-bottom: none; }
+        .tp-info-key { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        .tp-info-val { color: var(--text-primary); font-weight: 600; text-align: right; min-width: 0; }
+        .tp-info-desc {
+          color: var(--text-secondary); font-size: 13px; line-height: 1.5;
+          padding: 4px 0 14px; margin-bottom: 4px;
+          border-bottom: 1px solid var(--border); white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .tp-ca-row { display: flex; align-items: center; gap: 8px; }
+        .tp-ca-code {
+          font-family: 'SF Mono', ui-monospace, monospace;
+          font-size: 12px; color: var(--text-secondary);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tp-copy-btn {
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 7px; padding: 4px 10px; font-size: 11px;
+          font-weight: 700; cursor: pointer; color: var(--text-secondary);
+          font-family: inherit; transition: background 0.12s, color 0.12s; flex-shrink: 0;
+        }
+        .tp-copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1000px) {
+          .tp-layout { grid-template-columns: 1fr; }
+          .tp-right { order: -1; }
+        }
+        @media (max-width: 700px) {
+          .tp-main { padding: 20px 14px 60px; }
+          .tp-token-head { gap: 10px; padding-bottom: 16px; margin-bottom: 18px; }
+          .tp-token-avatar { width: 40px; height: 40px; font-size: 17px; border-radius: 11px; }
+          .tp-token-name { font-size: 17px; }
+          .tp-token-sym { font-size: 12px; }
+          .tp-price { font-size: 24px; }
+          .tp-head-stats {
+            display: flex; gap: 14px; width: 100%; order: 99;
+            padding-top: 14px; border-top: 1px solid var(--border);
+          }
+          .tp-head-stat-label { font-size: 10px; }
+          .tp-head-stat-value { font-size: 14px; }
+          .tp-boost-btn { padding: 7px 11px; font-size: 12px; margin-left: 0; }
+          .tp-share-btn { padding: 7px 10px; font-size: 12px; }
+          .tp-star-btn { width: 34px; height: 34px; font-size: 16px; }
+          .tp-chart-card { padding: 8px; }
+          .tp-chart-inner { height: 340px; }
+          .tp-insight-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .tp-insight-card { padding: 12px; }
+          .tp-insight-value { font-size: 15px; }
+          .tp-grad-pct { font-size: 18px; }
+          .tp-tf-group .tp-tf-btn:nth-child(n+5) { display: none; }
+          .tp-tx-th, .tp-tx-td { padding: 8px 6px; font-size: 12px; }
+        }
+        @media (max-width: 460px) {
+          .tp-tabs { gap: 0; }
+          .tp-tab { padding: 10px 8px; font-size: 13px; }
+          .tp-trade-card { padding: 16px; border-radius: 14px; }
+          .tp-trade-tabs { margin-bottom: 14px; }
+          .tp-trade-tab { padding: 12px; font-size: 14px; }
+          .tp-field { margin-bottom: 14px; }
+          .tp-input { padding: 14px; font-size: 16px; }
+          .tp-total-val { padding: 14px; font-size: 15px; }
+          .tp-balance { padding: 12px 14px; }
+          .tp-preset-btn { padding: 10px 0; font-size: 13px; }
+          .tp-slip-btn { padding: 10px 0; font-size: 13px; }
+          .tp-trade-action { padding: 16px; font-size: 16px; margin-top: 10px; }
+          .tp-quick-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        }
+      `}</style>
+
+      <div className="tp-page">
+        <PageShell>
+        {/* ── JUST LAUNCHED BANNER ── */}
+        {justLaunched && (
+          <div className="tp-banner">
+            Token just launched — you're early. Be the first buyer.
           </div>
-                            <div style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#00d4aa'
-                  }}>
-                    1:00
-                  </div>
-                  
+        )}
 
-        </div>
-        <div style={{
-          display: 'flex',
-          gap: '0px',
-          overflowX: 'auto',
-          paddingBottom: '4px',
-          width: '100%',
-          justifyContent: 'space-between',
-          opacity: headerMinimized ? '0' : '1',
-          transition: 'opacity 0.3s ease'
-        }}>
-          {[
-            { rank: 1, name: 'DogeMax', apt: 420, icon: '₿', iconBg: '#f7931a' },
-            { rank: 2, name: 'PepeCoin', apt: 234, icon: 'Ξ', iconBg: '#627eea' },
-            { rank: 3, name: 'ShibaMax', apt: 189, icon: '₮', iconBg: '#50af95' },
-            { rank: 4, name: 'FlokiInu', apt: 156, icon: '◉', iconBg: '#f0b90b' },
-            { rank: 5, name: 'SafeMoon', apt: 123, icon: '◆', iconBg: '#1e88e5' },
-            { rank: 6, name: 'MoonToken', apt: 98, icon: '🌸', iconBg: '#e91e63' },
-            { rank: 7, name: 'LunaCoin', apt: 87, icon: '🌙', iconBg: '#9c27b0' },
-            { rank: 8, name: 'FireToken', apt: 76, icon: '🔥', iconBg: '#ff5722' },
-            { rank: 9, name: 'EcoCoin', apt: 65, icon: '🌿', iconBg: '#4caf50' },
-            { rank: 10, name: 'Diamond', apt: 54, icon: '💎', iconBg: '#2196f3' }
-          ].map((token) => (
-            <div
-              key={token.rank}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                flex: 1,
-                minWidth: 0
-              }}
-              onClick={() => handleTokenSelect(token)}
-            >
-              <span style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#5b616e',
-                minWidth: '16px'
-              }}>
-                {token.rank}
-              </span>
-              <div
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  background: token.iconBg
-                }}
-              >
-                {token.icon}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#0a0b0d',
-                  lineHeight: '1.2',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {token.name}
-                </div>
-                <div style={{
-                  fontSize: '10px',
-                  color: '#5b616e',
-                  marginTop: '1px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {token.apt} APT
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        Toggle Button
-        <button
-          onClick={handleHeaderToggle}
-          style={{
-            position: 'absolute',
-            bottom: '2px',
-            right: '10px',
-            background: '#ffffff',
-            border: '0px solid #d3d3d3',
-            borderRadius: '4px',
-            padding: '6px 12px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            color: headerMinimized ? '#00d4aa' : '#878788',
-            transition: 'all 0.2s ease',
-            zIndex: 10
-          }}
-        >
-          {headerMinimized ? 'View Token Leaderboard' : '__'}
-        </button>
-      </div> */}
-      
-      {/* Blank white bar - placeholder for future CTA */}
-      <div style={{
-        background: '#ffffff',
-        width: '100%',
-        height: '40px',
-        borderBottom: '1px solid #e7ebee',
-        flexShrink: 0
-      }}>
-      </div>
-
-      {/* Main Layout */}
-      <div style={{
-        display: 'flex',
-        flex: 1,
-        width: '100%',
-        overflow: 'visible',
-        alignSelf: 'stretch',
-        minHeight: '100%',
-        position: 'relative',
-        background: '#ffffff'
-      }}>
-        {/* Sidebar */}
-        <div style={{
-          position: 'relative',
-          alignSelf: 'stretch',
-          minHeight: '100%'
-        }}>
-          <GlobalSidebar 
-            activeTab="trade"
-          />
-        </div>
-
-        {/* Main Content */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0,
-          width: '100%',
-          background: t.bgPrimary,
-        }}>
-          {/* Token Title Bar */}
-          <div style={{
-            background: t.bgPrimary,
-            borderBottom: `1px solid ${t.border}`,
-            padding: '14px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div style={{
-              fontSize: '22px',
-              fontWeight: 700,
-              color: t.textPrimary,
-              flexShrink: 0,
-              letterSpacing: '-0.3px',
-            }}>
-                              {tokenDetails ? tokenDetails.name.replace('$', '') : 'Token Page'}
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              fontSize: '14px',
-              flexShrink: 0
-            }}>
-              <span>⚙️</span>
-              <a href="#" style={{
-                color: '#5b616e',
-                textDecoration: 'none'
-              }}>
-                Launch
-              </a>
-              {account ? (
-                <div style={{ position: 'relative' }} data-wallet-dropdown>
-                  <button
-                    onClick={toggleWalletDropdown}
-                    style={{
-                      background: '#00d4aa',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <span style={{ fontSize: '12px' }}>
-                      {String(account.address).slice(0, 6)}...{String(account.address).slice(-4)}
-                    </span>
-                  </button>
-                  
-                  {walletDropdownOpen && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      right: 0,
-                      background: 'white',
-                      border: '1px solid #e6e8ea',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                      zIndex: 1000,
-                      minWidth: '200px',
-                      marginTop: '4px'
-                    }}>
-                      <button
-                        onClick={() => {
-                          // Navigate to profile
-                          window.location.href = `/profile/${account.address}`;
-                          setWalletDropdownOpen(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: '#050f19',
-                          borderBottom: '1px solid #f0f0f0'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        👤 Profile
-                      </button>
-                      <button
-                        onClick={handleDisconnect}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'transparent',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          color: '#dc3545'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        🚪 Disconnect
-                      </button>
-                    </div>
-                  )}
-                </div>
+        <main className="tp-main">
+          {/* ── TOKEN IDENTITY HEADER ── */}
+          <div className="tp-token-head">
+            <div className="tp-token-identity">
+              {catalogRow?.image ? (
+                <img
+                  src={catalogRow.image}
+                  alt={tokenDetails?.symbol}
+                  className="tp-token-avatar"
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
               ) : (
-                <div style={{
-                  display: 'flex',
-                  gap: '8px'
-                }}>
-                  {wallets.map((wallet: any) => (
-                    <button
-                      key={wallet.name}
-                      onClick={() => connect(wallet.name)}
-                      style={{
-                        background: '#00d4aa',
-                        color: 'white',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Connect Wallet
-                    </button>
-                  ))}
+                <div className="tp-token-avatar" style={{ background: tokenAvatarBg }}>
+                  {(tokenDetails?.symbol || '?').replace('$', '').charAt(0).toUpperCase()}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div style={{
-            display: 'flex',
-            flex: 1,
-            minHeight: 0,
-            width: '100%',
-            overflowY: 'auto',
-            position: 'relative'
-          }}>
-            {/* Content Left */}
-            <div style={{
-              flex: 1,
-              padding: '20px',
-              background: t.bgPrimary,
-              minWidth: 0
-            }}>
-              {/* Token Header */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                marginBottom: '8px',
-                background: t.bgPrimary,
-                width: '100%',
-              }}>
-                {/* Price */}
-                <div style={{
-                  fontSize: '32px',
-                  fontWeight: 700,
-                  color: t.textPrimary,
-                  marginBottom: '4px',
-                  lineHeight: 1,
-                  letterSpacing: '-0.5px',
-                }}>
-                  {formatCurrentPrice()}
-                </div>
-                {/* 24h change */}
-                <div style={{
-                  color: tokenData?.change24h !== undefined
-                    ? (tokenData.change24h >= 0 ? t.positive : t.negative)
-                    : t.textMuted,
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '16px',
-                  fontWeight: 600,
-                  fontSize: '15px',
-                  gap: '4px',
-                }}>
-                  <span>{tokenData?.change24h !== undefined ? (tokenData.change24h >= 0 ? '▲' : '▼') : ''}</span>
-                  <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : t.textMuted ? '' : ''}</span>
-                  {tokenData?.change24h === undefined && <span style={{ color: t.textMuted, fontWeight: 400, fontSize: '13px' }}>24h</span>}
-                </div>
-
-                {/* Controls row: timeframe + mode toggle + actions */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '12px',
-                  width: '100%',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}>
-                  {/* Left: timeframe + chart mode */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    {/* Timeframe buttons */}
-                    <div style={{
-                      display: 'flex',
-                      background: t.bgSecondary,
-                      borderRadius: '8px',
-                      padding: '3px',
-                      gap: '2px',
-                      border: `1px solid ${t.border}`,
-                    }}>
-                      {(['1m', '15m', '1H', '4H', '1D', 'ALL'] as Timeframe[]).map((time) => (
-                        <button
-                          key={time}
-                          onClick={() => setTimeframe(time)}
-                          style={{
-                            padding: '5px 11px',
-                            border: 'none',
-                            borderRadius: '6px',
-                            background: timeframe === time ? t.accent : 'transparent',
-                            color: timeframe === time ? '#fff' : t.textSecondary,
-                            fontSize: '13px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                            fontFamily: "'Inter', sans-serif",
-                          }}
-                        >
-                          {time}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Chart mode toggle: APT / USD / MCap */}
-                    <div style={{
-                      display: 'flex',
-                      background: t.bgSecondary,
-                      borderRadius: '8px',
-                      padding: '3px',
-                      gap: '2px',
-                      border: `1px solid ${t.border}`,
-                    }}>
-                      {(['apt', 'usd', 'mcap'] as ChartMode[]).map((mode) => {
-                        const labels: Record<ChartMode, string> = { apt: 'APT', usd: 'USD', mcap: 'MCap' };
-                        return (
-                          <button
-                            key={mode}
-                            onClick={() => setChartMode(mode)}
-                            style={{
-                              padding: '5px 11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              background: chartMode === mode ? t.accentLight : 'transparent',
-                              color: chartMode === mode ? t.accent : t.textSecondary,
-                              fontSize: '13px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
-                              fontFamily: "'Inter', sans-serif",
-                            }}
-                          >
-                            {labels[mode]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Right: star + share */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="tp-token-label">
+                <div className="tp-token-name-row">
+                  <div className="tp-token-name">{tokenDetails?.name || 'Loading…'}</div>
+                  {tokenDetails && (
                     <button
+                      type="button"
+                      className={`tp-watch-star${currentTokenInWatchlist ? ' on' : ''}`}
                       onClick={handleStarClick}
-                      style={{
-                        background: t.bgSecondary,
-                        border: `1px solid ${t.border}`,
-                        color: currentTokenInWatchlist ? '#FFD700' : t.textSecondary,
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        height: '34px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        transition: 'all 0.15s',
-                      }}
                       title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-                    >
-                      {currentTokenInWatchlist ? '★' : '☆'}
-                    </button>
-                    <button style={{
-                      padding: '6px 16px',
-                      background: t.bgSecondary,
-                      color: t.textSecondary,
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      height: '34px',
-                    }}>
-                      Share
-                    </button>
-                    {/* <button style={{
-                      padding: '8px 16px',
-                      background: 'linear-gradient(135deg, #FF6B35, #FF8C42)',
-                      color: '#ffffff',
-                      border: '1px solid #FF6B35',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 2px 8px rgba(255, 107, 53, 0.3)',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}>
-                      Boost Token
-                    </button> */}
-                  </div>
-                </div>
-              </div>
-
-              {/* Chart Container */}
-              <div style={{
-                background: t.bgPrimary,
-                border: `1px solid ${t.border}`,
-                borderRadius: '10px',
-                marginBottom: '24px',
-                height: '340px',
-                position: 'relative',
-              }}>
-                {/* lightweight-charts mounts here */}
-                <div
-                  ref={chartContainerRef}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                  }}
-                />
-                {/* Overlay when no data yet */}
-                {!chartLoading && candles.length === 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#8a9ba8',
-                    fontSize: '14px',
-                    pointerEvents: 'none',
-                  }}>
-                    No trades yet — be the first to buy!
-                  </div>
-                )}
-                {chartLoading && (
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#8a9ba8',
-                    fontSize: '14px',
-                    pointerEvents: 'none',
-                  }}>
-                    Loading chart…
-                  </div>
-                )}
-              </div>
-
-              {/* Tabs: Insights / Transactions / Top Holders */}
-              <div style={{ marginTop: '16px' }}>
-                <div style={{
-                  display: 'flex',
-                  borderBottom: `1px solid ${t.border}`,
-                  justifyContent: 'flex-start',
-                }}>
-                  {(['insights', 'transactions', 'holders'] as const).map((tab) => {
-                    const labels = { insights: 'Insights', transactions: 'Transactions', holders: 'Top Holders' };
-                    const active = activeInsightTab === tab;
-                    return (
-                      <div
-                        key={tab}
-                        onClick={() => setActiveInsightTab(tab)}
-                        style={{
-                          padding: '10px 0',
-                          marginRight: '24px',
-                          color: active ? t.accent : t.textMuted,
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          borderBottom: `2px solid ${active ? t.accent : 'transparent'}`,
-                          transition: 'all 0.15s',
-                          userSelect: 'none',
-                        }}
-                      >
-                        {labels[tab]}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* ── INSIGHTS TAB ───────────────────────────────────── */}
-                {activeInsightTab === 'insights' && (
-                <div style={{
-                  border: `1px solid ${t.border}`,
-                  borderTop: 'none',
-                  borderBottomLeftRadius: '12px',
-                  borderBottomRightRadius: '12px',
-                }}>
-                  {/* Token Info Section */}
-                  <div style={{
-                    display: 'flex',
-                    marginBottom: '0',
-                    background: t.bgSecondary,
-                    borderBottomLeftRadius: '12px',
-                    borderBottomRightRadius: '12px',
-                    minHeight: '200px',
-                  }}>
-                    {/* Token image / avatar */}
-                    <div style={{
-                      width: '220px',
-                      flexShrink: 0,
-                      borderBottomLeftRadius: '12px',
-                      overflow: 'hidden',
-                      position: 'relative',
-                    }}>
-                      {tokenDetails?.image ? (
-                        <img
-                          src={tokenDetails.image}
-                          alt={`${tokenDetails.name} logo`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: '100%', height: '100%', minHeight: '200px',
-                          background: tokenAvatarBg,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <span style={{ fontSize: '72px', fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '-2px' }}>
-                            {tokenDetails?.symbol?.charAt(0) ?? '?'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                      padding: '20px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '16px'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px'
-                        }}>
-                          <div style={{
-                            fontSize: '24px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                          }}>
-                            {tokenDetails ? tokenDetails.name.replace('$', '') : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            fontWeight: '500'
-                          }}>
-                            {tokenDetails ? tokenDetails.symbol : 'Loading...'}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          gap: '30px'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Launched:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {tokenDetails ? formatTimeAgo(new Date(tokenDetails.creationDate * 1000).toISOString()) : 'Loading...'}
-                            </span>
-                          </div>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Holders:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {holderCount > 0 ? `${holderCount.toLocaleString()} wallets` : 'Loading...'}
-                            </span>
-                          </div>
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '4px',
-                            fontSize: '14px'
-                          }}>
-                            <span style={{
-                              color: t.textMuted,
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}>
-                              Created by:
-                            </span>
-                            <span style={{
-                              color: t.textPrimary,
-                              fontWeight: '600',
-                              fontSize: '14px'
-                            }}>
-                              {tokenDetails ? truncateAddress(tokenDetails.creatorAddress || '') : 'Loading...'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{
-                        fontSize: '14px',
-                        color: t.textSecondary,
-                        fontWeight: '400',
-                        lineHeight: '1.5',
-                        marginTop: '4px',
-                        maxWidth: '400px'
-                      }}>
-                        {tokenDetails?.description || 'No description available for this token.'}
-                      </div>
-                    </div>
-                  </div>
-
-
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '100px',
-                    width: '100%',
-                    margin: '40px 0px'
-                  }}>
-                    <div style={{
-                      flex: 1,
-                      maxWidth: '50%',
-                      marginLeft: '20px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '20px',
-                        width: '100%'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                            lineHeight: '1',
-                            marginBottom: '10px'
-                          }}>
-                            {tokenData?.marketCapUSD !== undefined ? formatLargeNumber(tokenData.marketCapUSD) : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Market Cap
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: t.textPrimary,
-                            lineHeight: '1',
-                            marginBottom: '10px'
-                          }}>
-                            {tokenData?.volume !== undefined ? formatLargeNumber(tokenData.volume) : 'Loading...'}
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Volume (24h)
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start'
-                        }}>
-                          <div style={{
-                            fontSize: '22px',
-                            fontWeight: '700',
-                            color: tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? t.positive : t.negative,
-                            lineHeight: '1',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            marginBottom: '10px'
-                          }}>
-                            <span style={{ fontSize: '16px' }}>{tokenData?.change24h !== undefined && tokenData.change24h >= 0 ? '↑' : '↓'}</span>
-                            <span>{tokenData?.change24h !== undefined ? formatPercentage(tokenData.change24h) : '0%'}</span>
-                          </div>
-                          <div style={{
-                            fontSize: '16px',
-                            color: t.textMuted,
-                            marginBottom: '20px'
-                          }}>
-                            Change % (24h)
-                          </div>
-                        </div>
-                      </div>
-
-                      {(() => {
-                        const GRADUATION_TARGET_OCTAS = 128_300_000_000; // 1283 APT in Octas
-                        const GRAD_TARGET_APT = 1283;
-                        // Use live vault total_apt_spent (nets out sells, single source of truth)
-                        const aptRaisedOctas = live?.aptRaisedOctas ?? aptRaised;
-                        const aptRaisedAPT = aptRaisedOctas / 1e8;
-                        const progressPct = Math.min((aptRaisedOctas / GRADUATION_TARGET_OCTAS) * 100, 100);
-                        return (
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            marginTop: '20px',
-                            width: '100%'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              marginBottom: '8px'
-                            }}>
-                              <div style={{
-                                fontSize: '22px',
-                                fontWeight: '700',
-                                color: t.textPrimary,
-                                lineHeight: '1'
-                              }}>
-                                {aptRaisedAPT.toFixed(2)} / {GRAD_TARGET_APT} APT
-                              </div>
-                              <div style={{
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                color: t.accent,
-                                letterSpacing: '0.5px'
-                              }}>
-                                {progressPct.toFixed(1)}% Complete
-                              </div>
-                            </div>
-                            <div style={{
-                              width: '100%',
-                              height: '14px',
-                              background: t.bgSecondary,
-                              borderRadius: '7px',
-                              overflow: 'hidden',
-                              marginBottom: '8px',
-                              border: `1px solid ${t.border}`,
-                            }}>
-                              <div style={{
-                                height: '100%',
-                                background: 'linear-gradient(90deg, #00d4aa, #00b894)',
-                                borderRadius: '7px',
-                                width: `${progressPct}%`,
-                                transition: 'width 0.5s ease',
-                                boxShadow: progressPct > 85 ? '0 0 10px rgba(0, 212, 170, 0.6)' : 'none',
-                              }}></div>
-                            </div>
-                            <div style={{
-                              fontSize: '13px',
-                              fontWeight: '500',
-                              color: t.textMuted,
-                              marginTop: '6px',
-                              letterSpacing: '0.4px'
-                            }}>
-                              Graduation Progress — reaches DEX at {GRAD_TARGET_APT} APT raised
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <div style={{
-                      flex: 1,
-                      maxWidth: '50%'
-                    }}>
-                      <div style={{
-                        background: t.bgPrimary,
-                        borderRadius: '12px',
-                        padding: '20px',
-                        marginTop: '-20px',
-                        border: `1px solid ${t.border}`,
-                      }}>
-                        <p style={{
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: t.textMuted,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          paddingBottom: '8px',
-                          margin: 0,
-                        }}>
-                          Links
-                        </p>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          marginTop: '10px',
-                        }}>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            <button
-                              onClick={handleCopyCA}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '10px 14px',
-                                border: `1px solid ${t.border}`,
-                                borderRadius: '8px',
-                                background: t.bgSecondary,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: t.textPrimary,
-                                flex: 1,
-                                minWidth: 0,
-                              }}
-                            >
-                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🔗</span>
-                              <span style={{ flex: 1 }}>{copied ? 'Copied!' : 'Copy CA'}</span>
-                            </button>
-                            {tokenDetails?.websiteLink ? (
-                              <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  padding: '10px 14px', border: `1px solid ${t.border}`,
-                                  borderRadius: '8px', background: t.bgSecondary,
-                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
-                                  color: t.textPrimary, flex: 1, minWidth: 0,
-                                }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
-                                <span>Website</span>
-                              </a>
-                            ) : (
-                              <button disabled style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '10px 14px', border: `1px solid ${t.border}`,
-                                borderRadius: '8px', background: t.bgSecondary,
-                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                              }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🌐</span>
-                                <span>Website</span>
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            {tokenDetails?.twitterLink ? (
-                              <a href={tokenDetails.twitterLink} target="_blank" rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  padding: '10px 14px', border: `1px solid ${t.border}`,
-                                  borderRadius: '8px', background: t.bgSecondary,
-                                  textDecoration: 'none', fontSize: '13px', fontWeight: '500',
-                                  color: t.textPrimary, flex: 1, minWidth: 0,
-                                }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
-                                <span>Twitter</span>
-                              </a>
-                            ) : (
-                              <button disabled style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '10px 14px', border: `1px solid ${t.border}`,
-                                borderRadius: '8px', background: t.bgSecondary,
-                                fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                                flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                              }}>
-                                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>🐦</span>
-                                <span>Twitter</span>
-                              </button>
-                            )}
-                            <button disabled style={{
-                              display: 'flex', alignItems: 'center', gap: '8px',
-                              padding: '10px 14px', border: `1px solid ${t.border}`,
-                              borderRadius: '8px', background: t.bgSecondary,
-                              fontSize: '13px', fontWeight: '500', color: t.textMuted,
-                              flex: 1, minWidth: 0, cursor: 'default', opacity: 0.5,
-                            }}>
-                              <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>💬</span>
-                              <span>Telegram</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                )}
-
-                {/* ── TRANSACTIONS TAB ─────────────────────────────── */}
-                {activeInsightTab === 'transactions' && (
-                <div style={{
-                  border: `1px solid ${t.border}`,
-                  borderTop: 'none',
-                  borderBottomLeftRadius: '12px',
-                  borderBottomRightRadius: '12px',
-                  overflow: 'hidden',
-                }}>
-                  {recentTrades.length === 0 ? (
-                    <div style={{
-                      padding: '40px 20px',
-                      textAlign: 'center',
-                      color: t.textMuted,
-                      fontSize: '14px',
-                    }}>
-                      No trades yet — be the first to buy!
-                    </div>
-                  ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                      <thead>
-                        <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
-                          {['Type', 'Wallet', 'Tokens', 'APT Value', 'Time'].map(h => (
-                            <th key={h} style={{
-                              padding: '10px 16px',
-                              textAlign: 'left',
-                              fontWeight: 600,
-                              fontSize: '11px',
-                              color: t.textMuted,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
-                            }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentTrades.slice(0, 50).map((trade, i) => (
-                          <tr key={i} style={{
-                            borderBottom: `1px solid ${t.border}`,
-                            background: i % 2 === 0 ? 'transparent' : t.bgSecondary,
-                          }}>
-                            <td style={{ padding: '10px 16px' }}>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                background: trade.type === 'buy' ? 'rgba(0,212,170,0.12)' : 'rgba(255,71,87,0.12)',
-                                color: trade.type === 'buy' ? t.positive : t.negative,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.3px',
-                              }}>
-                                {trade.type}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
-                              {trade.wallet ? `${trade.wallet.slice(0, 6)}…${trade.wallet.slice(-4)}` : '—'}
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                              {trade.amount.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                              {trade.aptValue.toFixed(4)} APT
-                            </td>
-                            <td style={{ padding: '10px 16px', color: t.textMuted, fontSize: '12px' }}>
-                              {timeAgo(trade.timestampMs)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                      aria-label="Toggle watchlist"
+                    >{currentTokenInWatchlist ? '★' : '☆'}</button>
                   )}
                 </div>
-                )}
+                <div className="tp-token-sym">{tokenDetails?.symbol ? symbolWithDollar(tokenDetails.symbol) : '—'}</div>
+              </div>
+            </div>
 
-                {/* ── TOP HOLDERS TAB ───────────────────────────────── */}
-                {activeInsightTab === 'holders' && (() => {
-                  // Aggregate total tokens bought per wallet from recentTrades
-                  const holderMap = new Map<string, number>();
-                  for (const t2 of recentTrades) {
-                    if (t2.type === 'buy' && t2.wallet) {
-                      holderMap.set(t2.wallet, (holderMap.get(t2.wallet) ?? 0) + t2.amount);
-                    }
-                  }
-                  const sorted = Array.from(holderMap.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 20);
+            <div>
+              <div className="tp-price-block">
+                <div className="tp-price">{formatCurrentPrice()}</div>
+                {tokenData?.change24h != null && (
+                  <span
+                    className="tp-change"
+                    style={{
+                      color: tokenData.change24h >= 0 ? 'var(--positive)' : 'var(--negative)',
+                      background: tokenData.change24h >= 0
+                        ? (isDark ? 'rgba(64,187,56,0.15)' : 'rgba(51,151,46,0.10)')
+                        : (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.10)'),
+                    }}
+                  >
+                    {tokenData.change24h >= 0 ? '+' : ''}{tokenData.change24h.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="tp-head-stats">
+              <div>
+                <div className="tp-head-stat-label">Market cap</div>
+                <div className="tp-head-stat-value">{formatLargeNumber(tokenData?.marketCapUSD)}</div>
+              </div>
+              <div>
+                <div className="tp-head-stat-label">APT raised</div>
+                <div className="tp-head-stat-value">
+                  {aptRaised ? `${(aptRaised / 1e8).toFixed(2)} APT` : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="tp-head-stat-label">Holders</div>
+                <div className="tp-head-stat-value">{holderCount ?? '—'}</div>
+              </div>
+            </div>
+
+            {BOOST_ENABLED && tokenDetails?.metadataAddress && (
+              <Link
+                to={`/boost?token=${tokenDetails.metadataAddress}`}
+                className="tp-boost-btn"
+                title="Boost this token on the leaderboard"
+              >
+                Boost
+              </Link>
+            )}
+            <button
+              className="tp-share-btn"
+              onClick={handleShareLink}
+              title={linkCopied ? 'Link copied' : 'Copy share link'}
+            >
+              {linkCopied ? '✓ Copied' : '↗ Share'}
+            </button>
+            <button
+              className={`tp-star-btn${currentTokenInWatchlist ? ' starred' : ''}`}
+              onClick={handleStarClick}
+              title={currentTokenInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            >
+              {currentTokenInWatchlist ? '★' : '☆'}
+            </button>
+          </div>
+
+          {/* ── TWO-COLUMN LAYOUT ── */}
+          <div className="tp-layout">
+            {/* ── LEFT: Chart + Tabs ── */}
+            <div className="tp-left">
+              {/* Chart controls */}
+              <div className="tp-chart-controls">
+                <div className="tp-tf-group">
+                  {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
+                    <button
+                      key={tf}
+                      className={`tp-tf-btn${timeframe === tf ? ' active' : ''}`}
+                      onClick={() => setTimeframe(tf)}
+                    >{tf}</button>
+                  ))}
+                </div>
+                <div className="tp-mode-group">
+                  {(['mcap','usd','apt'] as ChartMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      className={`tp-mode-btn${chartMode === mode ? ' active' : ''}`}
+                      onClick={() => setChartMode(mode)}
+                    >{mode === 'mcap' ? 'MCap' : mode.toUpperCase()}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div className="tp-chart-card">
+                <div ref={chartContainerRef} className="tp-chart-inner" />
+                {chartLoading && displayCandles.length === 0 && (
+                  <div className="tp-chart-overlay">Loading chart…</div>
+                )}
+                {!chartLoading && displayCandles.length === 0 && (
+                  <div className="tp-chart-overlay">No trades yet — be the first to buy</div>
+                )}
+              </div>
+
+              {/* Tabs */}
+              <div className="tp-tabs">
+                {(['insights','transactions','holders'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    className={`tp-tab${activeInsightTab === tab ? ' active' : ''}`}
+                    onClick={() => setActiveInsightTab(tab)}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="tp-tab-panel">
+                {/* ── INSIGHTS ── */}
+                {activeInsightTab === 'insights' && (() => {
+                  const aptRaisedNum = aptRaised ? aptRaised / 1e8 : 0;
+                  const gradPct = Math.min(100, (aptRaisedNum / BONDING_CURVE.GRADUATION_APT) * 100);
+                  const aptToGo = Math.max(0, BONDING_CURVE.GRADUATION_APT - aptRaisedNum);
+                  const tokensSold = tokenData?.tokensSold ?? 0;
+                  const curvePct = Math.min(100, (tokensSold / BONDING_CURVE.MAX_TOKENS) * 100);
                   return (
-                    <div style={{
-                      border: `1px solid ${t.border}`,
-                      borderTop: 'none',
-                      borderBottomLeftRadius: '12px',
-                      borderBottomRightRadius: '12px',
-                      overflow: 'hidden',
-                    }}>
-                      {sorted.length === 0 ? (
-                        <div style={{ padding: '40px 20px', textAlign: 'center', color: t.textMuted, fontSize: '14px' }}>
-                          No holder data yet.
+                  <>
+                  <div className="tp-grad-card">
+                    <div className="tp-grad-header">
+                      <div>
+                        <div className="tp-grad-title">Graduation progress</div>
+                        <div className="tp-grad-sub">
+                          {gradPct >= 100
+                            ? 'Graduated · all supply unlocked'
+                            : `${aptToGo.toFixed(2)} APT until this token graduates`}
                         </div>
-                      ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                          <thead>
-                            <tr style={{ background: t.bgSecondary, borderBottom: `1px solid ${t.border}` }}>
-                              {['Rank', 'Wallet', 'Tokens Bought', '% of Supply'].map(h => (
-                                <th key={h} style={{
-                                  padding: '10px 16px',
-                                  textAlign: 'left',
-                                  fontWeight: 600,
-                                  fontSize: '11px',
-                                  color: t.textMuted,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.5px',
-                                }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sorted.map(([wallet, amount], i) => (
-                              <tr key={wallet} style={{ borderBottom: `1px solid ${t.border}`, background: i % 2 === 0 ? 'transparent' : t.bgSecondary }}>
-                                <td style={{ padding: '10px 16px', color: t.textMuted, fontWeight: 600 }}>#{i + 1}</td>
-                                <td style={{ padding: '10px 16px', color: t.textSecondary, fontFamily: 'monospace', fontSize: '12px' }}>
-                                  {`${wallet.slice(0, 8)}…${wallet.slice(-6)}`}
-                                </td>
-                                <td style={{ padding: '10px 16px', color: t.textPrimary, fontWeight: 500 }}>
-                                  {amount.toLocaleString()}
-                                </td>
-                                <td style={{ padding: '10px 16px', color: t.textMuted }}>
-                                  {((amount / 1_000_000_000) * 100).toFixed(3)}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
+                      </div>
+                      <div className="tp-grad-pct">{gradPct.toFixed(1)}%</div>
                     </div>
+                    <div className="tp-grad-bar">
+                      <div className="tp-grad-bar-fill" style={{ width: `${gradPct}%` }} />
+                    </div>
+                    <div className="tp-grad-meta">
+                      <span>{aptRaisedNum.toFixed(2)} APT raised</span>
+                      <span>{BONDING_CURVE.GRADUATION_APT} APT target</span>
+                    </div>
+                  </div>
+
+                  <div className="tp-insight-grid">
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Price (USD)</div>
+                      <div className="tp-insight-value">{formatPrice(tokenData?.priceUSD)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Price (APT)</div>
+                      <div className="tp-insight-value">{formatApt(tokenData?.price)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Market cap</div>
+                      <div className="tp-insight-value">{formatLargeNumber(tokenData?.marketCapUSD)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Holders</div>
+                      <div className="tp-insight-value">{holderCount ?? '—'}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">24h change</div>
+                      <div
+                        className="tp-insight-value"
+                        style={{ color: (tokenData?.change24h ?? 0) >= 0 ? 'var(--positive)' : 'var(--negative)' }}
+                      >
+                        {tokenData?.change24h != null ? `${tokenData.change24h >= 0 ? '+' : ''}${tokenData.change24h.toFixed(2)}%` : '—'}
+                      </div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Curve sold</div>
+                      <div className="tp-insight-value">{curvePct.toFixed(2)}%</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Tokens sold</div>
+                      <div className="tp-insight-value">{formatLargeNumber(tokensSold)}</div>
+                    </div>
+                    <div className="tp-insight-card">
+                      <div className="tp-insight-label">Total supply</div>
+                      <div className="tp-insight-value">{formatLargeNumber(BONDING_CURVE.TOTAL_SUPPLY)}</div>
+                    </div>
+                  </div>
+                  </>
                   );
                 })()}
 
+                {/* ── TRANSACTIONS ── */}
+                {activeInsightTab === 'transactions' && (
+                  recentTrades.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>
+                      No trades yet — be the first buyer
+                    </div>
+                  ) : (
+                    <table className="tp-tx-table">
+                      <thead>
+                        <tr>
+                          <th className="tp-tx-th">Type</th>
+                          <th className="tp-tx-th">Amount</th>
+                          <th className="tp-tx-th">APT</th>
+                          <th className="tp-tx-th">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentTrades.slice(0, 50).map((trade, i) => {
+                          const isBuy = trade.type === 'buy';
+                          const isYou = trade.wallet?.toLowerCase() === account?.address?.toString().toLowerCase();
+                          // Contract events store pre-fee curve value. Adjust to show what
+                          // the user actually paid (buys: +1% fee) or received (sells: -1% fee).
+                          const adjustedApt = isBuy
+                            ? trade.aptValue * 1.01
+                            : trade.aptValue * 0.99;
+                          return (
+                            <tr key={i}>
+                              <td className="tp-tx-td" style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 700 }}>
+                                {isBuy ? 'Buy' : 'Sell'}
+                                {isYou && <span className="tp-tx-you">YOU</span>}
+                              </td>
+                              <td className="tp-tx-td">{Number(trade.amount).toLocaleString()}</td>
+                              <td className="tp-tx-td">{adjustedApt.toFixed(4)} APT</td>
+                              <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{timeAgo(trade.timestampMs)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                )}
+
+                {/* ── HOLDERS ── */}
+                {activeInsightTab === 'holders' && (() => {
+                  const balanceMap = new Map<string, number>();
+                  for (const t of recentTrades) {
+                    const w = t.wallet?.toLowerCase();
+                    if (!w) continue;
+                    balanceMap.set(w, (balanceMap.get(w) ?? 0) + (t.type === 'buy' ? t.amount : -t.amount));
+                  }
+                  const sorted = Array.from(balanceMap.entries())
+                    .filter(([, bal]) => bal > 0)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 100);
+                  return sorted.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 14 }}>
+                      No holder data yet
+                    </div>
+                  ) : (
+                    <table className="tp-tx-table">
+                      <thead>
+                        <tr>
+                          <th className="tp-tx-th" style={{ width: 36 }}>#</th>
+                          <th className="tp-tx-th">Wallet</th>
+                          <th className="tp-tx-th" style={{ textAlign: 'right' }}>Tokens</th>
+                          <th className="tp-tx-th" style={{ textAlign: 'right' }}>Share</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map(([wallet, bal], i) => {
+                          const isYou = wallet === account?.address?.toString().toLowerCase();
+                          const pct = ((bal / 1_000_000_000) * 100).toFixed(2);
+                          return (
+                            <tr key={wallet}>
+                              <td className="tp-tx-td" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                              <td className="tp-tx-td" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                {truncateAddress(wallet)}
+                                {isYou && <span className="tp-tx-you">YOU</span>}
+                              </td>
+                              <td className="tp-tx-td" style={{ textAlign: 'right' }}>{Number(bal).toLocaleString()}</td>
+                              <td className="tp-tx-td" style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{pct}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               </div>
             </div>
 
-            {/* Trading Panel */}
-            <div style={{
-              width: '400px',
-              background: t.bgPrimary,
-              borderLeft: `1px solid ${t.border}`,
-              padding: '20px',
-              flexShrink: 0,
-              position: 'sticky',
-              top: 0,
-              alignSelf: 'flex-start',
-              maxHeight: '100vh',
-              overflowY: 'auto'
-            }}>
-              <div style={{
-                background: t.bgSecondary,
-                borderRadius: '12px',
-                padding: '20px',
-                border: `1px solid ${t.border}`,
-                height: '100%'
-              }}>
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Your Balance
-                  </h3>
-                  <div style={{
-                    fontSize: '24px',
-                    fontWeight: '700',
-                    color: '#00d4aa'
-                  }}>
-                    {tokenDetails?.metadataAddress ? getTokenBalance(tokenDetails.metadataAddress) : '0.000'}
-                  </div>
-                </div>
-
-                <ul style={{
-                  display: 'flex',
-                  background: t.bgPrimary,
-                  borderRadius: '8px',
-                  padding: '4px',
-                  marginBottom: '20px',
-                  listStyle: 'none',
-                  border: `1px solid ${t.border}`,
-                }}>
-                  <li
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      background: activeTab === 'buy' ? t.positive : 'transparent',
-                      color: activeTab === 'buy' ? 'white' : t.textSecondary,
-                    }}
+            {/* ── RIGHT: Trade Panel + Info ── */}
+            <div className="tp-right">
+              {/* Trading card */}
+              <div className="tp-trade-card">
+                <div className="tp-trade-tabs">
+                  <button
+                    className={`tp-trade-tab${activeTab === 'buy' ? ' buy-active' : ''}`}
                     onClick={() => setActiveTab('buy')}
-                  >
-                    Buy
-                  </li>
-                  <li
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      background: activeTab === 'sell' ? t.negative : 'transparent',
-                      color: activeTab === 'sell' ? 'white' : t.textSecondary,
-                    }}
+                  >Buy</button>
+                  <button
+                    className={`tp-trade-tab${activeTab === 'sell' ? ' sell-active' : ''}`}
                     onClick={() => setActiveTab('sell')}
-                  >
-                    Sell
-                  </li>
-                </ul>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Amount
-                  </label>
-                  <input
-                    type="text"
-                    value={amountString}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmountString(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: t.bgPrimary,
-                      color: t.textPrimary,
-                    }}
-                  />
+                  >Sell</button>
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: t.textPrimary,
-                    marginBottom: '8px'
-                  }}>
-                    Total (APT)
-                  </label>
-                  <input
-                    type="text"
-                    value={total}
-                    readOnly
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: `1px solid ${t.border}`,
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: t.bgSecondary,
-                      color: t.textSecondary,
-                    }}
-                  />
-                </div>
-
-                {/* Slippage Protection Section */}
-                <div style={{
-                  margin: '20px 0',
-                  padding: '15px',
-                  background: t.bgPrimary,
-                  borderRadius: '8px',
-                  border: `1px solid ${t.border}`,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease'
-                }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: slippageExpanded ? '12px' : '0',
-                      transition: 'margin-bottom 0.3s ease'
-                    }}
-                    onClick={handleSlippageToggle}
-                  >
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: t.textPrimary,
-                    }}>
-                      Slippage Protection
-                    </span>
-                    <span style={{
-                      fontSize: '12px',
-                      color: t.textMuted,
-                      cursor: 'pointer',
-                      transition: 'transform 0.3s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '20px',
-                      height: '20px',
-                      transform: slippageExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
-                    }}>
-                      ▼
-                    </span>
+                {account && (
+                  <div className="tp-balance">
+                    Balance: <strong>{getTokenBalance(tokenDetails?.metadataAddress || '')} {tokenDetails?.symbol?.replace('$', '') || 'tokens'}</strong>
                   </div>
-                  <div style={{
-                    maxHeight: slippageExpanded ? '200px' : '0',
-                    overflow: 'hidden',
-                    transition: 'max-height 0.3s ease'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      gap: '8px',
-                      marginBottom: '12px',
-                      marginTop: '12px'
-                    }}>
-                      {['0.5', '1.0', '2.0', '5.0'].map((slippage) => (
+                )}
+
+                <div className="tp-field">
+                  <label className="tp-field-label">
+                    {inputMode === 'tokens'
+                      ? `Amount (${tokenDetails?.symbol?.replace('$', '') || 'tokens'})`
+                      : 'Amount (APT)'}
+                  </label>
+                  <input
+                    type="number"
+                    className="tp-input"
+                    value={amountString}
+                    onChange={e => setAmountString(e.target.value)}
+                    placeholder="0"
+                    min="0"
+                    step="any"
+                  />
+                  {activeTab === 'buy' && (
+                    <div className="tp-presets">
+                      {['0.1', '0.5', '1', '5'].map(v => (
                         <button
-                          key={slippage}
-                          onClick={() => handleSlippageSelect(slippage)}
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: `1px solid ${selectedSlippage === slippage ? t.accent : t.border}`,
-                            background: selectedSlippage === slippage ? t.accent : t.bgSecondary,
-                            color: selectedSlippage === slippage ? '#ffffff' : t.textSecondary,
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          {slippage}%
-                        </button>
+                          key={v}
+                          type="button"
+                          className="tp-preset-btn"
+                          onClick={() => { setInputMode('apt'); setAmountString(v); }}
+                        >{v} APT</button>
                       ))}
                     </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <input
-                        type="number"
-                        placeholder="Custom"
-                        min="0.1"
-                        max="50"
-                        step="0.1"
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          border: `1px solid ${t.border}`,
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          background: t.bgSecondary,
-                          color: t.textPrimary,
-                        }}
-                      />
-                      <span style={{
-                        fontSize: '12px',
-                        color: t.textMuted,
-                        fontWeight: '500'
-                      }}>
-                        %
-                      </span>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: t.negative,
-                      marginTop: '8px',
-                      display: parseFloat(selectedSlippage) > 5.0 ? 'block' : 'none'
-                    }}>
-                      High slippage may result in unfavorable trade execution
-                    </div>
+                  )}
+                </div>
+
+                <div className="tp-swap-row">
+                  <button
+                    className="tp-swap-btn"
+                    onClick={handleSwapInputMode}
+                    title="Switch between token and APT amount"
+                  >
+                    ⇅
+                  </button>
+                </div>
+
+                <div className="tp-field">
+                  <label className="tp-field-label">
+                    {inputMode === 'tokens' ? 'Total (APT)' : `You ${activeTab === 'buy' ? 'get' : 'sell'} (${tokenDetails?.symbol?.replace('$', '') || 'tokens'})`}
+                  </label>
+                  <div className="tp-total-val">
+                    {inputMode === 'tokens'
+                      ? `${total} APT`
+                      : `${Math.floor(parseFloat(total) || 0).toLocaleString()}`}
                   </div>
                 </div>
 
+                {/* Slippage */}
+                <div className="tp-slippage-header">
+                  <span className="tp-slippage-label">Slippage protection</span>
+                  <button className="tp-slippage-toggle" onClick={() => setSlippageExpanded(!slippageExpanded)}>
+                    {slippage / 100}% {slippageExpanded ? '▲' : '▼'}
+                  </button>
+                </div>
+                {slippageExpanded && (
+                  <div className="tp-slippage-options">
+                    {['0.5','1.0','2.0','5.0'].map(val => (
+                      <button
+                        key={val}
+                        className={`tp-slip-btn${selectedSlippage === val ? ' active' : ''}`}
+                        onClick={() => handleSlippageSelect(val)}
+                      >{val}%</button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Price impact */}
+                {priceImpact >= 1 && (
+                  <div
+                    className="tp-impact-warn"
+                    style={{
+                      background: priceImpact > 15
+                        ? (isDark ? 'rgba(255,69,58,0.15)' : 'rgba(215,0,21,0.08)')
+                        : priceImpact > 5
+                          ? (isDark ? 'rgba(255,159,10,0.15)' : 'rgba(255,159,10,0.10)')
+                          : (isDark ? 'rgba(160,160,170,0.10)' : 'rgba(0,0,0,0.04)'),
+                      color: priceImpact > 15
+                        ? 'var(--negative)'
+                        : priceImpact > 5
+                          ? '#c77d00'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    Price impact: ~{priceImpact.toFixed(priceImpact < 0.1 ? 3 : priceImpact < 1 ? 2 : 1)}%
+                    {priceImpact > 5 && ' — consider a smaller trade'}
+                  </div>
+                )}
+
                 <button
-                  onClick={handleTrade}
-                  style={{
-                    width: '100%',
-                    padding: '14px 24px',
-                    background: '#00d4aa',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
+                  className={`tp-trade-action${account ? (activeTab === 'buy' ? ' buy' : ' sell') : ' disabled'}`}
+                  onClick={account ? handleTrade : undefined}
                 >
-                  {activeTab === 'buy' ? 'Buy' : 'Sell'}
+                  {account
+                    ? `${activeTab === 'buy' ? 'Buy' : 'Sell'} ${tokenDetails?.symbol?.replace('$', '') || 'tokens'}`
+                    : 'Connect wallet to trade'
+                  }
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* Footer */}
-          <div style={{
-            background: t.bgPrimary,
-            borderTop: `1px solid ${t.border}`,
-            padding: '16px 24px',
-            width: '100%',
-            flexShrink: 0
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{ display: 'flex', gap: '20px' }}>
-                {['Careers', 'Privacy & Legal', 'Docs', 'Accessibility'].map(label => (
-                  <a key={label} href="#" style={{
-                    color: t.textMuted,
-                    textDecoration: 'none',
-                    fontSize: '13px',
-                    transition: 'color 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.color = t.textSecondary)}
-                  onMouseLeave={e => (e.currentTarget.style.color = t.textMuted)}
-                  >
-                    {label}
-                  </a>
-                ))}
+              {/* Token info card */}
+              <div className="tp-info-card">
+                <div className="tp-info-title">Token info</div>
+
+                {tokenDetails?.description && (
+                  <div className="tp-info-desc">{tokenDetails.description}</div>
+                )}
+
+                {tokenDetails?.metadataAddress && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Contract</span>
+                    <div className="tp-ca-row">
+                      <span className="tp-ca-code">{truncateAddress(tokenDetails.metadataAddress)}</span>
+                      <button
+                        className={`tp-copy-btn${copied ? ' copied' : ''}`}
+                        onClick={handleCopyCA}
+                      >{copied ? 'Copied' : 'Copy'}</button>
+                    </div>
+                  </div>
+                )}
+                {tokenDetails?.creatorAddress && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Creator</span>
+                    <Link
+                      to={`/profile/${tokenDetails.creatorAddress}`}
+                      className="tp-info-val"
+                      style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
+                    >
+                      {truncateAddress(tokenDetails.creatorAddress)}
+                    </Link>
+                  </div>
+                )}
+                {tokenDetails?.creationDate && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Launched</span>
+                    <span className="tp-info-val">{new Date(tokenDetails.creationDate * 1000).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {tokenDetails?.twitterLink && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Twitter</span>
+                    <a href={tokenDetails.twitterLink} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      View
+                    </a>
+                  </div>
+                )}
+                {tokenDetails?.websiteLink && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Website</span>
+                    <a href={tokenDetails.websiteLink} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      Visit
+                    </a>
+                  </div>
+                )}
+                {tokenDetails?.telegram && (
+                  <div className="tp-info-row">
+                    <span className="tp-info-key">Telegram</span>
+                    <a href={tokenDetails.telegram} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      Join
+                    </a>
+                  </div>
+                )}
               </div>
-              <p style={{ fontSize: '13px', color: t.textMuted, margin: 0 }}>
-                &copy; 2025 MoveMint
-              </p>
             </div>
           </div>
-        </div>
+        </main>
+        </PageShell>
       </div>
-    </div>
+    </>
   );
 };
 

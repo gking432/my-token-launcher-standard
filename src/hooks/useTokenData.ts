@@ -4,6 +4,7 @@ import { getTokenLauncherTokens, fetchPurchaseEvents } from '../utils/aptosIndex
 import { MODULE_ADDRESS } from '../config';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { usePageVisibility } from './usePageVisibility';
+import { getLocalImage } from '../lib/localImages';
 
 interface Token {
   name: string;
@@ -196,9 +197,17 @@ export const useTokenData = (): UseTokenDataReturn => {
         const metadataAddr = eventData?.metadata_addr || eventData?.metadataAddress || eventData?.metadata_address;
         console.log(`🔍 Event ${index} resolved metadataAddr:`, metadataAddr);
         
-        // Convert hex ticker to readable string
+        // Prefer name/symbol from fungible asset metadata (enriched by catalog API);
+        // fall back to decoding the hex ticker from the creation event.
         const tickerHex = eventData?.ticker || '';
-        const symbol = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
+        const tickerDecoded = tickerHex.startsWith('0x') ? hexToString(tickerHex) : tickerHex;
+        const symbol = eventData?.symbol && !eventData.symbol.startsWith('0x')
+          ? eventData.symbol
+          : tickerDecoded;
+        const name = eventData?.name && !eventData.name.startsWith('0x')
+          ? eventData.name
+          : symbol;
+        const iconUri: string = eventData?.icon_uri || '';
         
         // Parse supply data
         // aptosIndexer renames minted_supply → tokens_sold in the data wrapper
@@ -235,12 +244,19 @@ export const useTokenData = (): UseTokenDataReturn => {
         
         console.log(`✅ Event ${index} final metadataAddr:`, fullMetadataAddr, 'length:', fullMetadataAddr?.length);
         
+        // Only use icon_uri if it looks like a real URL (skip the hardcoded placeholder)
+        const onChainImage = iconUri && iconUri !== 'http://example.com/icon.png' && iconUri.startsWith('http')
+          ? iconUri
+          : null;
+        // Fall back to the local upload cache (image uploaded at launch time)
+        const image = onChainImage ?? getLocalImage(fullMetadataAddr);
+
         return {
-          name: symbol || `Token ${index + 1}`,
+          name: name || symbol || `Token ${index + 1}`,
           symbol: symbol || `TKN${index + 1}`,
           supply: totalSupply,
           txHash: fullMetadataAddr !== 'Unknown' ? fullMetadataAddr : `0x${Math.random().toString(16).substr(2, 64)}`,
-          image: null,
+          image,
           launchDate: new Date(aptosTimestampToMs(parseInt(eventData?.timestamp || '0'))).toISOString(),
           creator: eventData?.creator || 'Unknown',
           creatorAddress: eventData?.creator || 'Unknown',

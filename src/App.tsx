@@ -1,8 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
-import Layout from "./components/Layout";
 
 import HomePage from "./components/HomePage";
 import Marketplace from "./components/Marketplace";
@@ -11,20 +10,22 @@ import Profile from "./components/Profile";
 import NEWtokenpage from "./components/NEWtokenpage";
 import NEWLaunch from "./components/NEWLaunch";
 import Boost from "./components/Boost";
+import { BOOST_ENABLED } from "./featureFlags";
+import About from "./components/About";
+import Docs from "./components/Docs";
+import Privacy from "./components/Privacy";
+import Terms from "./components/Terms";
+import NotFound from "./components/NotFound";
+import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { GraduationListener } from "./components/GraduationListener";
 import { BalanceProvider } from "./contexts/BalanceContext";
 import { AptPriceProvider } from "./contexts/AptPriceContext";
 import { WatchlistProvider } from "./contexts/WatchlistContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider } from "./contexts/ToastContext";
+import Toaster from "./components/Toaster";
 import "./styles/Landing.css";
-
-const About: React.FC = () => (
-  <div style={{ padding: '20px', textAlign: 'center' }}>
-    <h1>About</h1>
-    <p>Information about MoveMint and the platform will be displayed here.</p>
-  </div>
-);
 
 const App: React.FC = () => {
   return (
@@ -37,25 +38,30 @@ const App: React.FC = () => {
         <AptPriceProvider>
           <BalanceProvider>
             <WatchlistProvider>
-              <GraduationListener />
+              <ToastProvider>
+                <GraduationListener />
+                <Toaster />
               <Router>
+                <ScrollToTop />
                 <Routes>
                   <Route path="/"                  element={<HomePage />} />
                   <Route path="/homepage"          element={<HomePage />} />
                   <Route path="/marketplace"       element={<Marketplace />} />
                   <Route path="/marketplace/:metadataAddress" element={<Marketplace />} />
-                  <Route path="/boost"             element={<Boost />} />
+                  <Route path="/boost"             element={BOOST_ENABLED ? <Boost /> : <Navigate to="/" replace />} />
                   <Route path="/about"             element={<About />} />
-                  <Route path="/tokenpage"         element={<NEWtokenpage />} />
-                  <Route path="/launchpage"        element={<NEWLaunch />} />
+                  <Route path="/docs"              element={<Docs />} />
+                  <Route path="/privacy"           element={<Privacy />} />
+                  <Route path="/terms"             element={<Terms />} />
                   <Route path="/launch"            element={<NEWLaunch />} />
-                  <Route path="/profile"           element={<Layout><Profile /></Layout>} />
-                  <Route path="/profile/:address"  element={<Layout><Profile /></Layout>} />
+                  <Route path="/profile"           element={<Profile />} />
+                  <Route path="/profile/:address"  element={<Profile />} />
                   <Route path="/token/:coinHash"   element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
                   <Route path="/newtoken/:coinHash" element={<ErrorBoundary><NEWtokenpage /></ErrorBoundary>} />
-                  <Route path="*"                  element={<Layout><div>404 - Page Not Found</div></Layout>} />
+                  <Route path="*"                  element={<NotFound />} />
                 </Routes>
               </Router>
+              </ToastProvider>
             </WatchlistProvider>
           </BalanceProvider>
         </AptPriceProvider>
