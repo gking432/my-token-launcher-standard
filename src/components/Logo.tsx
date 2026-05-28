@@ -19,6 +19,7 @@ const Logo: React.FC<LogoProps> = ({ height = 32, className }) => {
         display: 'block',
         width: 'auto',
         filter: isDark ? 'grayscale(1) invert(1) brightness(2)' : 'none',
+        mixBlendMode: isDark ? 'screen' : 'multiply',
       }}
     />
   );
