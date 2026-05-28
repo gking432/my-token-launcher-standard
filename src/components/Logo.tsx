@@ -2,27 +2,25 @@ import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface LogoProps {
-  size?: number;
+  height?: number;
   className?: string;
 }
 
-const Logo: React.FC<LogoProps> = ({ size = 22, className }) => {
+const Logo: React.FC<LogoProps> = ({ height = 32, className }) => {
   const { isDark } = useTheme();
 
   return (
-    <span
+    <img
+      src="/logo.png"
+      alt="MoveMint"
+      height={height}
       className={className}
       style={{
-        fontSize: size,
-        letterSpacing: '-0.03em',
-        whiteSpace: 'nowrap',
-        fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        lineHeight: 1,
+        display: 'block',
+        width: 'auto',
+        filter: isDark ? 'brightness(1.05)' : 'none',
       }}
-    >
-      <span style={{ fontWeight: 400, color: isDark ? '#f5f5f7' : '#1d1d1f' }}>Move</span>
-      <span style={{ fontWeight: 700, color: isDark ? '#40bb38' : '#33972e' }}>Mint</span>
-    </span>
+    />
   );
 };
 

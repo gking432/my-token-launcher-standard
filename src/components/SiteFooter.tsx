@@ -59,7 +59,7 @@ const SiteFooter: React.FC = () => (
         <div className="mm-footer-top">
           <div>
             <div className="mm-footer-brand mm-logo-wrap">
-              <Logo size={20} />
+              <Logo height={26} />
             </div>
             <p className="mm-footer-desc">
               A token launchpad built for the Aptos network. Launch in seconds, trade instantly.
