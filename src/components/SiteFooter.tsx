@@ -7,7 +7,7 @@ const SiteFooter: React.FC = () => (
   <>
     <style>{`
       .mm-footer {
-        background: var(--bg-secondary);
+        background: #ffffff;
         border-top: 1px solid var(--border);
         padding: 54px 24px 26px;
       }

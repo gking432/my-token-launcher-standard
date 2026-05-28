@@ -18,7 +18,7 @@ const Logo: React.FC<LogoProps> = ({ height = 32, className }) => {
       style={{
         display: 'block',
         width: 'auto',
-        filter: isDark ? 'brightness(1.05)' : 'none',
+        filter: isDark ? 'brightness(0) invert(1)' : 'none',
       }}
     />
   );
