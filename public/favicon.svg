@@ -1,33 +1,3 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Mint leaf silhouette with serrated edges -->
-  <path fill="#33972e" d="
-    M 50 96
-    L 37 90
-    L 19 84  L 26 79
-    L 10 71  L 17 65
-    L 11 57  L 18 51
-    L 15 43  L 21 38
-    L 22 30  L 28 24
-    L 31 17
-    L 37 11  L 43 7  L 50 4  L 57 7  L 63 11
-    L 69 17
-    L 72 23  L 69 29
-    L 77 35  L 74 41
-    L 83 48  L 79 54
-    L 85 60  L 81 66
-    L 83 73  L 78 78
-    L 74 83  L 63 88
-    Z
-  "/>
-  <!-- Central vein -->
-  <line x1="51" y1="83" x2="52" y2="10" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
-  <!-- Lower branch pair -->
-  <line x1="51" y1="66" x2="27" y2="77" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="51" y1="66" x2="73" y2="73" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- Middle branch pair -->
-  <line x1="51" y1="47" x2="25" y2="57" stroke="white" stroke-width="2" stroke-linecap="round"/>
-  <line x1="51" y1="47" x2="76" y2="53" stroke="white" stroke-width="2" stroke-linecap="round"/>
-  <!-- Upper branch pair -->
-  <line x1="51" y1="31" x2="34" y2="37" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="51" y1="31" x2="67" y2="36" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <polygon points="50,8 92,92 8,92" fill="#33972e"/>
 </svg>
