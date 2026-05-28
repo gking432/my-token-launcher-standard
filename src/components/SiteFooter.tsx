@@ -8,6 +8,9 @@ const SiteFooter: React.FC = () => (
     <style>{`
       .mm-footer {
         background: #ffffff;
+      }
+      [data-theme="dark"] .mm-footer {
+        background: var(--bg-secondary);
         border-top: 1px solid var(--border);
         padding: 54px 24px 26px;
       }
