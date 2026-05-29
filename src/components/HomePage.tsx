@@ -154,7 +154,7 @@ const HomePage: React.FC = () => {
         /* ── HERO ── */
         .mm-hero {
           position: relative; overflow: hidden;
-          padding: 76px 24px 104px;
+          padding: 76px 0 104px;
         }
         .mm-hero-bg {
           position: absolute; inset: 0; pointer-events: none; z-index: 0;
@@ -171,7 +171,7 @@ const HomePage: React.FC = () => {
         }
         .mm-hero-inner {
           position: relative; z-index: 1;
-          max-width: 1280px; margin: 0 auto;
+          max-width: 1280px; margin: 0 auto; padding: 0 24px;
           display: grid; grid-template-columns: 1.05fr 0.95fr;
           gap: 60px; align-items: center;
         }
@@ -356,10 +356,10 @@ const HomePage: React.FC = () => {
         /* ── TOKENS SECTION ── */
         .mm-tokens {
           flex: 1;
-          padding: 88px 24px 100px;
+          padding: 88px 0 100px;
           background: var(--bg-primary);
         }
-        .mm-tokens-inner { max-width: 1280px; margin: 0 auto; }
+        .mm-tokens-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
         .mm-section-head {
           display: flex; justify-content: space-between; align-items: flex-end;
           gap: 24px; flex-wrap: wrap;
@@ -512,8 +512,10 @@ const HomePage: React.FC = () => {
           .mm-nav-links { display: none; }
         }
         @media (max-width: 600px) {
-          .mm-hero { padding: 52px 18px 84px; }
-          .mm-tokens { padding: 60px 18px 72px; }
+          .mm-hero { padding: 52px 0 84px; }
+          .mm-hero-inner { padding: 0 18px; }
+          .mm-tokens { padding: 60px 0 72px; }
+          .mm-tokens-inner { padding: 0 18px; }
           .mm-stats-panel { grid-template-columns: 1fr; }
           .mm-stat { border-right: none; border-bottom: 1px solid var(--border); }
           .mm-stat:last-child { border-bottom: none; }
