@@ -129,13 +129,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-nav {
           height: 100%;
+          max-width: 1280px;
+          margin: 0 auto;
           padding: 0 24px;
           display: grid;
           grid-template-columns: 1fr auto 1fr;
           align-items: center;
           gap: 12px;
         }
-        .ah-nav.narrow { max-width: 1280px; margin: 0 auto; }
+        .ah-nav.narrow { /* already centered above */ }
         .ah-nav-left {
           display: flex; align-items: center; gap: 6px;
         }
