@@ -12,9 +12,9 @@ const SiteFooter: React.FC = () => (
       [data-theme="dark"] .mm-footer {
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
-        padding: 54px 0 26px;
+        padding: 54px 24px 26px;
       }
-      .mm-footer-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+      .mm-footer-inner { max-width: 1280px; margin: 0 auto; }
       .mm-footer-top {
         padding-bottom: 34px; border-bottom: 1px solid var(--border);
         display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 44px;
