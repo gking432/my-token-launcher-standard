@@ -543,7 +543,7 @@ const HomePage: React.FC = () => {
       `}</style>
 
       <div className="mm-page">
-        <AppHeader launchCta narrow hideBoostBar />
+        <AppHeader launchCta hideBoostBar />
 
         {/* ── HERO ── */}
         <section className="mm-hero">
