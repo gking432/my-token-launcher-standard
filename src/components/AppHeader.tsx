@@ -39,6 +39,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
   const walletRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const mobileSearchRef = useRef<HTMLDivElement>(null);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -57,7 +58,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       if (walletRef.current && !walletRef.current.contains(e.target as Node)) {
         setWalletOpen(false);
       }
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      if (
+        searchRef.current && !searchRef.current.contains(e.target as Node) &&
+        (!mobileSearchRef.current || !mobileSearchRef.current.contains(e.target as Node))
+      ) {
         setSearchOpen(false);
       }
     };
@@ -386,8 +390,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-mobile-wl-sym { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
 
+        .ah-mobile-search-wrap { position: relative; padding: 0 6px 14px; }
+        .ah-mobile-search-wrap .ah-search { width: 100%; }
+        .ah-mobile-search-wrap .ah-search:focus { width: 100%; box-shadow: none; }
+        .ah-mobile-search-wrap .ah-search-pop { width: 100%; }
+
         @media (max-width: 900px) {
-          .ah-nav { grid-template-columns: auto 1fr auto; }
+          .ah-nav { grid-template-columns: auto 1fr; }
+          .ah-search-wrap { display: none; }
           .ah-burger { display: flex; }
         }
         @media (max-width: 680px) {
@@ -573,6 +583,62 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               <button className="ah-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 ✕
               </button>
+            </div>
+
+            <div className="ah-mobile-section-label" style={{ paddingTop: 4 }}>Search</div>
+            <div className="ah-mobile-search-wrap" ref={mobileSearchRef}>
+              <span className="ah-search-icon">&#9906;</span>
+              <input
+                type="text"
+                className="ah-search"
+                placeholder="Search tokens…"
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={handleSearchKey}
+              />
+              {searchOpen && searchQuery.trim() && (
+                <div className="ah-search-pop">
+                  {matches.length === 0 ? (
+                    <>
+                      <div className="ah-search-empty">No tokens match "{searchQuery}"</div>
+                      <button className="ah-search-all" onClick={seeAllInMarketplace}>
+                        Try in Marketplace →
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {matches.map((t, i) => {
+                        const addr = t.metadataAddress || t.txHash;
+                        return (
+                          <button
+                            key={addr}
+                            className={`ah-search-item${i === searchIndex ? ' active' : ''}`}
+                            onMouseEnter={() => setSearchIndex(i)}
+                            onClick={() => addr && gotoToken(addr)}
+                          >
+                            <TokenAvatar
+                              image={t.image}
+                              symbol={t.symbol}
+                              className="ah-search-icon-img"
+                              background="var(--bg-tertiary)"
+                            />
+                            <div className="ah-search-meta">
+                              <div className="ah-search-name">{t.name}</div>
+                              <div className="ah-search-sym">{t.symbol.startsWith('$') ? t.symbol : `$${t.symbol}`}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      <button className="ah-search-all" onClick={seeAllInMarketplace}>
+                        {totalMatchCount > matches.length
+                          ? `See all ${totalMatchCount} matches in Marketplace →`
+                          : 'See in Marketplace →'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="ah-mobile-section-label">Navigate</div>

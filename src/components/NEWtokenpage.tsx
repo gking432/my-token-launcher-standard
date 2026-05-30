@@ -1219,26 +1219,47 @@ const TokenPage: React.FC = () => {
           display: flex; align-items: center; justify-content: space-between;
           gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
         }
-        .tp-tf-group, .tp-mode-group { display: flex; gap: 4px; }
         .tp-controls-right { display: flex; align-items: center; gap: 8px; }
-        .tp-tf-btn, .tp-mode-btn {
-          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
-          background: var(--bg-secondary); color: var(--text-secondary);
+        .tp-tf-select {
+          height: 34px; padding: 0 28px 0 12px;
+          background: var(--bg-secondary); border: 1px solid var(--border);
+          border-radius: 8px; color: var(--text-primary);
           font-size: 12.5px; font-weight: 600; cursor: pointer;
-          font-family: inherit; transition: all 0.12s;
+          font-family: inherit; outline: none;
+          -webkit-appearance: none; appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+          transition: border-color 0.12s;
         }
-        .tp-tf-btn:hover, .tp-mode-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .tp-tf-btn.active, .tp-mode-btn.active {
-          background: var(--accent); color: #fff; border-color: var(--accent);
+        .tp-tf-select:focus { border-color: var(--accent); }
+        .tp-mode-toggle {
+          display: flex; border-radius: 8px;
+          border: 1px solid var(--border); overflow: hidden;
         }
-        .tp-chart-collapse {
-          display: none; align-items: center; gap: 6px;
-          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+        .tp-mode-pill {
+          padding: 6px 12px; font-size: 12.5px; font-weight: 600;
           background: var(--bg-secondary); color: var(--text-secondary);
-          font-size: 12.5px; font-weight: 700; cursor: pointer;
-          font-family: inherit; transition: all 0.12s; white-space: nowrap;
+          border: none; cursor: pointer; font-family: inherit;
+          transition: background 0.1s, color 0.1s;
         }
-        .tp-chart-collapse:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-mode-pill + .tp-mode-pill { border-left: 1px solid var(--border); }
+        .tp-mode-pill.active { background: var(--accent); color: #fff; }
+        .tp-mode-pill:hover:not(.active) { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-chart-collapse-bar {
+          display: none;
+          width: 100%; margin-bottom: 12px;
+          padding: 9px 14px; border-radius: 10px;
+          background: var(--bg-secondary);
+          border: 1.5px solid var(--border);
+          font-size: 13px; font-weight: 700;
+          color: var(--text-secondary);
+          cursor: pointer; font-family: inherit;
+          align-items: center; justify-content: space-between;
+          transition: border-color 0.15s, color 0.15s;
+        }
+        .tp-chart-collapse-bar:hover { border-color: var(--accent); color: var(--accent); }
+        .tp-cbar-chevron { font-size: 15px; color: var(--accent); }
         .tp-chart-card.collapsed { display: none; }
 
         .tp-chart-card {
@@ -1548,7 +1569,7 @@ const TokenPage: React.FC = () => {
 
           .tp-chart-controls { gap: 8px; margin-bottom: 10px; }
           .tp-controls-right { gap: 6px; }
-          .tp-chart-collapse { display: inline-flex; }
+          .tp-chart-collapse-bar { display: flex; }
           .tp-chart-card { border-radius: 14px; }
           .tp-chart-inner { height: 320px; }
           .tp-tabs { margin-top: 16px; }
@@ -1556,8 +1577,7 @@ const TokenPage: React.FC = () => {
           .tp-insight-card { padding: 12px; }
           .tp-insight-value { font-size: 15px; }
           .tp-grad-pct { font-size: 18px; }
-          .tp-tf-btn, .tp-mode-btn { padding: 6px 9px; font-size: 12px; }
-          .tp-mode-group .tp-mode-btn:nth-child(n+3) { display: none; }
+          .tp-mode-pill { padding: 5px 10px; font-size: 12px; }
           .tp-tx-th, .tp-tx-td { padding: 8px 6px; font-size: 12px; }
         }
         @media (max-width: 460px) {
@@ -1669,7 +1689,7 @@ const TokenPage: React.FC = () => {
               onClick={handleShareLink}
               title={linkCopied ? 'Link copied' : 'Copy share link'}
             >
-              {linkCopied ? '✓ Copied' : '↗ Share'}
+              {linkCopied ? '✓' : '↗'}
             </button>
             <button
               className={`tp-star-btn${currentTokenInWatchlist ? ' starred' : ''}`}
@@ -1684,34 +1704,37 @@ const TokenPage: React.FC = () => {
           <div className="tp-layout">
             {/* ── CHART COLUMN ── */}
             <div className="tp-chart-col">
+              {/* Mobile-only chart collapse bar — outside controls so it stays visible when collapsed */}
+              <button
+                className="tp-chart-collapse-bar"
+                onClick={() => setChartCollapsed(c => !c)}
+              >
+                <span>Price Chart</span>
+                <span className="tp-cbar-chevron">{chartCollapsed ? '▾' : '▴'}</span>
+              </button>
+
               {/* Chart controls */}
               <div className="tp-chart-controls">
-                <div className="tp-tf-group">
+                <select
+                  className="tp-tf-select"
+                  value={timeframe}
+                  onChange={e => setTimeframe(e.target.value as Timeframe)}
+                >
                   {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
-                    <button
-                      key={tf}
-                      className={`tp-tf-btn${timeframe === tf ? ' active' : ''}`}
-                      onClick={() => setTimeframe(tf)}
-                    >{tf}</button>
+                    <option key={tf} value={tf}>{tf}</option>
                   ))}
-                </div>
+                </select>
                 <div className="tp-controls-right">
-                  <div className="tp-mode-group">
-                    {(['mcap','usd','apt'] as ChartMode[]).map(mode => (
-                      <button
-                        key={mode}
-                        className={`tp-mode-btn${chartMode === mode ? ' active' : ''}`}
-                        onClick={() => setChartMode(mode)}
-                      >{mode === 'mcap' ? 'MCap' : mode.toUpperCase()}</button>
-                    ))}
+                  <div className="tp-mode-toggle">
+                    <button
+                      className={`tp-mode-pill${chartMode === 'mcap' ? ' active' : ''}`}
+                      onClick={() => setChartMode('mcap')}
+                    >MCap</button>
+                    <button
+                      className={`tp-mode-pill${chartMode === 'usd' ? ' active' : ''}`}
+                      onClick={() => setChartMode('usd')}
+                    >USD</button>
                   </div>
-                  <button
-                    className="tp-chart-collapse"
-                    onClick={() => setChartCollapsed(c => !c)}
-                    title={chartCollapsed ? 'Show chart' : 'Hide chart'}
-                  >
-                    {chartCollapsed ? '▾ Chart' : '▴ Chart'}
-                  </button>
                 </div>
               </div>
 

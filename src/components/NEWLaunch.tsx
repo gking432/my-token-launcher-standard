@@ -461,6 +461,13 @@ const Launch: React.FC = () => {
           font-size: 12px; color: var(--text-muted);
           text-align: center; margin-top: 14px; line-height: 1.5;
         }
+        .lp-fee-note {
+          text-align: center; font-size: 13px;
+          color: var(--text-secondary); margin-bottom: 14px;
+          padding: 9px 14px; border-radius: 10px;
+          background: var(--bg-secondary); border: 1px solid var(--border);
+        }
+        .lp-fee-note strong { color: var(--text-primary); font-weight: 700; }
         .lp-connect-prompt {
           background: var(--bg-primary);
           border: 1px solid var(--border);
@@ -655,6 +662,9 @@ const Launch: React.FC = () => {
                     <div className="lp-card-title">Launch</div>
                     <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 18 }}>
                       A small APT launch fee is charged on creation. You'll have the option to make an initial purchase to seed price discovery on the next screen.
+                    </div>
+                    <div className="lp-fee-note">
+                      Launch fee: <strong>0.2 APT</strong>
                     </div>
                     <button type="submit" className="lp-submit" disabled={loading || !formValid}>
                       {loading ? 'Launching…' : 'Continue to launch'}
