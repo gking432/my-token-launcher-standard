@@ -1220,14 +1220,24 @@ const TokenPage: React.FC = () => {
           gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
         }
         .tp-controls-right { display: flex; align-items: center; gap: 8px; }
+        /* Desktop: button group */
+        .tp-tf-group { display: flex; gap: 4px; }
+        .tp-tf-btn {
+          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-size: 12.5px; font-weight: 600; cursor: pointer;
+          font-family: inherit; transition: all 0.12s;
+        }
+        .tp-tf-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-tf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        /* Mobile: dropdown wrapper */
         .tp-tf-wrap {
-          position: relative; display: inline-flex; align-items: center;
+          position: relative; display: none; align-items: center;
           height: 34px; padding: 0 10px 0 12px; gap: 6px;
           background: var(--bg-secondary); border: 1px solid var(--border);
           border-radius: 8px; cursor: pointer; flex-shrink: 0;
           font-size: 12.5px; font-weight: 600; color: var(--text-primary);
-          font-family: inherit;
-          transition: border-color 0.12s;
+          font-family: inherit; transition: border-color 0.12s;
         }
         .tp-tf-wrap:hover { border-color: var(--text-muted); }
         .tp-tf-wrap:focus-within { border-color: var(--accent); }
@@ -1239,7 +1249,7 @@ const TokenPage: React.FC = () => {
         .tp-tf-native {
           position: absolute; inset: 0; opacity: 0;
           width: 100%; height: 100%; cursor: pointer;
-          font-size: 16px; /* prevents iOS auto-zoom */
+          font-size: 16px;
         }
         .tp-mode-toggle {
           display: flex; border-radius: 8px;
@@ -1578,6 +1588,8 @@ const TokenPage: React.FC = () => {
           .tp-chart-controls { gap: 8px; margin-bottom: 10px; }
           .tp-controls-right { gap: 6px; }
           .tp-chart-collapse-bar { display: flex; }
+          .tp-tf-group { display: none; }
+          .tp-tf-wrap { display: inline-flex; }
           .tp-chart-card { border-radius: 14px; }
           .tp-chart-inner { height: 320px; }
           .tp-tabs { margin-top: 16px; }
@@ -1723,6 +1735,17 @@ const TokenPage: React.FC = () => {
 
               {/* Chart controls */}
               <div className="tp-chart-controls">
+                {/* Desktop: button group */}
+                <div className="tp-tf-group">
+                  {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
+                    <button
+                      key={tf}
+                      className={`tp-tf-btn${timeframe === tf ? ' active' : ''}`}
+                      onClick={() => setTimeframe(tf)}
+                    >{tf}</button>
+                  ))}
+                </div>
+                {/* Mobile: compact dropdown */}
                 <div className="tp-tf-wrap">
                   <span className="tp-tf-label">{timeframe}</span>
                   <span className="tp-tf-chevron">▾</span>
