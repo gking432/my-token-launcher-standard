@@ -132,10 +132,6 @@ const HomePage: React.FC = () => {
     });
   };
 
-  // ── Static mock token for the hero product-preview card ──
-  const chartLine = 'M0,104 C26,98 38,74 64,82 C90,90 100,52 128,58 C156,64 168,38 196,32 C224,26 236,54 264,42 C292,30 306,14 320,8';
-  const chartArea = chartLine + ' L320,120 L0,120 Z';
-
   return (
     <>
       <style>{`
@@ -257,7 +253,7 @@ const HomePage: React.FC = () => {
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── HERO PRODUCT PREVIEW ── */
+        /* ── HERO PLATFORM CARD ── */
         .mm-hero-visual { position: relative; }
         .mm-preview-glow {
           position: absolute; inset: -10% -6%;
@@ -273,51 +269,40 @@ const HomePage: React.FC = () => {
           -webkit-backdrop-filter: blur(22px) saturate(180%);
           border: 1px solid var(--border);
           border-radius: 22px;
-          padding: 22px;
+          padding: 26px 24px 22px;
           box-shadow:
             0 32px 64px rgba(0,0,0,${isDark ? '0.55' : '0.16'}),
             0 10px 24px rgba(0,0,0,${isDark ? '0.45' : '0.08'});
         }
-        .mm-preview-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-        .mm-preview-icon {
-          width: 42px; height: 42px; border-radius: 12px;
+        .mm-card-eyebrow {
+          font-size: 11px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.09em; color: var(--accent); margin-bottom: 6px;
+        }
+        .mm-card-heading {
+          font-size: 19px; font-weight: 700; color: var(--text-primary);
+          letter-spacing: -0.022em; line-height: 1.2; margin-bottom: 22px;
+          padding-bottom: 18px; border-bottom: 1px solid var(--border);
+        }
+        .mm-how-steps { display: flex; flex-direction: column; gap: 18px; margin-bottom: 22px; }
+        .mm-how-step { display: flex; align-items: flex-start; gap: 14px; }
+        .mm-how-num {
+          width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+          background: var(--accent-light); border: 1.5px solid ${isDark ? 'rgba(64,187,56,0.35)' : 'rgba(51,151,46,0.25)'};
+          color: var(--accent); font-size: 12px; font-weight: 800;
           display: flex; align-items: center; justify-content: center;
-          font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
-          object-fit: cover;
         }
-        .mm-preview-name { font-size: 15px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-        .mm-preview-sym { font-size: 12.5px; color: var(--text-muted); margin-top: 1px; }
-        .mm-preview-tag {
-          margin-left: auto;
-          font-size: 11px; font-weight: 700;
-          color: var(--accent); background: var(--accent-light);
-          padding: 4px 9px; border-radius: 6px;
-          text-transform: uppercase; letter-spacing: 0.04em;
+        .mm-how-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+        .mm-how-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+        .mm-preview-cta {
+          display: block; width: 100%; padding: 13px;
+          background: var(--accent); color: #fff;
+          border-radius: 12px; text-align: center;
+          font-size: 14px; font-weight: 600; text-decoration: none;
+          border: none; cursor: pointer; font-family: inherit;
+          box-shadow: 0 4px 14px rgba(51,151,46,0.28);
+          transition: background 0.15s;
         }
-        .mm-preview-price {
-          font-size: 34px; font-weight: 700; letter-spacing: -0.03em;
-          color: var(--text-primary); line-height: 1;
-          font-variant-numeric: tabular-nums;
-        }
-        .mm-preview-change {
-          font-size: 13px; font-weight: 600; margin-top: 6px;
-          display: inline-flex; align-items: center; gap: 5px;
-        }
-        .mm-preview-chart { display: block; width: 100%; height: 96px; margin: 14px 0 16px; }
-        .mm-preview-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .mm-preview-buy, .mm-preview-sell {
-          padding: 11px; border-radius: 11px;
-          font-size: 14px; font-weight: 600; cursor: pointer;
-          border: none; font-family: inherit;
-          transition: filter 0.15s, background 0.15s;
-        }
-        .mm-preview-buy { background: var(--accent); color: #fff; }
-        .mm-preview-buy:hover { filter: brightness(1.06); }
-        .mm-preview-sell {
-          background: var(--bg-secondary); color: var(--text-primary);
-          border: 1px solid var(--border);
-        }
-        .mm-preview-sell:hover { background: var(--bg-hover); }
+        .mm-preview-cta:hover { background: var(--accent-hover); }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -506,8 +491,8 @@ const HomePage: React.FC = () => {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 900px) {
-          .mm-hero-inner { grid-template-columns: 1fr; gap: 44px; }
-          .mm-hero-visual { max-width: 420px; }
+          .mm-hero-inner { grid-template-columns: 1fr; }
+          .mm-hero-visual { display: none; }
           .mm-stats-panel { grid-template-columns: repeat(2, 1fr); }
           .mm-stat:nth-child(2) { border-right: none; }
           .mm-stat:nth-child(1), .mm-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
@@ -589,48 +574,38 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Product preview card — static demo */}
+            {/* Platform how-it-works card — hidden on mobile */}
             <div className="mm-hero-visual">
               <div className="mm-preview-glow" />
               <div className="mm-preview-card">
-                <div className="mm-preview-head">
-                  <div className="mm-preview-icon" style={{ background: 'linear-gradient(135deg,#33972e,#0ea5e9)' }}>
-                    A
+                <div className="mm-card-eyebrow">How it works</div>
+                <div className="mm-card-heading">Launch and trade a token<br />in under a minute</div>
+
+                <div className="mm-how-steps">
+                  <div className="mm-how-step">
+                    <div className="mm-how-num">1</div>
+                    <div>
+                      <div className="mm-how-title">Fill the form</div>
+                      <div className="mm-how-sub">Name, ticker, optional logo and socials. Takes about 30 seconds.</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="mm-preview-name">Aptos Launch</div>
-                    <div className="mm-preview-sym">$APTX</div>
+                  <div className="mm-how-step">
+                    <div className="mm-how-num">2</div>
+                    <div>
+                      <div className="mm-how-title">Deploy to Aptos</div>
+                      <div className="mm-how-sub">Pay a 0.2 APT launch fee. Your token is live on-chain instantly.</div>
+                    </div>
                   </div>
-                  <div className="mm-preview-tag">Live</div>
+                  <div className="mm-how-step">
+                    <div className="mm-how-num">3</div>
+                    <div>
+                      <div className="mm-how-title">Trade from block zero</div>
+                      <div className="mm-how-sub">A bonding curve starts the moment you deploy. Buy, sell, watch it grow.</div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mm-preview-price">$0.0058</div>
-                <div className="mm-preview-change" style={{ color: 'var(--positive)' }}>
-                  ▲ 24.7% · Bonding curve active
-                </div>
-
-                <svg className="mm-preview-chart" viewBox="0 0 320 120" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="mm-chart-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent)" stopOpacity={isDark ? '0.34' : '0.22'} />
-                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d={chartArea} fill="url(#mm-chart-fill)" />
-                  <path
-                    d={chartLine}
-                    fill="none"
-                    stroke="var(--accent)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-
-                <div className="mm-preview-actions">
-                  <button className="mm-preview-buy" onClick={() => navigate('/marketplace')}>Buy</button>
-                  <button className="mm-preview-sell" onClick={() => navigate('/marketplace')}>Sell</button>
-                </div>
+                <Link to="/launch" className="mm-preview-cta">Launch your token →</Link>
               </div>
             </div>
           </div>
