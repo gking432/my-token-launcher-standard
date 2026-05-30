@@ -1220,19 +1220,27 @@ const TokenPage: React.FC = () => {
           gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
         }
         .tp-controls-right { display: flex; align-items: center; gap: 8px; }
-        .tp-tf-select {
-          height: 34px; padding: 0 28px 0 12px;
+        .tp-tf-wrap {
+          position: relative; display: inline-flex; align-items: center;
+          height: 34px; padding: 0 10px 0 12px; gap: 6px;
           background: var(--bg-secondary); border: 1px solid var(--border);
-          border-radius: 8px; color: var(--text-primary);
-          font-size: 12.5px; font-weight: 600; cursor: pointer;
-          font-family: inherit; outline: none;
-          -webkit-appearance: none; appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 8px center;
+          border-radius: 8px; cursor: pointer; flex-shrink: 0;
+          font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+          font-family: inherit;
           transition: border-color 0.12s;
         }
-        .tp-tf-select:focus { border-color: var(--accent); }
+        .tp-tf-wrap:hover { border-color: var(--text-muted); }
+        .tp-tf-wrap:focus-within { border-color: var(--accent); }
+        .tp-tf-label { pointer-events: none; white-space: nowrap; }
+        .tp-tf-chevron {
+          font-size: 9px; color: var(--text-muted);
+          pointer-events: none; line-height: 1; flex-shrink: 0;
+        }
+        .tp-tf-native {
+          position: absolute; inset: 0; opacity: 0;
+          width: 100%; height: 100%; cursor: pointer;
+          font-size: 16px; /* prevents iOS auto-zoom */
+        }
         .tp-mode-toggle {
           display: flex; border-radius: 8px;
           border: 1px solid var(--border); overflow: hidden;
@@ -1715,15 +1723,19 @@ const TokenPage: React.FC = () => {
 
               {/* Chart controls */}
               <div className="tp-chart-controls">
-                <select
-                  className="tp-tf-select"
-                  value={timeframe}
-                  onChange={e => setTimeframe(e.target.value as Timeframe)}
-                >
-                  {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
-                    <option key={tf} value={tf}>{tf}</option>
-                  ))}
-                </select>
+                <div className="tp-tf-wrap">
+                  <span className="tp-tf-label">{timeframe}</span>
+                  <span className="tp-tf-chevron">▾</span>
+                  <select
+                    className="tp-tf-native"
+                    value={timeframe}
+                    onChange={e => setTimeframe(e.target.value as Timeframe)}
+                  >
+                    {(['1m','15m','1H','4H','1D','ALL'] as Timeframe[]).map(tf => (
+                      <option key={tf} value={tf}>{tf}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="tp-controls-right">
                   <div className="tp-mode-toggle">
                     <button

@@ -322,8 +322,10 @@ const HomePage: React.FC = () => {
         /* ── STATS PANEL ── */
         .mm-stats {
           position: relative; z-index: 5;
-          max-width: 1280px; margin: -58px auto 0;
-          padding: 0 24px;
+          margin-top: -58px;
+        }
+        .mm-stats-inner {
+          max-width: 1280px; margin: 0 auto; padding: 0 24px;
         }
         .mm-stats-panel {
           background: var(--bg-primary);
@@ -516,9 +518,9 @@ const HomePage: React.FC = () => {
           .mm-hero-inner { padding: 0 18px; }
           .mm-tokens { padding: 60px 0 72px; }
           .mm-tokens-inner { padding: 0 18px; }
-          .mm-stats-panel { grid-template-columns: 1fr; }
-          .mm-stat { border-right: none; border-bottom: 1px solid var(--border); }
-          .mm-stat:last-child { border-bottom: none; }
+          .mm-stats-inner { padding: 0 18px; }
+          .mm-stat { padding: 16px 18px; }
+          .mm-stat-value { font-size: 22px; }
           .mm-controls { width: 100%; }
           .mm-search { flex: 1; width: auto; }
         }
@@ -627,6 +629,7 @@ const HomePage: React.FC = () => {
 
         {/* ── STATS PANEL ── */}
         <section className="mm-stats">
+          <div className="mm-stats-inner">
           <div className="mm-stats-panel">
             <div className="mm-stat">
               <div className="mm-stat-label">Tokens launched</div>
@@ -644,6 +647,7 @@ const HomePage: React.FC = () => {
               <div className="mm-stat-label">Network</div>
               <div className="mm-stat-value">Aptos<span className="mm-stat-suffix">testnet</span></div>
             </div>
+          </div>
           </div>
         </section>
 
