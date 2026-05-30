@@ -85,6 +85,7 @@ const TokenPage: React.FC = () => {
   const [selectedSlippage, setSelectedSlippage] = useState('1.0');
   const [headerMinimized, setHeaderMinimized] = useState(false);
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
+  const [chartCollapsed, setChartCollapsed] = useState(false);
   const location = useLocation();
 
   const fixedPrice = 0.001;
@@ -958,6 +959,16 @@ const TokenPage: React.FC = () => {
     };
   }, []); // intentionally run once on mount
 
+  // When the chart is re-expanded from collapsed, the container goes from
+  // display:none back to visible — nudge lightweight-charts to remeasure.
+  useEffect(() => {
+    if (chartCollapsed) return;
+    const id = requestAnimationFrame(() => {
+      chartRef.current?.timeScale().fitContent();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [chartCollapsed]);
+
   // Update chart colors when theme changes
   useEffect(() => {
     if (!chartRef.current) return;
@@ -1194,9 +1205,14 @@ const TokenPage: React.FC = () => {
         /* ── TWO-COLUMN LAYOUT ── */
         .tp-layout {
           display: grid;
-          grid-template-columns: 1fr 340px;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          grid-template-areas:
+            "chart trade"
+            "data  trade";
           gap: 20px; align-items: start;
         }
+        .tp-chart-col { grid-area: chart; min-width: 0; }
+        .tp-data-col  { grid-area: data;  min-width: 0; }
 
         /* ── CHART AREA ── */
         .tp-chart-controls {
@@ -1204,6 +1220,7 @@ const TokenPage: React.FC = () => {
           gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
         }
         .tp-tf-group, .tp-mode-group { display: flex; gap: 4px; }
+        .tp-controls-right { display: flex; align-items: center; gap: 8px; }
         .tp-tf-btn, .tp-mode-btn {
           padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
           background: var(--bg-secondary); color: var(--text-secondary);
@@ -1214,6 +1231,15 @@ const TokenPage: React.FC = () => {
         .tp-tf-btn.active, .tp-mode-btn.active {
           background: var(--accent); color: #fff; border-color: var(--accent);
         }
+        .tp-chart-collapse {
+          display: none; align-items: center; gap: 6px;
+          padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+          background: var(--bg-secondary); color: var(--text-secondary);
+          font-size: 12.5px; font-weight: 700; cursor: pointer;
+          font-family: inherit; transition: all 0.12s; white-space: nowrap;
+        }
+        .tp-chart-collapse:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .tp-chart-card.collapsed { display: none; }
 
         .tp-chart-card {
           background: var(--bg-primary); border: 1px solid var(--border);
@@ -1313,7 +1339,7 @@ const TokenPage: React.FC = () => {
         }
 
         /* ── TRADING PANEL ── */
-        .tp-right { display: flex; flex-direction: column; gap: 14px; }
+        .tp-right { grid-area: trade; display: flex; flex-direction: column; gap: 14px; }
 
         .tp-trade-card {
           background: var(--bg-primary); border: 1px solid var(--border);
@@ -1476,32 +1502,62 @@ const TokenPage: React.FC = () => {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 1000px) {
-          .tp-layout { grid-template-columns: 1fr; }
-          .tp-right { order: -1; }
+          .tp-layout {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "chart"
+              "trade"
+              "data";
+          }
         }
         @media (max-width: 700px) {
-          .tp-main { padding: 20px 14px 60px; }
-          .tp-token-head { gap: 10px; padding-bottom: 16px; margin-bottom: 18px; }
-          .tp-token-avatar { width: 40px; height: 40px; font-size: 17px; border-radius: 11px; }
-          .tp-token-name { font-size: 17px; }
-          .tp-token-sym { font-size: 12px; }
-          .tp-price { font-size: 24px; }
-          .tp-head-stats {
-            display: flex; gap: 14px; width: 100%; order: 99;
-            padding-top: 14px; border-top: 1px solid var(--border);
+          .tp-main { padding: 0 0 80px; }
+          .tp-layout { gap: 14px; padding: 0 14px; }
+
+          /* Compact sticky trading-engine header */
+          .tp-token-head {
+            position: sticky; top: var(--mm-header-offset, 60px); z-index: 50;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+            margin: 0 0 14px; padding: 12px 14px;
+            background: ${isDark ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.9)'};
+            backdrop-filter: saturate(180%) blur(18px);
+            -webkit-backdrop-filter: saturate(180%) blur(18px);
+            border-bottom: 1px solid var(--border);
           }
-          .tp-head-stat-label { font-size: 10px; }
-          .tp-head-stat-value { font-size: 14px; }
-          .tp-boost-btn { padding: 7px 11px; font-size: 12px; margin-left: 0; }
+          /* Identity grows so price is pushed to the far right */
+          .tp-token-identity { flex: 1; min-width: 0; gap: 10px; }
+          .tp-token-avatar { width: 38px; height: 38px; font-size: 16px; border-radius: 11px; }
+          .tp-token-name { font-size: 16px; }
+          .tp-token-sym { font-size: 11.5px; margin-top: 1px; }
+          .tp-watch-star { font-size: 17px; }
+          .tp-price-block { flex-direction: column; align-items: flex-end; gap: 2px; }
+          .tp-price { font-size: 18px; }
+          .tp-change { font-size: 11.5px; padding: 2px 6px; }
+          /* Stats become an even 3-up strip below the sticky bar */
+          .tp-head-stats {
+            order: 99; width: 100%;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+            margin-top: 10px; padding-top: 10px;
+            border-top: 1px solid var(--border);
+          }
+          .tp-head-stat-label { font-size: 9.5px; margin-bottom: 2px; }
+          .tp-head-stat-value { font-size: 13.5px; }
+          /* Boost + redundant standalone star tucked away to reduce clutter */
+          .tp-boost-btn, .tp-star-btn { display: none; }
           .tp-share-btn { padding: 7px 10px; font-size: 12px; }
-          .tp-star-btn { width: 34px; height: 34px; font-size: 16px; }
-          .tp-chart-card { padding: 8px; }
-          .tp-chart-inner { height: 340px; }
+
+          .tp-chart-controls { gap: 8px; margin-bottom: 10px; }
+          .tp-controls-right { gap: 6px; }
+          .tp-chart-collapse { display: inline-flex; }
+          .tp-chart-card { border-radius: 14px; }
+          .tp-chart-inner { height: 320px; }
+          .tp-tabs { margin-top: 16px; }
           .tp-insight-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
           .tp-insight-card { padding: 12px; }
           .tp-insight-value { font-size: 15px; }
           .tp-grad-pct { font-size: 18px; }
-          .tp-tf-group .tp-tf-btn:nth-child(n+5) { display: none; }
+          .tp-tf-btn, .tp-mode-btn { padding: 6px 9px; font-size: 12px; }
+          .tp-mode-group .tp-mode-btn:nth-child(n+3) { display: none; }
           .tp-tx-th, .tp-tx-td { padding: 8px 6px; font-size: 12px; }
         }
         @media (max-width: 460px) {
@@ -1626,8 +1682,8 @@ const TokenPage: React.FC = () => {
 
           {/* ── TWO-COLUMN LAYOUT ── */}
           <div className="tp-layout">
-            {/* ── LEFT: Chart + Tabs ── */}
-            <div className="tp-left">
+            {/* ── CHART COLUMN ── */}
+            <div className="tp-chart-col">
               {/* Chart controls */}
               <div className="tp-chart-controls">
                 <div className="tp-tf-group">
@@ -1639,19 +1695,28 @@ const TokenPage: React.FC = () => {
                     >{tf}</button>
                   ))}
                 </div>
-                <div className="tp-mode-group">
-                  {(['mcap','usd','apt'] as ChartMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      className={`tp-mode-btn${chartMode === mode ? ' active' : ''}`}
-                      onClick={() => setChartMode(mode)}
-                    >{mode === 'mcap' ? 'MCap' : mode.toUpperCase()}</button>
-                  ))}
+                <div className="tp-controls-right">
+                  <div className="tp-mode-group">
+                    {(['mcap','usd','apt'] as ChartMode[]).map(mode => (
+                      <button
+                        key={mode}
+                        className={`tp-mode-btn${chartMode === mode ? ' active' : ''}`}
+                        onClick={() => setChartMode(mode)}
+                      >{mode === 'mcap' ? 'MCap' : mode.toUpperCase()}</button>
+                    ))}
+                  </div>
+                  <button
+                    className="tp-chart-collapse"
+                    onClick={() => setChartCollapsed(c => !c)}
+                    title={chartCollapsed ? 'Show chart' : 'Hide chart'}
+                  >
+                    {chartCollapsed ? '▾ Chart' : '▴ Chart'}
+                  </button>
                 </div>
               </div>
 
               {/* Chart */}
-              <div className="tp-chart-card">
+              <div className={`tp-chart-card${chartCollapsed ? ' collapsed' : ''}`}>
                 <div ref={chartContainerRef} className="tp-chart-inner" />
                 {chartLoading && displayCandles.length === 0 && (
                   <div className="tp-chart-overlay">Loading chart…</div>
@@ -1660,7 +1725,10 @@ const TokenPage: React.FC = () => {
                   <div className="tp-chart-overlay">No trades yet — be the first to buy</div>
                 )}
               </div>
+            </div>
 
+            {/* ── DATA COLUMN: tabs + panel ── */}
+            <div className="tp-data-col">
               {/* Tabs */}
               <div className="tp-tabs">
                 {(['insights','transactions','holders'] as const).map(tab => (
