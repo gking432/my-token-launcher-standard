@@ -151,26 +151,26 @@ const HomePage: React.FC = () => {
         /* ── HERO ── */
         .mm-hero {
           position: relative; overflow: hidden;
-          padding: 76px 0 104px;
+          padding: 112px 0 140px;
         }
         .mm-hero-bg {
           position: absolute; inset: 0; pointer-events: none; z-index: 0;
           background:
-            radial-gradient(ellipse 760px 480px at 78% 18%, var(--accent-light) 0%, transparent 62%),
-            radial-gradient(ellipse 620px 420px at 12% 88%, ${isDark ? 'rgba(64,187,56,0.07)' : 'rgba(51,151,46,0.06)'} 0%, transparent 70%);
+            radial-gradient(ellipse 900px 600px at 50% 30%, var(--accent-light) 0%, transparent 60%),
+            radial-gradient(ellipse 700px 500px at 50% 90%, ${isDark ? 'rgba(94,92,230,0.10)' : 'rgba(94,92,230,0.06)'} 0%, transparent 70%);
         }
         .mm-hero-bg::before {
           content: ''; position: absolute; inset: 0;
           background-image: radial-gradient(${isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.045)'} 1px, transparent 1px);
           background-size: 34px 34px;
-          -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 38%, #000 0%, transparent 78%);
-          mask-image: radial-gradient(ellipse 75% 70% at 50% 38%, #000 0%, transparent 78%);
+          -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 0%, #000 55%, transparent 90%);
+          mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 0%, #000 55%, transparent 90%);
         }
         .mm-hero-inner {
           position: relative; z-index: 1;
-          max-width: 1280px; margin: 0 auto; padding: 0 24px;
-          display: grid; grid-template-columns: 1.05fr 0.95fr;
-          gap: 60px; align-items: center;
+          max-width: 820px; margin: 0 auto; padding: 0 24px;
+          display: flex; flex-direction: column; align-items: center;
+          text-align: center;
         }
         .mm-badge {
           display: inline-flex; align-items: center; gap: 7px;
@@ -179,7 +179,7 @@ const HomePage: React.FC = () => {
           background: var(--accent-light);
           border: 1px solid ${isDark ? 'rgba(64,187,56,0.25)' : 'rgba(51,151,46,0.18)'};
           padding: 6px 13px; border-radius: 980px;
-          margin-bottom: 22px;
+          margin-bottom: 28px;
         }
         .mm-badge-dot {
           width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
@@ -192,12 +192,13 @@ const HomePage: React.FC = () => {
           100% { box-shadow: 0 0 0 0 rgba(51,151,46,0); }
         }
         .mm-hero-title {
-          font-size: clamp(40px, 5vw, 66px);
+          font-size: clamp(44px, 6.2vw, 78px);
           font-weight: 700;
-          letter-spacing: -0.042em;
-          line-height: 1.04;
+          letter-spacing: -0.045em;
+          line-height: 1.02;
           color: var(--text-primary);
-          margin: 0 0 20px;
+          margin: 0 0 22px;
+          max-width: 14ch;
         }
         .mm-hero-title .accent {
           background: linear-gradient(135deg, var(--accent), ${isDark ? '#5eead4' : '#0ea5e9'});
@@ -205,19 +206,20 @@ const HomePage: React.FC = () => {
           -webkit-text-fill-color: transparent;
         }
         .mm-hero-sub {
-          font-size: clamp(16px, 1.5vw, 19px);
+          font-size: clamp(17px, 1.6vw, 21px);
           font-weight: 400; line-height: 1.5;
           color: var(--text-secondary);
-          max-width: 480px;
-          margin: 0 0 30px;
+          max-width: 560px;
+          margin: 0 auto 34px;
         }
         .mm-hero-actions {
           display: flex; gap: 12px; flex-wrap: wrap;
-          margin-bottom: 26px;
+          justify-content: center;
+          margin-bottom: 28px;
         }
         .mm-btn-primary {
           background: var(--accent); color: #fff;
-          padding: 13px 26px; border-radius: 12px;
+          padding: 14px 28px; border-radius: 12px;
           font-size: 15px; font-weight: 600;
           text-decoration: none;
           transition: background 0.15s, transform 0.1s;
@@ -230,7 +232,7 @@ const HomePage: React.FC = () => {
         .mm-btn-secondary {
           background: var(--bg-primary);
           color: var(--text-primary);
-          padding: 13px 24px; border-radius: 12px;
+          padding: 14px 26px; border-radius: 12px;
           font-size: 15px; font-weight: 600;
           text-decoration: none;
           border: 1.5px solid var(--border-secondary);
@@ -248,88 +250,77 @@ const HomePage: React.FC = () => {
         }
         .mm-btn-secondary:hover::after { transform: translateX(3px); }
         .mm-hero-trust {
-          display: flex; gap: 18px; flex-wrap: wrap;
+          display: flex; gap: 22px; flex-wrap: wrap;
+          justify-content: center;
           font-size: 13px; color: var(--text-muted);
         }
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── HERO ORB ── */
-        .mm-hero-visual {
-          position: relative;
-          display: flex; align-items: center; justify-content: center;
+        /* ── HERO HALO (orb-as-backdrop) ── */
+        .mm-hero-halo {
+          position: absolute; left: 50%; top: 50%;
+          transform: translate(-50%, -50%);
+          width: min(1100px, 130%); aspect-ratio: 1;
+          pointer-events: none; z-index: 0;
         }
-        /* Ambient light behind the orb */
-        .mm-orb-aura {
-          position: absolute; inset: -30%;
+        /* Ambient color wash */
+        .mm-halo-aura {
+          position: absolute; inset: 0;
           background:
-            radial-gradient(circle at 38% 42%, ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.35)'} 0%, transparent 52%),
-            radial-gradient(circle at 68% 60%, ${isDark ? 'rgba(94,92,230,0.40)' : 'rgba(94,92,230,0.22)'} 0%, transparent 50%);
-          filter: blur(72px);
-          pointer-events: none;
-          animation: mm-orb-breathe 9s ease-in-out infinite alternate;
+            radial-gradient(circle at 42% 44%, ${isDark ? 'rgba(64,187,56,0.42)' : 'rgba(51,151,46,0.22)'} 0%, transparent 45%),
+            radial-gradient(circle at 62% 56%, ${isDark ? 'rgba(94,92,230,0.30)' : 'rgba(94,92,230,0.14)'} 0%, transparent 48%);
+          filter: blur(90px);
+          animation: mm-halo-breathe 9s ease-in-out infinite alternate;
         }
-        @keyframes mm-orb-breathe {
-          0%   { opacity: 0.75; transform: scale(1); }
-          100% { opacity: 1;    transform: scale(1.08) translate(2%, -2%); }
+        @keyframes mm-halo-breathe {
+          0%   { opacity: 0.8; transform: scale(1); }
+          100% { opacity: 1;   transform: scale(1.05) translate(1%, -1%); }
         }
-        /* The orb */
-        .mm-orb {
-          position: relative; z-index: 1;
-          width: min(340px, 88%);
-          aspect-ratio: 1;
+        /* The orb — much larger, much softer, sits behind copy */
+        .mm-halo-orb {
+          position: absolute; left: 50%; top: 50%;
+          transform: translate(-50%, -50%);
+          width: 56%; aspect-ratio: 1;
           border-radius: 50%;
-          background: radial-gradient(circle at 36% 30%,
-            rgba(255,255,255,${isDark ? '0.22' : '0.55'}) 0%,
-            ${isDark ? 'rgba(64,187,56,0.80)' : 'rgba(51,151,46,0.70)'} 22%,
-            ${isDark ? 'rgba(18,100,55,0.75)' : 'rgba(14,90,48,0.60)'} 50%,
-            ${isDark ? 'rgba(6,20,14,0.92)' : 'rgba(240,250,244,0.50)'} 100%
+          background: radial-gradient(circle at 38% 32%,
+            rgba(255,255,255,${isDark ? '0.16' : '0.50'}) 0%,
+            ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.45)'} 20%,
+            ${isDark ? 'rgba(18,90,50,0.45)' : 'rgba(14,90,48,0.30)'} 48%,
+            transparent 78%
           );
-          box-shadow:
-            0 0 0 1px ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'},
-            0 50px 120px rgba(0,0,0,${isDark ? '0.65' : '0.18'}),
-            0 20px 60px ${isDark ? 'rgba(64,187,56,0.30)' : 'rgba(51,151,46,0.22)'};
-          animation: mm-orb-float 7s ease-in-out infinite;
+          opacity: ${isDark ? '0.85' : '0.70'};
+          animation: mm-halo-float 8s ease-in-out infinite;
         }
-        @keyframes mm-orb-float {
-          0%, 100% { transform: translateY(0); }
-          50%       { transform: translateY(-16px); }
+        @keyframes mm-halo-float {
+          0%, 100% { transform: translate(-50%, -50%); }
+          50%       { transform: translate(-50%, calc(-50% - 12px)); }
         }
-        /* Top-left specular highlight */
-        .mm-orb::before {
+        .mm-halo-orb::before {
           content: ''; position: absolute;
-          top: 8%; left: 13%; width: 42%; height: 34%;
-          background: radial-gradient(ellipse, rgba(255,255,255,${isDark ? '0.42' : '0.70'}) 0%, transparent 72%);
+          top: 9%; left: 14%; width: 38%; height: 30%;
+          background: radial-gradient(ellipse, rgba(255,255,255,${isDark ? '0.30' : '0.55'}) 0%, transparent 70%);
           border-radius: 50%; transform: rotate(-18deg);
         }
-        /* Bottom-right secondary glow */
-        .mm-orb::after {
-          content: ''; position: absolute;
-          bottom: 14%; right: 11%; width: 32%; height: 26%;
-          background: radial-gradient(ellipse, ${isDark ? 'rgba(94,234,212,0.28)' : 'rgba(94,234,212,0.35)'} 0%, transparent 70%);
-          border-radius: 50%;
+        /* Orbital ring */
+        .mm-halo-ring {
+          position: absolute; left: 50%; top: 50%;
+          transform: translate(-50%, -50%);
+          width: 78%; aspect-ratio: 1;
         }
-        /* Orbital ring — SVG ellipse gives the perspective tilt naturally */
-        .mm-orb-ring {
-          position: absolute; z-index: 2;
-          width: min(390px, 100%); aspect-ratio: 1;
-          pointer-events: none;
-          animation: mm-orb-float 7s ease-in-out infinite;
-        }
-        /* Tiny satellite dots orbiting */
-        .mm-orb-sat {
-          position: absolute; z-index: 3;
-          width: 8px; height: 8px; border-radius: 50%;
+        /* Satellites — orbit around the page-center */
+        .mm-halo-sat {
+          position: absolute; left: 50%; top: 50%;
+          width: 9px; height: 9px; border-radius: 50%;
           background: var(--accent);
-          box-shadow: 0 0 12px 3px ${isDark ? 'rgba(64,187,56,0.7)' : 'rgba(51,151,46,0.5)'};
-          pointer-events: none;
+          box-shadow: 0 0 14px 4px ${isDark ? 'rgba(64,187,56,0.7)' : 'rgba(51,151,46,0.5)'};
         }
-        .mm-orb-sat-1 { animation: mm-orbit 11s linear infinite; }
-        .mm-orb-sat-2 { animation: mm-orbit 11s linear infinite; animation-delay: -3.67s; opacity: 0.55; width: 5px; height: 5px; }
-        .mm-orb-sat-3 { animation: mm-orbit 11s linear infinite; animation-delay: -7.33s; opacity: 0.3; width: 3px; height: 3px; }
-        @keyframes mm-orbit {
-          0%   { transform: rotate(0deg)   translateX(min(165px, 48vw)) rotate(0deg); }
-          100% { transform: rotate(360deg) translateX(min(165px, 48vw)) rotate(-360deg); }
+        .mm-halo-sat-1 { animation: mm-halo-orbit 13s linear infinite; }
+        .mm-halo-sat-2 { animation: mm-halo-orbit 13s linear infinite; animation-delay: -4.33s; opacity: 0.55; width: 5px; height: 5px; }
+        .mm-halo-sat-3 { animation: mm-halo-orbit 13s linear infinite; animation-delay: -8.66s; opacity: 0.3; width: 3px; height: 3px; }
+        @keyframes mm-halo-orbit {
+          0%   { transform: translate(-50%, -50%) rotate(0deg)   translateX(min(420px, 42vw)) rotate(0deg); }
+          100% { transform: translate(-50%, -50%) rotate(360deg) translateX(min(420px, 42vw)) rotate(-360deg); }
         }
 
         /* ── STATS PANEL ── */
@@ -519,16 +510,15 @@ const HomePage: React.FC = () => {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 900px) {
-          .mm-hero-inner { grid-template-columns: 1fr; }
-          .mm-hero-visual { display: none; }
           .mm-stats-panel { grid-template-columns: repeat(2, 1fr); }
           .mm-stat:nth-child(2) { border-right: none; }
           .mm-stat:nth-child(1), .mm-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
           .mm-nav-links { display: none; }
         }
         @media (max-width: 600px) {
-          .mm-hero { padding: 52px 0 72px; }
+          .mm-hero { padding: 68px 0 88px; }
           .mm-hero-inner { padding: 0 18px; }
+          .mm-hero-halo { width: 150%; }
           .mm-tokens { padding: 52px 0 72px; }
           .mm-tokens-inner { padding: 0 18px; }
           .mm-stats { margin-top: -1px; }
@@ -569,65 +559,60 @@ const HomePage: React.FC = () => {
       <div className="mm-page">
         <AppHeader launchCta hideBoostBar />
 
-        {/* ── HERO ── */}
+        {/* ── HERO (centered spotlight) ── */}
         <section className="mm-hero">
           <div className="mm-hero-bg" />
-          <div className="mm-hero-inner">
-            {/* Copy */}
-            <div className="mm-hero-copy">
-              <div className="mm-badge">
-                <span className="mm-badge-dot" />
-                Live on Aptos testnet
-              </div>
-              <h1 className="mm-hero-title">
-                The token engine<br />
-                built for <span className="accent">serious markets.</span>
-              </h1>
-              <p className="mm-hero-sub">
-                Launch, price, and trade tokens on Aptos with a bonding curve that
-                works the moment you deploy. No code. No setup. Just markets.
-              </p>
-              <div className="mm-hero-actions">
-                <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
-                <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
-              </div>
-              <div className="mm-hero-trust">
-                <span><span className="check">✓</span> Instant liquidity</span>
-                <span><span className="check">✓</span> 0% launch fee</span>
-                <span><span className="check">✓</span> Non-custodial</span>
-              </div>
-            </div>
 
-            {/* Abstract orb — hidden on mobile */}
-            <div className="mm-hero-visual">
-              <div className="mm-orb-aura" />
-              <div className="mm-orb-sat mm-orb-sat-1" />
-              <div className="mm-orb-sat mm-orb-sat-2" />
-              <div className="mm-orb-sat mm-orb-sat-3" />
-              {/* Orbital ring as SVG ellipse for natural perspective */}
-              <svg className="mm-orb-ring" viewBox="0 0 390 390" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="195" cy="195" rx="186" ry="54"
-                  stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}
-                  strokeWidth="1.2"
-                />
-                <ellipse cx="195" cy="195" rx="186" ry="54"
-                  stroke="url(#orb-ring-grad)"
-                  strokeWidth="1.5"
-                  strokeDasharray="80 500"
-                  strokeDashoffset="0"
-                  strokeLinecap="round"
-                >
-                  <animateTransform attributeName="transform" type="rotate" from="0 195 195" to="360 195 195" dur="11s" repeatCount="indefinite" />
-                </ellipse>
-                <defs>
-                  <linearGradient id="orb-ring-grad" gradientUnits="userSpaceOnUse" x1="9" y1="195" x2="381" y2="195">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0" />
-                    <stop offset="50%" stopColor="var(--accent)" stopOpacity="1" />
-                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="mm-orb" />
+          {/* Ambient orb halo sits behind the copy */}
+          <div className="mm-hero-halo">
+            <div className="mm-halo-aura" />
+            <svg className="mm-halo-ring" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="300" cy="300" rx="288" ry="78"
+                stroke={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}
+                strokeWidth="1"
+              />
+              <ellipse cx="300" cy="300" rx="288" ry="78"
+                stroke="url(#halo-ring-grad)"
+                strokeWidth="1.4"
+                strokeDasharray="120 720"
+                strokeLinecap="round"
+              >
+                <animateTransform attributeName="transform" type="rotate" from="0 300 300" to="360 300 300" dur="13s" repeatCount="indefinite" />
+              </ellipse>
+              <defs>
+                <linearGradient id="halo-ring-grad" gradientUnits="userSpaceOnUse" x1="12" y1="300" x2="588" y2="300">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity="0" />
+                  <stop offset="50%" stopColor="var(--accent)" stopOpacity="1" />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="mm-halo-orb" />
+            <div className="mm-halo-sat mm-halo-sat-1" />
+            <div className="mm-halo-sat mm-halo-sat-2" />
+            <div className="mm-halo-sat mm-halo-sat-3" />
+          </div>
+
+          <div className="mm-hero-inner">
+            <div className="mm-badge">
+              <span className="mm-badge-dot" />
+              Live on Aptos testnet
+            </div>
+            <h1 className="mm-hero-title">
+              The token engine built for <span className="accent">serious markets.</span>
+            </h1>
+            <p className="mm-hero-sub">
+              Launch, price, and trade tokens on Aptos with a bonding curve that
+              works the moment you deploy. No code. No setup. Just markets.
+            </p>
+            <div className="mm-hero-actions">
+              <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
+              <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
+            </div>
+            <div className="mm-hero-trust">
+              <span><span className="check">✓</span> Instant liquidity</span>
+              <span><span className="check">✓</span> 0% launch fee</span>
+              <span><span className="check">✓</span> Non-custodial</span>
             </div>
           </div>
         </section>
