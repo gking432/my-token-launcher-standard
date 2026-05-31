@@ -41,9 +41,9 @@ const HomePage: React.FC = () => {
   const [curveHoverS, setCurveHoverS] = useState<number | null>(null);
 
   // Sampled curve points from price = supply^3 in SVG plot space
-  // Plot area: x 24..476 (width 452), y 360..28 (height 332)
-  const PLOT = { x0: 24, x1: 476, y0: 360, y1: 28, w: 452, h: 332 };
-  const VB = { w: 500, h: 380 };
+  // Shorter x-range → steeper visual curve
+  const PLOT = { x0: 18, x1: 282, y0: 355, y1: 25, w: 264, h: 330 };
+  const VB = { w: 300, h: 385 };
   const curvePoints = useMemo(() => {
     const pts: Array<{ s: number; x: number; y: number }> = [];
     const N = 96;
@@ -67,9 +67,11 @@ const HomePage: React.FC = () => {
 
   // Idle state shows the end-of-curve values; only changes when hovered.
   const isHover = curveHoverS != null;
-  const displayS = curveHoverS ?? 1;
+  const displayS = curveHoverS ?? 0.5;
   const displayPrice = REF_MAX_PRICE * Math.pow(displayS, 3);
   const displaySupply = REF_TOTAL_SUPPLY * displayS;
+  const hoverX = PLOT.x0 + displayS * PLOT.w;
+  const hoverY = PLOT.y0 - Math.pow(displayS, 3) * PLOT.h;
   const handleCurveMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
@@ -248,12 +250,12 @@ const HomePage: React.FC = () => {
           100% { box-shadow: 0 0 0 0 rgba(51,151,46,0); }
         }
         .mm-hero-title {
-          font-size: clamp(44px, 6vw, 78px);
+          font-size: clamp(40px, 5vw, 66px);
           font-weight: 700;
-          letter-spacing: -0.045em;
-          line-height: 1.02;
+          letter-spacing: -0.042em;
+          line-height: 1.04;
           color: var(--text-primary);
-          margin: 0 0 22px;
+          margin: 0 0 20px;
         }
         .mm-hero-title .accent {
           background: linear-gradient(135deg, var(--accent), ${isDark ? '#5eead4' : '#0ea5e9'});
@@ -314,15 +316,22 @@ const HomePage: React.FC = () => {
         .mm-curve {
           position: relative;
           width: 100%;
-          max-width: 480px;
+          max-width: 400px;
           margin-left: auto;
-          aspect-ratio: 5 / 3.4;
+          aspect-ratio: 5 / 6.4;
+          cursor: crosshair;
         }
         .mm-curve-svg {
           position: absolute; inset: 0;
           width: 100%; height: 100%;
           display: block; overflow: visible;
         }
+        /* Crosshair arms — fade in on hover */
+        .mm-curve-crosshair {
+          opacity: 0;
+          transition: opacity 0.25s ease;
+        }
+        .mm-curve.is-hovering .mm-curve-crosshair { opacity: 1; }
 
         /* Floating labels — invisible at rest, fade in only on hover */
         .mm-curve-labels {
@@ -673,6 +682,47 @@ const HomePage: React.FC = () => {
                   strokeLinejoin="round"
                   filter="url(#mm-brush)"
                 />
+
+                {/* Crosshair — bottom arm + left arm + right arm, no top */}
+                <g className="mm-curve-crosshair">
+                  {/* Down to x-axis */}
+                  <line
+                    x1={hoverX} y1={hoverY} x2={hoverX} y2={PLOT.y0}
+                    stroke={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'}
+                    strokeWidth="1" strokeDasharray="3 4"
+                  />
+                  {/* Left */}
+                  <line
+                    x1={PLOT.x0} y1={hoverY} x2={hoverX} y2={hoverY}
+                    stroke={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'}
+                    strokeWidth="1" strokeDasharray="3 4"
+                  />
+                  {/* Right */}
+                  <line
+                    x1={hoverX} y1={hoverY} x2={PLOT.x1} y2={hoverY}
+                    stroke={isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'}
+                    strokeWidth="1" strokeDasharray="3 4"
+                  />
+                  {/* Cursor dot on the curve */}
+                  <circle
+                    cx={hoverX} cy={hoverY} r={4}
+                    fill="var(--accent)"
+                    stroke={isDark ? '#0a0a0a' : '#fff'}
+                    strokeWidth="1.5"
+                  />
+                  {/* X-axis label — tokens sold at this supply position */}
+                  <text
+                    x={hoverX} y={PLOT.y0 + 18}
+                    textAnchor="middle"
+                    fill={isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.40)'}
+                    fontSize="11"
+                    fontFamily="ui-monospace, 'SF Mono', Menlo, monospace"
+                    fontWeight="600"
+                    letterSpacing="0.04em"
+                  >
+                    {formatCurveCount(displaySupply)}
+                  </text>
+                </g>
               </svg>
 
               <div className="mm-curve-labels">
