@@ -503,18 +503,14 @@ const HomePage: React.FC = () => {
           .mm-hero-inner { padding: 0 18px; }
           .mm-tokens { padding: 52px 0 72px; }
           .mm-tokens-inner { padding: 0 18px; }
-          /* Stats panel goes edge-to-edge on mobile so it visually spans full width */
           .mm-stats { margin-top: -1px; }
-          .mm-stats-inner { padding: 0; }
-          .mm-stats-panel {
-            border-radius: 0; border-left: none; border-right: none;
-            grid-template-columns: repeat(2, 1fr);
-          }
-          .mm-stat { padding: 16px 20px; }
+          .mm-stats-inner { padding: 0 16px; }
+          .mm-stats-panel { border-radius: 14px; grid-template-columns: repeat(2, 1fr); }
+          .mm-stat { padding: 14px 18px; }
           .mm-stat:nth-child(even) { border-right: none; }
           .mm-stat:nth-child(1), .mm-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
           .mm-stat:nth-child(3), .mm-stat:nth-child(4) { border-bottom: none; }
-          .mm-stat-value { font-size: 22px; }
+          .mm-stat-value { font-size: 20px; }
           .mm-controls { width: 100%; }
           .mm-search { flex: 1; width: auto; }
         }

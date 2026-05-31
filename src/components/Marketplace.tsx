@@ -353,6 +353,7 @@ const Marketplace: React.FC = () => {
           .mp-main { padding: 28px 16px 60px; }
           .mp-td-mc, .mp-th:nth-child(5) { display: none; }
           .mp-td-change, .mp-th:nth-child(4) { display: none; }
+          .mp-td-actions, .mp-th:last-child { display: none; }
           .mp-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
           .mp-controls { flex-wrap: wrap; gap: 8px; }
           .mp-view-toggle { order: 2; }
