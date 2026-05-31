@@ -151,35 +151,118 @@ const HomePage: React.FC = () => {
         /* ── HERO ── */
         .mm-hero {
           position: relative; overflow: hidden;
-          padding: 112px 0 140px;
+          padding: 124px 0 180px;
+          isolation: isolate;
         }
-        .mm-hero-bg {
-          position: absolute; inset: 0; pointer-events: none; z-index: 0;
-          background:
-            radial-gradient(ellipse 900px 600px at 50% 30%, var(--accent-light) 0%, transparent 60%),
-            radial-gradient(ellipse 700px 500px at 50% 90%, ${isDark ? 'rgba(94,92,230,0.10)' : 'rgba(94,92,230,0.06)'} 0%, transparent 70%);
+        /* ── ATMOSPHERE ── the entire hero is a slow-moving color field */
+        .mm-atmos {
+          position: absolute; inset: -10% -5% -15% -5%;
+          pointer-events: none; z-index: 0;
         }
-        .mm-hero-bg::before {
-          content: ''; position: absolute; inset: 0;
-          background-image: radial-gradient(${isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.045)'} 1px, transparent 1px);
-          background-size: 34px 34px;
-          -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 0%, #000 55%, transparent 90%);
-          mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 0%, #000 55%, transparent 90%);
+        /* Each cloud is an organic, heavily-blurred color form.
+           Asymmetric border-radius + blur reads as a soft painted shape,
+           not a circle. They sit at scene-scale and drift very slowly. */
+        .mm-cloud {
+          position: absolute;
+          border-radius: 62% 38% 54% 46% / 48% 56% 44% 52%;
+          filter: blur(${isDark ? '110px' : '120px'});
+          will-change: transform, border-radius;
+        }
+        .mm-cloud-1 {
+          top: -22%; right: -8%;
+          width: 72%; aspect-ratio: 1.15;
+          background: radial-gradient(circle at 42% 38%,
+            ${isDark ? 'rgba(72,210,90,0.65)' : 'rgba(72,196,98,0.42)'} 0%,
+            ${isDark ? 'rgba(28,130,76,0.40)' : 'rgba(46,158,80,0.20)'} 38%,
+            transparent 72%);
+          animation: mm-cloud-a 32s ease-in-out infinite alternate;
+        }
+        .mm-cloud-2 {
+          top: 18%; right: 6%;
+          width: 58%; aspect-ratio: 1.35;
+          border-radius: 48% 52% 38% 62% / 56% 42% 58% 44%;
+          background: radial-gradient(circle at 48% 50%,
+            ${isDark ? 'rgba(56,178,196,0.55)' : 'rgba(40,170,200,0.30)'} 0%,
+            ${isDark ? 'rgba(50,130,200,0.30)' : 'rgba(60,140,210,0.14)'} 42%,
+            transparent 74%);
+          animation: mm-cloud-b 38s ease-in-out infinite alternate;
+        }
+        .mm-cloud-3 {
+          bottom: -18%; left: -10%;
+          width: 64%; aspect-ratio: 1.4;
+          border-radius: 54% 46% 62% 38% / 42% 58% 46% 54%;
+          background: radial-gradient(circle at 56% 44%,
+            ${isDark ? 'rgba(110,92,230,0.42)' : 'rgba(120,108,230,0.22)'} 0%,
+            ${isDark ? 'rgba(70,52,180,0.26)' : 'rgba(94,84,200,0.12)'} 44%,
+            transparent 76%);
+          animation: mm-cloud-c 44s ease-in-out infinite alternate;
+        }
+        .mm-cloud-4 {
+          top: -10%; left: -8%;
+          width: 46%; aspect-ratio: 1.1;
+          border-radius: 58% 42% 48% 52% / 50% 60% 40% 50%;
+          background: radial-gradient(circle at 50% 50%,
+            ${isDark ? 'rgba(240,180,90,0.18)' : 'rgba(255,190,110,0.16)'} 0%,
+            transparent 70%);
+          opacity: 0.85;
+          animation: mm-cloud-d 50s ease-in-out infinite alternate;
+        }
+        @keyframes mm-cloud-a {
+          0%   { transform: translate(0,0) scale(1) rotate(0deg);
+                 border-radius: 62% 38% 54% 46% / 48% 56% 44% 52%; }
+          100% { transform: translate(-3%, 4%) scale(1.08) rotate(10deg);
+                 border-radius: 52% 48% 60% 40% / 56% 44% 52% 48%; }
+        }
+        @keyframes mm-cloud-b {
+          0%   { transform: translate(0,0) scale(1) rotate(0deg);
+                 border-radius: 48% 52% 38% 62% / 56% 42% 58% 44%; }
+          100% { transform: translate(4%, -3%) scale(1.06) rotate(-12deg);
+                 border-radius: 58% 42% 50% 50% / 44% 58% 42% 56%; }
+        }
+        @keyframes mm-cloud-c {
+          0%   { transform: translate(0,0) scale(1) rotate(0deg);
+                 border-radius: 54% 46% 62% 38% / 42% 58% 46% 54%; }
+          100% { transform: translate(3%, -4%) scale(1.05) rotate(8deg);
+                 border-radius: 46% 54% 52% 48% / 56% 44% 58% 42%; }
+        }
+        @keyframes mm-cloud-d {
+          0%   { transform: translate(0,0) scale(1); opacity: 0.7; }
+          100% { transform: translate(2%, 3%) scale(1.08); opacity: 0.95; }
+        }
+        /* Subtle film grain — pulls everything into "photograph" territory
+           rather than "CSS gradient" territory. */
+        .mm-atmos-grain {
+          position: absolute; inset: 0;
+          opacity: ${isDark ? '0.06' : '0.04'};
+          mix-blend-mode: overlay;
+          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+          pointer-events: none;
+        }
+        /* A whisper-soft vignette at the bottom so the hero bleeds into
+           whatever sits below it — no hard edge. */
+        .mm-atmos::after {
+          content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+          height: 30%;
+          background: linear-gradient(to bottom, transparent 0%, var(--bg-primary) 100%);
+          pointer-events: none;
         }
         .mm-hero-inner {
           position: relative; z-index: 1;
-          max-width: 820px; margin: 0 auto; padding: 0 24px;
-          display: flex; flex-direction: column; align-items: center;
-          text-align: center;
+          max-width: 1280px; margin: 0 auto; padding: 0 24px;
+        }
+        .mm-hero-copy {
+          max-width: 640px;
         }
         .mm-badge {
           display: inline-flex; align-items: center; gap: 7px;
           font-size: 13px; font-weight: 600;
           color: var(--accent);
-          background: var(--accent-light);
-          border: 1px solid ${isDark ? 'rgba(64,187,56,0.25)' : 'rgba(51,151,46,0.18)'};
+          background: ${isDark ? 'rgba(20,28,22,0.55)' : 'rgba(255,255,255,0.55)'};
+          backdrop-filter: blur(14px) saturate(180%);
+          -webkit-backdrop-filter: blur(14px) saturate(180%);
+          border: 1px solid ${isDark ? 'rgba(64,187,56,0.30)' : 'rgba(51,151,46,0.22)'};
           padding: 6px 13px; border-radius: 980px;
-          margin-bottom: 28px;
+          margin-bottom: 26px;
         }
         .mm-badge-dot {
           width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
@@ -192,13 +275,12 @@ const HomePage: React.FC = () => {
           100% { box-shadow: 0 0 0 0 rgba(51,151,46,0); }
         }
         .mm-hero-title {
-          font-size: clamp(44px, 6.2vw, 78px);
+          font-size: clamp(44px, 6vw, 78px);
           font-weight: 700;
           letter-spacing: -0.045em;
           line-height: 1.02;
           color: var(--text-primary);
           margin: 0 0 22px;
-          max-width: 14ch;
         }
         .mm-hero-title .accent {
           background: linear-gradient(135deg, var(--accent), ${isDark ? '#5eead4' : '#0ea5e9'});
@@ -206,15 +288,14 @@ const HomePage: React.FC = () => {
           -webkit-text-fill-color: transparent;
         }
         .mm-hero-sub {
-          font-size: clamp(17px, 1.6vw, 21px);
+          font-size: clamp(17px, 1.55vw, 20px);
           font-weight: 400; line-height: 1.5;
           color: var(--text-secondary);
-          max-width: 560px;
-          margin: 0 auto 34px;
+          max-width: 520px;
+          margin: 0 0 34px;
         }
         .mm-hero-actions {
           display: flex; gap: 12px; flex-wrap: wrap;
-          justify-content: center;
           margin-bottom: 28px;
         }
         .mm-btn-primary {
@@ -230,19 +311,21 @@ const HomePage: React.FC = () => {
         .mm-btn-primary:hover { background: var(--accent-hover); }
         .mm-btn-primary:active { transform: scale(0.98); }
         .mm-btn-secondary {
-          background: var(--bg-primary);
+          background: ${isDark ? 'rgba(20,20,22,0.55)' : 'rgba(255,255,255,0.65)'};
+          backdrop-filter: blur(14px) saturate(180%);
+          -webkit-backdrop-filter: blur(14px) saturate(180%);
           color: var(--text-primary);
           padding: 14px 26px; border-radius: 12px;
           font-size: 15px; font-weight: 600;
           text-decoration: none;
-          border: 1.5px solid var(--border-secondary);
+          border: 1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'};
           display: inline-flex; align-items: center; gap: 7px;
           cursor: pointer;
           transition: background 0.15s, border-color 0.15s;
         }
         .mm-btn-secondary:hover {
-          background: var(--bg-hover);
-          border-color: var(--text-muted);
+          background: ${isDark ? 'rgba(30,30,32,0.75)' : 'rgba(255,255,255,0.85)'};
+          border-color: ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'};
         }
         .mm-btn-secondary::after {
           content: '→'; font-size: 15px;
@@ -251,77 +334,10 @@ const HomePage: React.FC = () => {
         .mm-btn-secondary:hover::after { transform: translateX(3px); }
         .mm-hero-trust {
           display: flex; gap: 22px; flex-wrap: wrap;
-          justify-content: center;
           font-size: 13px; color: var(--text-muted);
         }
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
-
-        /* ── HERO HALO (orb-as-backdrop) ── */
-        .mm-hero-halo {
-          position: absolute; left: 50%; top: 50%;
-          transform: translate(-50%, -50%);
-          width: min(1100px, 130%); aspect-ratio: 1;
-          pointer-events: none; z-index: 0;
-        }
-        /* Ambient color wash */
-        .mm-halo-aura {
-          position: absolute; inset: 0;
-          background:
-            radial-gradient(circle at 42% 44%, ${isDark ? 'rgba(64,187,56,0.42)' : 'rgba(51,151,46,0.22)'} 0%, transparent 45%),
-            radial-gradient(circle at 62% 56%, ${isDark ? 'rgba(94,92,230,0.30)' : 'rgba(94,92,230,0.14)'} 0%, transparent 48%);
-          filter: blur(90px);
-          animation: mm-halo-breathe 9s ease-in-out infinite alternate;
-        }
-        @keyframes mm-halo-breathe {
-          0%   { opacity: 0.8; transform: scale(1); }
-          100% { opacity: 1;   transform: scale(1.05) translate(1%, -1%); }
-        }
-        /* The orb — much larger, much softer, sits behind copy */
-        .mm-halo-orb {
-          position: absolute; left: 50%; top: 50%;
-          transform: translate(-50%, -50%);
-          width: 56%; aspect-ratio: 1;
-          border-radius: 50%;
-          background: radial-gradient(circle at 38% 32%,
-            rgba(255,255,255,${isDark ? '0.16' : '0.50'}) 0%,
-            ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.45)'} 20%,
-            ${isDark ? 'rgba(18,90,50,0.45)' : 'rgba(14,90,48,0.30)'} 48%,
-            transparent 78%
-          );
-          opacity: ${isDark ? '0.85' : '0.70'};
-          animation: mm-halo-float 8s ease-in-out infinite;
-        }
-        @keyframes mm-halo-float {
-          0%, 100% { transform: translate(-50%, -50%); }
-          50%       { transform: translate(-50%, calc(-50% - 12px)); }
-        }
-        .mm-halo-orb::before {
-          content: ''; position: absolute;
-          top: 9%; left: 14%; width: 38%; height: 30%;
-          background: radial-gradient(ellipse, rgba(255,255,255,${isDark ? '0.30' : '0.55'}) 0%, transparent 70%);
-          border-radius: 50%; transform: rotate(-18deg);
-        }
-        /* Orbital ring */
-        .mm-halo-ring {
-          position: absolute; left: 50%; top: 50%;
-          transform: translate(-50%, -50%);
-          width: 78%; aspect-ratio: 1;
-        }
-        /* Satellites — orbit around the page-center */
-        .mm-halo-sat {
-          position: absolute; left: 50%; top: 50%;
-          width: 9px; height: 9px; border-radius: 50%;
-          background: var(--accent);
-          box-shadow: 0 0 14px 4px ${isDark ? 'rgba(64,187,56,0.7)' : 'rgba(51,151,46,0.5)'};
-        }
-        .mm-halo-sat-1 { animation: mm-halo-orbit 13s linear infinite; }
-        .mm-halo-sat-2 { animation: mm-halo-orbit 13s linear infinite; animation-delay: -4.33s; opacity: 0.55; width: 5px; height: 5px; }
-        .mm-halo-sat-3 { animation: mm-halo-orbit 13s linear infinite; animation-delay: -8.66s; opacity: 0.3; width: 3px; height: 3px; }
-        @keyframes mm-halo-orbit {
-          0%   { transform: translate(-50%, -50%) rotate(0deg)   translateX(min(420px, 42vw)) rotate(0deg); }
-          100% { transform: translate(-50%, -50%) rotate(360deg) translateX(min(420px, 42vw)) rotate(-360deg); }
-        }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -518,7 +534,7 @@ const HomePage: React.FC = () => {
         @media (max-width: 600px) {
           .mm-hero { padding: 68px 0 88px; }
           .mm-hero-inner { padding: 0 18px; }
-          .mm-hero-halo { width: 150%; }
+          .mm-cloud { filter: blur(70px); }
           .mm-tokens { padding: 52px 0 72px; }
           .mm-tokens-inner { padding: 0 18px; }
           .mm-stats { margin-top: -1px; }
@@ -559,60 +575,37 @@ const HomePage: React.FC = () => {
       <div className="mm-page">
         <AppHeader launchCta hideBoostBar />
 
-        {/* ── HERO (centered spotlight) ── */}
+        {/* ── HERO ── atmosphere is the art, content sits on top */}
         <section className="mm-hero">
-          <div className="mm-hero-bg" />
-
-          {/* Ambient orb halo sits behind the copy */}
-          <div className="mm-hero-halo">
-            <div className="mm-halo-aura" />
-            <svg className="mm-halo-ring" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="300" cy="300" rx="288" ry="78"
-                stroke={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}
-                strokeWidth="1"
-              />
-              <ellipse cx="300" cy="300" rx="288" ry="78"
-                stroke="url(#halo-ring-grad)"
-                strokeWidth="1.4"
-                strokeDasharray="120 720"
-                strokeLinecap="round"
-              >
-                <animateTransform attributeName="transform" type="rotate" from="0 300 300" to="360 300 300" dur="13s" repeatCount="indefinite" />
-              </ellipse>
-              <defs>
-                <linearGradient id="halo-ring-grad" gradientUnits="userSpaceOnUse" x1="12" y1="300" x2="588" y2="300">
-                  <stop offset="0%" stopColor="var(--accent)" stopOpacity="0" />
-                  <stop offset="50%" stopColor="var(--accent)" stopOpacity="1" />
-                  <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="mm-halo-orb" />
-            <div className="mm-halo-sat mm-halo-sat-1" />
-            <div className="mm-halo-sat mm-halo-sat-2" />
-            <div className="mm-halo-sat mm-halo-sat-3" />
+          <div className="mm-atmos" aria-hidden="true">
+            <div className="mm-cloud mm-cloud-1" />
+            <div className="mm-cloud mm-cloud-2" />
+            <div className="mm-cloud mm-cloud-3" />
+            <div className="mm-cloud mm-cloud-4" />
+            <div className="mm-atmos-grain" />
           </div>
-
           <div className="mm-hero-inner">
-            <div className="mm-badge">
-              <span className="mm-badge-dot" />
-              Live on Aptos testnet
-            </div>
-            <h1 className="mm-hero-title">
-              The token engine built for <span className="accent">serious markets.</span>
-            </h1>
-            <p className="mm-hero-sub">
-              Launch, price, and trade tokens on Aptos with a bonding curve that
-              works the moment you deploy. No code. No setup. Just markets.
-            </p>
-            <div className="mm-hero-actions">
-              <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
-              <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
-            </div>
-            <div className="mm-hero-trust">
-              <span><span className="check">✓</span> Instant liquidity</span>
-              <span><span className="check">✓</span> 0% launch fee</span>
-              <span><span className="check">✓</span> Non-custodial</span>
+            <div className="mm-hero-copy">
+              <div className="mm-badge">
+                <span className="mm-badge-dot" />
+                Live on Aptos testnet
+              </div>
+              <h1 className="mm-hero-title">
+                The token engine built for <span className="accent">serious markets.</span>
+              </h1>
+              <p className="mm-hero-sub">
+                Launch, price, and trade tokens on Aptos with a bonding curve that
+                works the moment you deploy. No code. No setup. Just markets.
+              </p>
+              <div className="mm-hero-actions">
+                <Link to="/launch" className="mm-btn-primary">Launch a token</Link>
+                <a href="#tokens" className="mm-btn-secondary">Explore markets</a>
+              </div>
+              <div className="mm-hero-trust">
+                <span><span className="check">✓</span> Instant liquidity</span>
+                <span><span className="check">✓</span> 0% launch fee</span>
+                <span><span className="check">✓</span> Non-custodial</span>
+              </div>
             </div>
           </div>
         </section>
