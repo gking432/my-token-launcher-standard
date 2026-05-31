@@ -70,12 +70,6 @@ const HomePage: React.FC = () => {
   const displayS = curveHoverS ?? 1;
   const displayPrice = REF_MAX_PRICE * Math.pow(displayS, 3);
   const displaySupply = REF_TOTAL_SUPPLY * displayS;
-  const displayMarketCap = displayPrice * REF_TOTAL_SUPPLY;
-  const hoverX = PLOT.x0 + displayS * PLOT.w;
-  const hoverY = PLOT.y0 - Math.pow(displayS, 3) * PLOT.h;
-  const hoverLeftPct = (hoverX / VB.w) * 100;
-  const hoverTopPct = (hoverY / VB.h) * 100;
-
   const handleCurveMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
@@ -316,154 +310,56 @@ const HomePage: React.FC = () => {
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── UNCAGED BONDING CURVE ── lives directly on the page, static at rest */
+        /* ── BONDING CURVE ── a single hand-drawn green line, nothing else */
         .mm-curve {
           position: relative;
           width: 100%;
-          max-width: 460px;
+          max-width: 480px;
           margin-left: auto;
-          aspect-ratio: 4 / 3;
-          cursor: crosshair;
-          user-select: none;
+          aspect-ratio: 5 / 3.4;
         }
-        /* Soft static bloom behind the line */
-        .mm-curve-aura {
-          position: absolute; inset: -14% -8% -18% -6%;
-          pointer-events: none;
-          background:
-            radial-gradient(ellipse 58% 50% at 78% 32%, ${isDark ? 'rgba(64,187,56,0.22)' : 'rgba(51,151,46,0.12)'} 0%, transparent 72%),
-            radial-gradient(ellipse 48% 40% at 30% 78%, ${isDark ? 'rgba(94,92,230,0.14)' : 'rgba(94,92,230,0.08)'} 0%, transparent 74%);
-          filter: blur(36px);
-        }
-
-        /* Floating labels — no chrome, just type */
-        .mm-curve-tag {
-          position: absolute; z-index: 3;
-          display: inline-flex; align-items: center; gap: 7px;
-          font-size: 10.5px; font-weight: 700;
-          letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--accent);
-          top: 4px; left: 10px;
-        }
-        .mm-curve-tag-dot {
-          width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-          box-shadow: 0 0 10px var(--accent);
-        }
-        .mm-curve-tag-net {
-          color: var(--text-muted);
-          font-size: 10.5px; font-weight: 700;
-          letter-spacing: 0.14em; text-transform: uppercase;
-          margin-left: 6px;
-          padding-left: 8px;
-          border-left: 1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)'};
-        }
-
-        /* Price headline — floats above the curve */
-        .mm-curve-price-wrap {
-          position: absolute; z-index: 3;
-          top: 26px; left: 10px;
-          display: flex; flex-direction: column; gap: 3px;
-        }
-        .mm-curve-price-label {
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.16em; text-transform: uppercase;
-          color: var(--text-muted);
-        }
-        .mm-curve-price {
-          font-size: clamp(28px, 2.8vw, 40px);
-          font-weight: 800;
-          letter-spacing: -0.035em; line-height: 1;
-          font-variant-numeric: tabular-nums;
-          background: linear-gradient(135deg, var(--accent) 0%, ${isDark ? '#5eead4' : '#0ea5e9'} 100%);
-          -webkit-background-clip: text; background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-
-        /* Two small metrics */
-        .mm-curve-metrics {
-          position: absolute; z-index: 3;
-          right: 10px; top: 12px;
-          display: flex; gap: 22px;
-          text-align: right;
-        }
-        .mm-curve-metric-label {
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--text-muted); margin-bottom: 3px;
-        }
-        .mm-curve-metric-value {
-          font-size: 14px; font-weight: 700;
-          letter-spacing: -0.015em; color: var(--text-primary);
-          font-variant-numeric: tabular-nums;
-          font-family: ui-monospace, "SF Mono", Menlo, monospace;
-        }
-
-        /* Floating axis labels */
-        .mm-curve-axis {
-          position: absolute; z-index: 2;
-          font-family: ui-monospace, "SF Mono", Menlo, monospace;
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          color: var(--text-muted);
-        }
-        .mm-curve-axis-start { left: 1.5%; bottom: 5%; }
-        .mm-curve-axis-end   { right: 3%;  bottom: 5%; }
-
-        /* Curve SVG fills the visible area */
         .mm-curve-svg {
           position: absolute; inset: 0;
           width: 100%; height: 100%;
           display: block; overflow: visible;
         }
 
-        /* Tracker dot — only visible on hover */
-        .mm-curve-tracker {
-          position: absolute; pointer-events: none; z-index: 4;
-          width: 14px; height: 14px; border-radius: 50%;
-          transform: translate(-50%, -50%);
-          background: var(--accent);
-          box-shadow:
-            0 0 0 5px ${isDark ? 'rgba(64,187,56,0.16)' : 'rgba(51,151,46,0.14)'},
-            0 0 18px ${isDark ? 'rgba(64,187,56,0.75)' : 'rgba(51,151,46,0.45)'};
-          opacity: 0; transition: opacity 0.15s, left 0.06s linear, top 0.06s linear;
+        /* Floating labels — invisible at rest, fade in only on hover */
+        .mm-curve-labels {
+          position: absolute; inset: 0;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: flex-start;
+          padding-top: 8%;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.35s ease;
+          z-index: 2;
         }
-        .mm-curve-tracker::after {
-          content: ''; position: absolute; inset: 4px;
-          background: ${isDark ? '#0a0a0a' : '#fff'}; border-radius: 50%;
+        .mm-curve.is-hovering .mm-curve-labels { opacity: 1; }
+        .mm-curve-title {
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.22em; text-transform: uppercase;
+          color: var(--accent);
+          margin-bottom: 10px;
         }
-        .mm-curve.is-hovering .mm-curve-tracker { opacity: 1; }
-
-        .mm-curve-vertline {
-          position: absolute; z-index: 1; pointer-events: none;
-          width: 1px; top: 0; bottom: 7%;
-          background: linear-gradient(to bottom,
-            transparent,
-            ${isDark ? 'rgba(64,187,56,0.16)' : 'rgba(51,151,46,0.16)'} 35%,
-            ${isDark ? 'rgba(64,187,56,0.28)' : 'rgba(51,151,46,0.24)'} 100%);
-          opacity: 0; transition: opacity 0.15s;
-        }
-        .mm-curve.is-hovering .mm-curve-vertline { opacity: 1; }
-
-        /* Tooltip near tracker */
-        .mm-curve-tip {
-          position: absolute; z-index: 5; pointer-events: none;
-          transform: translate(-50%, calc(-100% - 16px));
-          background: ${isDark ? 'rgba(14,14,16,0.88)' : 'rgba(255,255,255,0.92)'};
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'};
-          border-radius: 9px;
-          padding: 6px 10px;
+        .mm-curve-stats {
+          display: flex; gap: 24px;
           font-family: ui-monospace, "SF Mono", Menlo, monospace;
-          font-size: 11px; color: var(--text-primary);
-          letter-spacing: 0.04em;
-          white-space: nowrap;
-          box-shadow: 0 8px 24px rgba(0,0,0,${isDark ? '0.45' : '0.12'});
-          opacity: 0; transition: opacity 0.15s;
+          font-size: 12px;
+          color: var(--text-secondary);
+          font-variant-numeric: tabular-nums;
         }
-        .mm-curve.is-hovering .mm-curve-tip { opacity: 1; }
-        .mm-curve-tip-key { color: var(--text-muted); margin-right: 6px; }
-        .mm-curve-tip-val { color: var(--accent); font-weight: 700; }
+        .mm-curve-stats > span { display: inline-flex; align-items: baseline; gap: 6px; }
+        .mm-curve-stats em {
+          font-style: normal;
+          font-size: 10px; font-weight: 700;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .mm-curve-stats b {
+          font-weight: 700;
+          color: var(--text-primary);
+        }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -730,98 +626,61 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* The curve — no card, no panel, no border. Static at rest. */}
+            {/* A single hand-drawn green curve. Labels only on hover. */}
             <div
               className={`mm-curve${isHover ? ' is-hovering' : ''}`}
               onMouseMove={handleCurveMove}
               onMouseLeave={() => setCurveHoverS(null)}
             >
-              <div className="mm-curve-aura" />
-
-              <div className="mm-curve-tag">
-                <span className="mm-curve-tag-dot" />
-                {isHover ? 'Price · projected' : 'Bonding curve'}
-                <span className="mm-curve-tag-net">p = s³</span>
-              </div>
-
-              <div className="mm-curve-price-wrap">
-                <div className="mm-curve-price-label">Token price</div>
-                <div className="mm-curve-price">{formatCurvePrice(displayPrice)}</div>
-              </div>
-
-              <div className="mm-curve-metrics">
-                <div>
-                  <div className="mm-curve-metric-label">Supply</div>
-                  <div className="mm-curve-metric-value">{formatCurveCount(displaySupply)}</div>
-                </div>
-                <div>
-                  <div className="mm-curve-metric-label">Market cap</div>
-                  <div className="mm-curve-metric-value">{formatCurvePrice(displayMarketCap)}</div>
-                </div>
-              </div>
-
-              <svg className="mm-curve-svg" viewBox={`0 0 ${VB.w} ${VB.h}`} fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                className="mm-curve-svg"
+                viewBox={`0 0 ${VB.w} ${VB.h}`}
+                fill="none"
+                preserveAspectRatio="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
                 <defs>
-                  <linearGradient id="mm-curve-stroke" x1="0" y1="1" x2="1" y2="0">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.20" />
-                    <stop offset="55%" stopColor="var(--accent)" stopOpacity="0.90" />
-                    <stop offset="100%" stopColor={isDark ? '#5eead4' : '#0ea5e9'} stopOpacity="1" />
-                  </linearGradient>
-                  <linearGradient id="mm-curve-area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={isDark ? '0.32' : '0.22'} />
-                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                  {/* Brush-stroke filter: organic wobble + slight feathering at edges
+                       so the line reads as drawn by hand, not generated. */}
+                  <filter id="mm-brush" x="-6%" y="-6%" width="112%" height="112%">
+                    <feTurbulence
+                      type="fractalNoise"
+                      baseFrequency="0.014"
+                      numOctaves="2"
+                      seed="7"
+                      result="noise"
+                    />
+                    <feDisplacementMap
+                      in="SourceGraphic"
+                      in2="noise"
+                      scale="6"
+                      xChannelSelector="R"
+                      yChannelSelector="G"
+                    />
+                  </filter>
+                  {/* Subtle pressure variation along the stroke */}
+                  <linearGradient id="mm-brush-ink" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.72" />
+                    <stop offset="35%" stopColor="var(--accent)" stopOpacity="0.92" />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="1" />
                   </linearGradient>
                 </defs>
-
-                {/* Area fill */}
-                <path
-                  d={`${curvePath} L ${PLOT.x1.toFixed(2)},${PLOT.y0.toFixed(2)} L ${PLOT.x0.toFixed(2)},${PLOT.y0.toFixed(2)} Z`}
-                  fill="url(#mm-curve-area)"
-                />
-
-                {/* Baseline */}
-                <line
-                  x1={PLOT.x0} y1={PLOT.y0} x2={PLOT.x1} y2={PLOT.y0}
-                  stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)'}
-                  strokeWidth="1" strokeDasharray="3 5"
-                />
-
-                {/* Glow stack */}
-                <path d={curvePath} stroke="var(--accent)" strokeWidth="22" strokeOpacity="0.05" fill="none" strokeLinecap="round" />
-                <path d={curvePath} stroke="var(--accent)" strokeWidth="12" strokeOpacity="0.10" fill="none" strokeLinecap="round" />
-                <path d={curvePath} stroke="var(--accent)" strokeWidth="6"  strokeOpacity="0.18" fill="none" strokeLinecap="round" />
-
-                {/* Core curve */}
                 <path
                   d={curvePath}
-                  stroke="url(#mm-curve-stroke)"
-                  strokeWidth="3"
+                  stroke="url(#mm-brush-ink)"
+                  strokeWidth="4.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  fill="none"
+                  filter="url(#mm-brush)"
                 />
               </svg>
 
-              {/* Axis labels */}
-              <div className="mm-curve-axis mm-curve-axis-start">0 → supply</div>
-              <div className="mm-curve-axis mm-curve-axis-end">1B max</div>
-
-              {/* Vertical guide line — hover only */}
-              <div className="mm-curve-vertline" style={{ left: `${hoverLeftPct}%` }} />
-
-              {/* Tracker dot — hover only */}
-              <div
-                className="mm-curve-tracker"
-                style={{ left: `${hoverLeftPct}%`, top: `${hoverTopPct}%` }}
-              />
-
-              {/* Tooltip — hover only */}
-              <div
-                className="mm-curve-tip"
-                style={{ left: `${hoverLeftPct}%`, top: `${hoverTopPct}%` }}
-              >
-                <span className="mm-curve-tip-key">s</span>
-                <span className="mm-curve-tip-val">{formatCurveCount(displaySupply)}</span>
+              <div className="mm-curve-labels">
+                <div className="mm-curve-title">Bonding Curve</div>
+                <div className="mm-curve-stats">
+                  <span><em>Price</em><b>{formatCurvePrice(displayPrice)}</b></span>
+                  <span><em>Tokens sold</em><b>{formatCurveCount(displaySupply)}</b></span>
+                </div>
               </div>
             </div>
           </div>
