@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Link, useParams } from 'react-router-dom';
 import PageShell from './PageShell';
@@ -6,6 +6,7 @@ import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
 import { useAptPrice } from '../contexts/AptPriceContext';
 import { useWatchlist } from '../contexts/WatchlistContext';
+import { getWatchlist, WatchlistItem } from '../utils/watchlistStorage';
 import { truncateAddress } from '../utils/format';
 
 const formatPriceUSD = (price: number | undefined | null): string => {
@@ -59,11 +60,23 @@ const Profile: React.FC = () => {
       });
   }, [catalogTokens, liveByAddr, viewingAddress, aptPrice]);
 
-  const isOwn = account && String(account.address).toLowerCase() === viewingAddress;
+  const isOwn = !!(account && String(account.address).toLowerCase() === viewingAddress);
+
+  // Raw watchlist items for the profile being viewed.
+  // For own profile: mirror the live context state so unwatch is instant.
+  // For other profiles: read directly from localStorage by their address key.
+  const [profileWatchlistRaw, setProfileWatchlistRaw] = useState<WatchlistItem[]>([]);
+  useEffect(() => {
+    if (!viewingAddress) { setProfileWatchlistRaw([]); return; }
+    if (isOwn) {
+      setProfileWatchlistRaw(watchlist);
+    } else {
+      setProfileWatchlistRaw(getWatchlist(viewingAddress));
+    }
+  }, [viewingAddress, isOwn, watchlist]);
 
   const watching = useMemo(() => {
-    if (!isOwn) return [];
-    return watchlist.map(w => {
+    return profileWatchlistRaw.map(w => {
       const t = catalogTokens.find(
         c => (c.metadataAddress || '').toLowerCase() === w.metadataAddress.toLowerCase()
       );
@@ -81,7 +94,7 @@ const Profile: React.FC = () => {
         isGraduated: live?.isGraduated ?? false,
       };
     });
-  }, [isOwn, watchlist, catalogTokens, liveByAddr, aptPrice]);
+  }, [profileWatchlistRaw, catalogTokens, liveByAddr, aptPrice]);
 
   const handleCopy = () => {
     if (!viewingAddress) return;
@@ -372,62 +385,64 @@ const Profile: React.FC = () => {
                 </div>
               )}
 
-              {isOwn && (
-                <>
-                  <div className="pf-section-title" style={{ marginTop: 36 }}>
-                    <h2>Watching</h2>
-                    <span className="count">{watching.length}</span>
+              <div className="pf-section-title" style={{ marginTop: 36 }}>
+                <h2>Watching</h2>
+                <span className="count">{watching.length}</span>
+              </div>
+              {watching.length === 0 ? (
+                <div className="pf-empty">
+                  <div className="pf-empty-title">Nothing watched yet</div>
+                  <div className="pf-empty-sub">
+                    {isOwn
+                      ? 'Tap the ☆ on any token to start tracking it here.'
+                      : 'This wallet has not watched any tokens yet.'}
                   </div>
-                  {watching.length === 0 ? (
-                    <div className="pf-empty">
-                      <div className="pf-empty-title">Nothing watched yet</div>
-                      <div className="pf-empty-sub">
-                        Tap the ☆ on any token to start tracking it here.
-                      </div>
-                      <Link to="/marketplace" className="pf-btn primary" style={{ textDecoration: 'none' }}>
-                        Browse marketplace
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="pf-grid">
-                      {watching.map(w => (
-                        <Link
-                          key={w.metadataAddress}
-                          to={`/newtoken/${w.metadataAddress}`}
-                          className="pf-card"
-                        >
-                          <div className="pf-card-top">
-                            <div className="pf-token-icon">{(w.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div className="pf-card-name">{w.name}</div>
-                              <div className="pf-card-symbol">{w.symbol}</div>
-                            </div>
-                            {w.isGraduated && <span className="pf-card-badge graduated">Graduated</span>}
-                            <button
-                              className="pf-unwatch"
-                              title="Remove from watchlist"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFromWatchlist(w.metadataAddress); }}
-                            >★</button>
-                          </div>
-                          <div className="pf-card-stats">
-                            <div>
-                              <div className="pf-stat-label">Price</div>
-                              <div className="pf-stat-value">{formatPriceUSD(w.priceUSD)}</div>
-                            </div>
-                            <div>
-                              <div className="pf-stat-label">Market cap</div>
-                              <div className="pf-stat-value">{w.marketCapUSD ? `$${formatNumber(w.marketCapUSD)}` : '—'}</div>
-                            </div>
-                            <div>
-                              <div className="pf-stat-label">APT raised</div>
-                              <div className="pf-stat-value">{w.aptRaised != null ? `${w.aptRaised.toFixed(2)} APT` : '—'}</div>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
+                  {isOwn && (
+                    <Link to="/marketplace" className="pf-btn primary" style={{ textDecoration: 'none' }}>
+                      Browse marketplace
+                    </Link>
                   )}
-                </>
+                </div>
+              ) : (
+                <div className="pf-grid">
+                  {watching.map(w => (
+                    <Link
+                      key={w.metadataAddress}
+                      to={`/newtoken/${w.metadataAddress}`}
+                      className="pf-card"
+                    >
+                      <div className="pf-card-top">
+                        <div className="pf-token-icon">{(w.symbol || '?').replace(/^\$/, '').slice(0, 2).toUpperCase()}</div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="pf-card-name">{w.name}</div>
+                          <div className="pf-card-symbol">{w.symbol}</div>
+                        </div>
+                        {w.isGraduated && <span className="pf-card-badge graduated">Graduated</span>}
+                        {isOwn && (
+                          <button
+                            className="pf-unwatch"
+                            title="Remove from watchlist"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeFromWatchlist(w.metadataAddress); }}
+                          >★</button>
+                        )}
+                      </div>
+                      <div className="pf-card-stats">
+                        <div>
+                          <div className="pf-stat-label">Price</div>
+                          <div className="pf-stat-value">{formatPriceUSD(w.priceUSD)}</div>
+                        </div>
+                        <div>
+                          <div className="pf-stat-label">Market cap</div>
+                          <div className="pf-stat-value">{w.marketCapUSD ? `$${formatNumber(w.marketCapUSD)}` : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="pf-stat-label">APT raised</div>
+                          <div className="pf-stat-value">{w.aptRaised != null ? `${w.aptRaised.toFixed(2)} APT` : '—'}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               )}
             </>
           )}
