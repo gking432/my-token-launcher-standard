@@ -253,7 +253,7 @@ const HomePage: React.FC = () => {
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── HERO PLATFORM CARD ── */
+        /* ── HERO BONDING CURVE ── */
         .mm-hero-visual { position: relative; }
         .mm-preview-glow {
           position: absolute; inset: -10% -6%;
@@ -262,47 +262,28 @@ const HomePage: React.FC = () => {
           filter: blur(28px);
           pointer-events: none;
         }
-        .mm-preview-card {
-          position: relative;
-          background: ${isDark ? 'rgba(28,28,30,0.82)' : 'rgba(255,255,255,0.9)'};
-          backdrop-filter: blur(22px) saturate(180%);
-          -webkit-backdrop-filter: blur(22px) saturate(180%);
-          border: 1px solid var(--border);
-          border-radius: 22px;
-          padding: 26px 24px 22px;
-          box-shadow:
-            0 32px 64px rgba(0,0,0,${isDark ? '0.55' : '0.16'}),
-            0 10px 24px rgba(0,0,0,${isDark ? '0.45' : '0.08'});
+        .mm-bc-svg { width: 100%; height: auto; display: block; overflow: visible; }
+        @keyframes mm-bc-draw {
+          from { stroke-dashoffset: 520; }
+          to   { stroke-dashoffset: 0; }
         }
-        .mm-card-eyebrow {
-          font-size: 11px; font-weight: 700; text-transform: uppercase;
-          letter-spacing: 0.09em; color: var(--accent); margin-bottom: 6px;
+        @keyframes mm-bc-fade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
-        .mm-card-heading {
-          font-size: 19px; font-weight: 700; color: var(--text-primary);
-          letter-spacing: -0.022em; line-height: 1.2; margin-bottom: 22px;
-          padding-bottom: 18px; border-bottom: 1px solid var(--border);
+        .mm-bc-curve {
+          stroke-dasharray: 520; stroke-dashoffset: 520;
+          animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
         }
-        .mm-how-steps { display: flex; flex-direction: column; gap: 18px; margin-bottom: 22px; }
-        .mm-how-step { display: flex; align-items: flex-start; gap: 14px; }
-        .mm-how-num {
-          width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-          background: var(--accent-light); border: 1.5px solid ${isDark ? 'rgba(64,187,56,0.35)' : 'rgba(51,151,46,0.25)'};
-          color: var(--accent); font-size: 12px; font-weight: 800;
-          display: flex; align-items: center; justify-content: center;
+        .mm-bc-glow {
+          stroke-dasharray: 520; stroke-dashoffset: 520;
+          animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
         }
-        .mm-how-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
-        .mm-how-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
-        .mm-preview-cta {
-          display: block; width: 100%; padding: 13px;
-          background: var(--accent); color: #fff;
-          border-radius: 12px; text-align: center;
-          font-size: 14px; font-weight: 600; text-decoration: none;
-          border: none; cursor: pointer; font-family: inherit;
-          box-shadow: 0 4px 14px rgba(51,151,46,0.28);
-          transition: background 0.15s;
-        }
-        .mm-preview-cta:hover { background: var(--accent-hover); }
+        .mm-bc-fill  { opacity: 0; animation: mm-bc-fade 0.8s ease 1.8s forwards; }
+        .mm-bc-dot   { opacity: 0; animation: mm-bc-fade 0.4s ease 2.1s forwards; }
+        .mm-bc-lbl-1 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.0s forwards; }
+        .mm-bc-lbl-2 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.3s forwards; }
+        .mm-bc-lbl-3 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.6s forwards; }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -570,39 +551,86 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Platform how-it-works card — hidden on mobile */}
+            {/* Bonding curve graphic — hidden on mobile */}
             <div className="mm-hero-visual">
               <div className="mm-preview-glow" />
-              <div className="mm-preview-card">
-                <div className="mm-card-eyebrow">How it works</div>
-                <div className="mm-card-heading">Launch and trade a token<br />in under a minute</div>
+              <svg className="mm-bc-svg" viewBox="0 0 440 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Grid */}
+                {[70, 120, 170, 220].map(y => (
+                  <line key={y} x1="28" y1={y} x2="422" y2={y} stroke="var(--border)" strokeWidth="0.6" />
+                ))}
+                {[130, 230, 330].map(x => (
+                  <line key={x} x1={x} y1="22" x2={x} y2="270" stroke="var(--border)" strokeWidth="0.6" />
+                ))}
 
-                <div className="mm-how-steps">
-                  <div className="mm-how-step">
-                    <div className="mm-how-num">1</div>
-                    <div>
-                      <div className="mm-how-title">Fill the form</div>
-                      <div className="mm-how-sub">Name, ticker, optional logo and socials. Takes about 30 seconds.</div>
-                    </div>
-                  </div>
-                  <div className="mm-how-step">
-                    <div className="mm-how-num">2</div>
-                    <div>
-                      <div className="mm-how-title">Deploy to Aptos</div>
-                      <div className="mm-how-sub">Pay a 0.2 APT launch fee. Your token is live on-chain instantly.</div>
-                    </div>
-                  </div>
-                  <div className="mm-how-step">
-                    <div className="mm-how-num">3</div>
-                    <div>
-                      <div className="mm-how-title">Trade from block zero</div>
-                      <div className="mm-how-sub">A bonding curve starts the moment you deploy. Buy, sell, watch it grow.</div>
-                    </div>
-                  </div>
-                </div>
+                {/* Axes */}
+                <line x1="28" y1="22" x2="28" y2="272" stroke="var(--border)" strokeWidth="1.2" />
+                <line x1="26" y1="270" x2="424" y2="270" stroke="var(--border)" strokeWidth="1.2" />
 
-                <Link to="/launch" className="mm-preview-cta">Launch your token →</Link>
-              </div>
+                {/* Graduation threshold */}
+                <line x1="368" y1="24" x2="368" y2="270" stroke="var(--accent)" strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.4" />
+
+                {/* Area fill under curve */}
+                <path
+                  className="mm-bc-fill"
+                  d="M 28,270 C 95,268 318,78 420,20 L 420,270 Z"
+                  fill="var(--accent)"
+                  fillOpacity="0.07"
+                />
+
+                {/* Glow layer */}
+                <path
+                  className="mm-bc-glow"
+                  d="M 28,270 C 95,268 318,78 420,20"
+                  stroke="var(--accent)"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  strokeOpacity="0.13"
+                />
+
+                {/* Main curve */}
+                <path
+                  className="mm-bc-curve"
+                  d="M 28,270 C 95,268 318,78 420,20"
+                  stroke="var(--accent)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+
+                {/* Dot at ~t=0.5 (≈209, 166) */}
+                <g className="mm-bc-dot">
+                  <circle cx="209" cy="166" r="4" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                    <animate attributeName="r" values="4;20;4" dur="2.5s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx="209" cy="166" r="5.5" fill="var(--accent)">
+                    <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx="209" cy="166" r="2.5" fill={isDark ? '#000' : '#fff'} />
+                </g>
+
+                {/* Label 1: Early entry */}
+                <g className="mm-bc-lbl-1">
+                  <circle cx="80" cy="253" r="3" fill="var(--text-muted)" fillOpacity="0.6" />
+                  <text x="90" y="257" fontSize="11" fill="var(--text-muted)" fontWeight="600" fontFamily="inherit">Early entry</text>
+                </g>
+
+                {/* Label 2: Price discovery (above dot) */}
+                <g className="mm-bc-lbl-2">
+                  <line x1="209" y1="148" x2="209" y2="159" stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="2 2" strokeOpacity="0.5" />
+                  <text x="216" y="143" fontSize="11" fill="var(--text-secondary)" fontWeight="700" fontFamily="inherit">Price discovery</text>
+                </g>
+
+                {/* Label 3: Graduation */}
+                <g className="mm-bc-lbl-3">
+                  <text x="374" y="42" fontSize="11" fill="var(--accent)" fontWeight="700" fontFamily="inherit">Graduation</text>
+                  <text x="374" y="57" fontSize="10" fill="var(--text-muted)" fontFamily="inherit">→ DEX listing</text>
+                </g>
+
+                {/* Axis labels */}
+                <text x="224" y="291" fontSize="10" fill="var(--text-muted)" textAnchor="middle" fontWeight="600" fontFamily="inherit" letterSpacing="0.07em">SUPPLY SOLD</text>
+                <text x="14" y="146" fontSize="10" fill="var(--text-muted)" textAnchor="middle" fontWeight="600" fontFamily="inherit" letterSpacing="0.07em" transform="rotate(-90 14 146)">PRICE</text>
+              </svg>
             </div>
           </div>
         </section>
