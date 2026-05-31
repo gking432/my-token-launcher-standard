@@ -27,7 +27,7 @@ const PageShell: React.FC<PageShellProps> = ({ children }) => {
         }
       `}</style>
       <div className="ps-page">
-        <AppHeader />
+        <AppHeader wide />
         <div className="ps-shell">
           <LeftSidebar />
           <main className="ps-main">{children}</main>

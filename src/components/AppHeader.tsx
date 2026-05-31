@@ -13,12 +13,14 @@ import Logo from './Logo';
 interface AppHeaderProps {
   launchCta?: boolean;
   narrow?: boolean;
+  wide?: boolean;
   hideBoostBar?: boolean;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   launchCta = false,
   narrow = false,
+  wide = false,
   hideBoostBar = false,
 }) => {
   const { isDark, toggleTheme } = useTheme();
@@ -133,12 +135,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
         .ah-nav {
           height: 100%;
+          max-width: 1280px;
+          margin: 0 auto;
           padding: 0 24px;
           display: grid;
           grid-template-columns: 1fr auto 1fr;
           align-items: center;
           gap: 12px;
         }
+        .ah-nav.wide { max-width: none; margin: 0; }
         .ah-nav.narrow { max-width: 860px; margin: 0 auto; }
         .ah-nav-left {
           display: flex; align-items: center; gap: 6px;
@@ -412,7 +417,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       `}</style>
 
       <header className="ah-header">
-        <div className={`ah-nav${narrow ? ' narrow' : ''}`}>
+        <div className={`ah-nav${wide ? ' wide' : narrow ? ' narrow' : ''}`}>
           {/* ── LEFT: logo + nav links ── */}
           <div className="ah-nav-left">
             <Link to="/" className="ah-logo">
