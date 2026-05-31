@@ -37,6 +37,63 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  // Bonding curve hover state (0..1 supply fraction)
+  const [curveHoverS, setCurveHoverS] = useState<number | null>(null);
+
+  // Sampled curve points from price = supply^3 in SVG plot space
+  // plot area: x 28..420 (width 392), y 270..22 (height 248)
+  const curvePoints = useMemo(() => {
+    const pts: Array<{ s: number; x: number; y: number }> = [];
+    const N = 80;
+    for (let i = 0; i <= N; i++) {
+      const s = i / N;
+      pts.push({
+        s,
+        x: 28 + s * 392,
+        y: 270 - Math.pow(s, 3) * 248,
+      });
+    }
+    return pts;
+  }, []);
+  const curvePath = useMemo(
+    () => curvePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+    [curvePoints]
+  );
+
+  // Hover-derived values (display only — pretend numbers tuned to look like a real launch)
+  const TOTAL_SUPPLY = 1_000_000_000;
+  const MAX_PRICE_USD = 0.00009; // price at s=1
+  const hoverS = curveHoverS ?? 0.62; // idle position when not hovering
+  const hoverPrice = MAX_PRICE_USD * Math.pow(hoverS, 3);
+  const hoverSupply = TOTAL_SUPPLY * hoverS;
+  const hoverX = 28 + hoverS * 392;
+  const hoverY = 270 - Math.pow(hoverS, 3) * 248;
+  const hoverLeftPct = (hoverX / 440) * 100;
+  const hoverTopPct = (hoverY / 300) * 100;
+
+  const handleCurveMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const xVB = ratio * 440;
+    const s = Math.max(0, Math.min(1, (xVB - 28) / 392));
+    setCurveHoverS(s);
+  };
+
+  const formatCurvePrice = (p: number): string => {
+    if (p === 0) return '$0';
+    if (p < 0.000001) return `$${p.toExponential(2)}`;
+    if (p < 0.0001) return `$${p.toFixed(8)}`;
+    if (p < 0.01) return `$${p.toFixed(6)}`;
+    return `$${p.toFixed(4)}`;
+  };
+
+  const formatCurveSupply = (n: number): string => {
+    if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+    return n.toFixed(0);
+  };
+
   const { tokens: catalogTokens, loading } = useTokenData();
   const { aptPrice } = useAptPrice();
 
@@ -257,33 +314,108 @@ const HomePage: React.FC = () => {
         .mm-hero-visual { position: relative; }
         .mm-preview-glow {
           position: absolute; inset: -10% -6%;
-          background: radial-gradient(circle at 55% 45%, var(--accent) 0%, transparent 62%);
-          opacity: ${isDark ? '0.26' : '0.16'};
-          filter: blur(28px);
+          background: radial-gradient(circle at 70% 35%, var(--accent) 0%, transparent 60%);
+          opacity: ${isDark ? '0.28' : '0.14'};
+          filter: blur(36px);
           pointer-events: none;
         }
-        .mm-bc-svg { width: 100%; height: auto; display: block; overflow: visible; }
+        .mm-bc-wrap {
+          position: relative;
+          aspect-ratio: 440 / 300;
+          cursor: crosshair;
+          user-select: none;
+        }
+        .mm-bc-svg {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          display: block; overflow: visible;
+        }
         @keyframes mm-bc-draw {
           from { stroke-dashoffset: 520; }
           to   { stroke-dashoffset: 0; }
         }
         @keyframes mm-bc-fade {
-          from { opacity: 0; }
-          to   { opacity: 1; }
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         .mm-bc-curve {
-          stroke-dasharray: 480; stroke-dashoffset: 480;
-          animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
+          stroke-dasharray: 520; stroke-dashoffset: 520;
+          animation: mm-bc-draw 2.2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
+          filter: drop-shadow(0 0 6px ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.35)'});
         }
-        .mm-bc-glow {
-          stroke-dasharray: 480; stroke-dashoffset: 480;
-          animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
+        .mm-bc-fill  { opacity: 0; animation: mm-bc-fade 0.9s ease 1.6s forwards; }
+        .mm-bc-grad-lbl { opacity: 0; animation: mm-bc-fade 0.6s ease 2.0s forwards; }
+        .mm-bc-ticker { opacity: 0; animation: mm-bc-fade 0.6s ease 2.3s forwards; }
+
+        /* Interactive overlay */
+        .mm-bc-crosshair {
+          position: absolute; pointer-events: none;
+          background: ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'};
         }
-        .mm-bc-fill  { opacity: 0; animation: mm-bc-fade 0.8s ease 1.8s forwards; }
-        .mm-bc-dot   { opacity: 0; animation: mm-bc-fade 0.4s ease 2.1s forwards; }
-        .mm-bc-lbl-1 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.0s forwards; }
-        .mm-bc-lbl-2 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.3s forwards; }
-        .mm-bc-lbl-3 { opacity: 0; animation: mm-bc-fade 0.5s ease 2.6s forwards; }
+        .mm-bc-crosshair.v { width: 1px; top: 7%; bottom: 10%; }
+        .mm-bc-crosshair.h { height: 1px; left: 6%; right: 4%; }
+        .mm-bc-cursor-dot {
+          position: absolute; pointer-events: none;
+          width: 12px; height: 12px; border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: var(--accent);
+          box-shadow:
+            0 0 0 4px ${isDark ? 'rgba(64,187,56,0.18)' : 'rgba(51,151,46,0.18)'},
+            0 0 14px ${isDark ? 'rgba(64,187,56,0.7)' : 'rgba(51,151,46,0.55)'};
+        }
+        .mm-bc-cursor-dot::after {
+          content: ''; position: absolute; inset: 4px;
+          background: ${isDark ? '#000' : '#fff'}; border-radius: 50%;
+        }
+
+        /* Glass tooltip */
+        .mm-bc-tooltip {
+          position: absolute; pointer-events: none;
+          transform: translate(-50%, calc(-100% - 18px));
+          background: ${isDark ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.82)'};
+          border: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'};
+          backdrop-filter: blur(18px) saturate(180%);
+          -webkit-backdrop-filter: blur(18px) saturate(180%);
+          border-radius: 12px;
+          padding: 10px 13px;
+          min-width: 132px;
+          box-shadow: 0 10px 30px rgba(0,0,0,${isDark ? '0.5' : '0.12'});
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+        }
+        .mm-bc-tt-row {
+          display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+        }
+        .mm-bc-tt-row + .mm-bc-tt-row { margin-top: 4px; }
+        .mm-bc-tt-label {
+          font-size: 10px; font-weight: 600; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.07em;
+        }
+        .mm-bc-tt-val {
+          font-size: 13px; font-weight: 700; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+          letter-spacing: -0.01em;
+        }
+        .mm-bc-tt-val.accent { color: var(--accent); }
+
+        /* Ticker (eyebrow above the chart) */
+        .mm-bc-ticker {
+          display: flex; align-items: center; gap: 10px;
+          margin-bottom: 14px;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        }
+        .mm-bc-ticker-dot {
+          width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+          box-shadow: 0 0 8px var(--accent);
+          animation: mm-pulse 1.8s infinite;
+        }
+        .mm-bc-ticker-title {
+          font-size: 11px; font-weight: 700; color: var(--text-primary);
+          letter-spacing: 0.15em; text-transform: uppercase;
+        }
+        .mm-bc-ticker-sub {
+          font-size: 11px; color: var(--text-muted); letter-spacing: 0.04em;
+        }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -551,91 +683,113 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Bonding curve graphic — hidden on mobile */}
+            {/* Interactive bonding curve — hidden on mobile */}
             <div className="mm-hero-visual">
               <div className="mm-preview-glow" />
-              <svg className="mm-bc-svg" viewBox="0 0 440 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Grid */}
-                {[70, 120, 170, 220].map(y => (
-                  <line key={y} x1="28" y1={y} x2="422" y2={y} stroke="var(--border)" strokeWidth="0.6" />
-                ))}
-                {[130, 230, 330].map(x => (
-                  <line key={x} x1={x} y1="22" x2={x} y2="270" stroke="var(--border)" strokeWidth="0.6" />
-                ))}
 
-                {/* Axes */}
-                <line x1="28" y1="22" x2="28" y2="272" stroke="var(--border)" strokeWidth="1.2" />
-                <line x1="26" y1="270" x2="424" y2="270" stroke="var(--border)" strokeWidth="1.2" />
+              <div className="mm-bc-ticker">
+                <span className="mm-bc-ticker-dot" />
+                <span className="mm-bc-ticker-title">Bonding Curve</span>
+                <span className="mm-bc-ticker-sub">price = supply³</span>
+              </div>
 
-                {/* Graduation threshold at s=0.87 → x=369 */}
-                <line x1="369" y1="24" x2="369" y2="270" stroke="var(--accent)" strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.4" />
+              <div
+                className="mm-bc-wrap"
+                onMouseMove={handleCurveMove}
+                onMouseLeave={() => setCurveHoverS(null)}
+              >
+                <svg className="mm-bc-svg" viewBox="0 0 440 300" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="mm-bc-stroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%"   stopColor="var(--accent)" stopOpacity="0.35" />
+                      <stop offset="55%"  stopColor="var(--accent)" stopOpacity="0.85" />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="1" />
+                    </linearGradient>
+                    <linearGradient id="mm-bc-area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="var(--accent)" stopOpacity="0.22" />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
 
-                {/*
-                  Curve points from price = supply^3, sampled every 5%
-                  x = 28 + s*392,  y = 270 - s^3*248
-                */}
+                  {/* Subtle grid */}
+                  {[70, 120, 170, 220].map(y => (
+                    <line key={y} x1="28" y1={y} x2="422" y2={y}
+                      stroke={isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)'} strokeWidth="1" />
+                  ))}
 
-                {/* Area fill under curve */}
-                <path
-                  className="mm-bc-fill"
-                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22 L 420,270 Z"
-                  fill="var(--accent)"
-                  fillOpacity="0.07"
+                  {/* Baseline */}
+                  <line x1="28" y1="270" x2="422" y2="270"
+                    stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)'} strokeWidth="1" />
+
+                  {/* Graduation threshold at s=0.87 */}
+                  <line x1="369" y1="32" x2="369" y2="270"
+                    stroke="var(--accent)" strokeWidth="1" strokeDasharray="3 4" strokeOpacity="0.45" />
+
+                  {/* Area fill under curve */}
+                  <path
+                    className="mm-bc-fill"
+                    d={`${curvePath} L 420,270 L 28,270 Z`}
+                    fill="url(#mm-bc-area)"
+                  />
+
+                  {/* Main curve */}
+                  <path
+                    className="mm-bc-curve"
+                    d={curvePath}
+                    stroke="url(#mm-bc-stroke)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Graduation label */}
+                  <g className="mm-bc-grad-lbl">
+                    <text x="375" y="44" fontSize="10.5" fill="var(--accent)" fontWeight="700"
+                      fontFamily="ui-monospace, 'SF Mono', Menlo, monospace" letterSpacing="0.08em">GRADUATION</text>
+                    <text x="375" y="58" fontSize="9.5" fill="var(--text-muted)"
+                      fontFamily="ui-monospace, 'SF Mono', Menlo, monospace" letterSpacing="0.04em">87% supply</text>
+                  </g>
+                </svg>
+
+                {/* Crosshair lines (only while hovering) */}
+                {curveHoverS != null && (
+                  <>
+                    <div className="mm-bc-crosshair v" style={{ left: `${hoverLeftPct}%` }} />
+                    <div className="mm-bc-crosshair h" style={{ top: `${hoverTopPct}%` }} />
+                  </>
+                )}
+
+                {/* Cursor dot on the curve */}
+                <div
+                  className="mm-bc-cursor-dot"
+                  style={{
+                    left: `${hoverLeftPct}%`,
+                    top: `${hoverTopPct}%`,
+                    opacity: curveHoverS != null ? 1 : 0,
+                    transition: curveHoverS != null ? 'none' : 'opacity 0.2s',
+                  }}
                 />
 
-                {/* Glow layer */}
-                <path
-                  className="mm-bc-glow"
-                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22"
-                  stroke="var(--accent)"
-                  strokeWidth="9"
-                  strokeLinecap="round"
-                  strokeOpacity="0.13"
-                />
-
-                {/* Main curve */}
-                <path
-                  className="mm-bc-curve"
-                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22"
-                  stroke="var(--accent)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-
-                {/* Dot at s=0.70 → (302, 185) — curve is steepening */}
-                <g className="mm-bc-dot">
-                  <circle cx="302" cy="185" r="4" fill="none" stroke="var(--accent)" strokeWidth="1.5">
-                    <animate attributeName="r" values="4;20;4" dur="2.5s" repeatCount="indefinite" />
-                    <animate attributeName="stroke-opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="302" cy="185" r="5.5" fill="var(--accent)">
-                    <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="302" cy="185" r="2.5" fill={isDark ? '#000' : '#fff'} />
-                </g>
-
-                {/* Label 1: Early entry — s=0.30 → (145.6, 263.3) */}
-                <g className="mm-bc-lbl-1">
-                  <circle cx="145" cy="263" r="3" fill="var(--text-muted)" fillOpacity="0.6" />
-                  <text x="153" y="257" fontSize="11" fill="var(--text-muted)" fontWeight="600" fontFamily="inherit">Early entry</text>
-                </g>
-
-                {/* Label 2: Price discovery — above dot at (302, 185) */}
-                <g className="mm-bc-lbl-2">
-                  <line x1="302" y1="167" x2="302" y2="178" stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="2 2" strokeOpacity="0.5" />
-                  <text x="309" y="162" fontSize="11" fill="var(--text-secondary)" fontWeight="700" fontFamily="inherit">Price discovery</text>
-                </g>
-
-                {/* Label 3: Graduation */}
-                <g className="mm-bc-lbl-3">
-                  <text x="375" y="42" fontSize="11" fill="var(--accent)" fontWeight="700" fontFamily="inherit">Graduation</text>
-                  <text x="375" y="57" fontSize="10" fill="var(--text-muted)" fontFamily="inherit">→ DEX listing</text>
-                </g>
-
-                {/* Axis labels */}
-                <text x="224" y="291" fontSize="10" fill="var(--text-muted)" textAnchor="middle" fontWeight="600" fontFamily="inherit" letterSpacing="0.07em">SUPPLY SOLD</text>
-                <text x="14" y="146" fontSize="10" fill="var(--text-muted)" textAnchor="middle" fontWeight="600" fontFamily="inherit" letterSpacing="0.07em" transform="rotate(-90 14 146)">PRICE</text>
-              </svg>
+                {/* Glass tooltip */}
+                {curveHoverS != null && (
+                  <div
+                    className="mm-bc-tooltip"
+                    style={{
+                      left: `${Math.min(Math.max(hoverLeftPct, 14), 86)}%`,
+                      top: `${hoverTopPct}%`,
+                    }}
+                  >
+                    <div className="mm-bc-tt-row">
+                      <span className="mm-bc-tt-label">Price</span>
+                      <span className="mm-bc-tt-val accent">{formatCurvePrice(hoverPrice)}</span>
+                    </div>
+                    <div className="mm-bc-tt-row">
+                      <span className="mm-bc-tt-label">Sold</span>
+                      <span className="mm-bc-tt-val">{formatCurveSupply(hoverSupply)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
