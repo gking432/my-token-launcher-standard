@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
@@ -37,6 +37,97 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  // Bonding curve hover state (0..1 supply fraction)
+  const [curveHoverS, setCurveHoverS] = useState<number | null>(null);
+
+  // Sampled curve points from price = supply^3 in SVG plot space
+  // Plot area: x 24..476 (width 452), y 360..28 (height 332)
+  const PLOT = { x0: 24, x1: 476, y0: 360, y1: 28, w: 452, h: 332 };
+  const VB = { w: 500, h: 380 };
+  const curvePoints = useMemo(() => {
+    const pts: Array<{ s: number; x: number; y: number }> = [];
+    const N = 96;
+    for (let i = 0; i <= N; i++) {
+      const s = i / N;
+      pts.push({
+        s,
+        x: PLOT.x0 + s * PLOT.w,
+        y: PLOT.y0 - Math.pow(s, 3) * PLOT.h,
+      });
+    }
+    return pts;
+  }, []);
+  const curvePath = useMemo(
+    () => curvePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+    [curvePoints]
+  );
+  const curvePathLen = useMemo(() => {
+    let len = 0;
+    for (let i = 1; i < curvePoints.length; i++) {
+      const dx = curvePoints[i].x - curvePoints[i - 1].x;
+      const dy = curvePoints[i].y - curvePoints[i - 1].y;
+      len += Math.hypot(dx, dy);
+    }
+    return len;
+  }, [curvePoints]);
+
+  // Abstract reference values
+  const REF_TOTAL_SUPPLY = 1_000_000_000;
+  const REF_MAX_PRICE = 0.00009;
+
+  // Auto-cycling animation that demos the curve while idle
+  const [animatedS, setAnimatedS] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (curveHoverS != null) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      return;
+    }
+    let start: number | null = null;
+    const cycle = 5600;
+    const tick = (t: number) => {
+      if (start == null) start = t;
+      const p = ((t - start) % cycle) / cycle;
+      const sweep = p < 0.78 ? Math.pow(p / 0.78, 0.85) : 1 - (p - 0.78) / 0.22;
+      setAnimatedS(Math.max(0, Math.min(0.95, sweep * 0.95)));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [curveHoverS]);
+
+  const displayS = curveHoverS ?? animatedS;
+  const displayPrice = REF_MAX_PRICE * Math.pow(displayS, 3);
+  const displaySupply = REF_TOTAL_SUPPLY * displayS;
+  const displayMarketCap = displayPrice * REF_TOTAL_SUPPLY;
+  const hoverX = PLOT.x0 + displayS * PLOT.w;
+  const hoverY = PLOT.y0 - Math.pow(displayS, 3) * PLOT.h;
+  const hoverLeftPct = (hoverX / VB.w) * 100;
+  const hoverTopPct = (hoverY / VB.h) * 100;
+
+  const handleCurveMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const xVB = ratio * VB.w;
+    const s = Math.max(0, Math.min(1, (xVB - PLOT.x0) / PLOT.w));
+    setCurveHoverS(s);
+  };
+
+  const formatCurvePrice = (p: number): string => {
+    if (p === 0) return '$0';
+    if (p < 0.000001) return `$${p.toExponential(2)}`;
+    if (p < 0.0001) return `$${p.toFixed(8)}`;
+    if (p < 0.01) return `$${p.toFixed(6)}`;
+    return `$${p.toFixed(4)}`;
+  };
+  const formatCurveCount = (n: number): string => {
+    if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+    return n.toFixed(0);
+  };
 
   const { tokens: catalogTokens, loading } = useTokenData();
   const { aptPrice } = useAptPrice();
@@ -151,118 +242,37 @@ const HomePage: React.FC = () => {
         /* ── HERO ── */
         .mm-hero {
           position: relative; overflow: hidden;
-          padding: 124px 0 180px;
-          isolation: isolate;
+          padding: 88px 0 120px;
         }
-        /* ── ATMOSPHERE ── the entire hero is a slow-moving color field */
-        .mm-atmos {
-          position: absolute; inset: -10% -5% -15% -5%;
-          pointer-events: none; z-index: 0;
+        .mm-hero-bg {
+          position: absolute; inset: 0; pointer-events: none; z-index: 0;
+          background:
+            radial-gradient(ellipse 820px 540px at 78% 38%, ${isDark ? 'rgba(64,187,56,0.16)' : 'rgba(51,151,46,0.10)'} 0%, transparent 62%),
+            radial-gradient(ellipse 620px 420px at 88% 70%, ${isDark ? 'rgba(94,92,230,0.14)' : 'rgba(94,92,230,0.08)'} 0%, transparent 65%),
+            radial-gradient(ellipse 520px 360px at 12% 92%, ${isDark ? 'rgba(64,187,56,0.07)' : 'rgba(51,151,46,0.05)'} 0%, transparent 70%);
         }
-        /* Each cloud is an organic, heavily-blurred color form.
-           Asymmetric border-radius + blur reads as a soft painted shape,
-           not a circle. They sit at scene-scale and drift very slowly. */
-        .mm-cloud {
-          position: absolute;
-          border-radius: 62% 38% 54% 46% / 48% 56% 44% 52%;
-          filter: blur(${isDark ? '110px' : '120px'});
-          will-change: transform, border-radius;
-        }
-        .mm-cloud-1 {
-          top: -22%; right: -8%;
-          width: 72%; aspect-ratio: 1.15;
-          background: radial-gradient(circle at 42% 38%,
-            ${isDark ? 'rgba(72,210,90,0.65)' : 'rgba(72,196,98,0.42)'} 0%,
-            ${isDark ? 'rgba(28,130,76,0.40)' : 'rgba(46,158,80,0.20)'} 38%,
-            transparent 72%);
-          animation: mm-cloud-a 32s ease-in-out infinite alternate;
-        }
-        .mm-cloud-2 {
-          top: 18%; right: 6%;
-          width: 58%; aspect-ratio: 1.35;
-          border-radius: 48% 52% 38% 62% / 56% 42% 58% 44%;
-          background: radial-gradient(circle at 48% 50%,
-            ${isDark ? 'rgba(56,178,196,0.55)' : 'rgba(40,170,200,0.30)'} 0%,
-            ${isDark ? 'rgba(50,130,200,0.30)' : 'rgba(60,140,210,0.14)'} 42%,
-            transparent 74%);
-          animation: mm-cloud-b 38s ease-in-out infinite alternate;
-        }
-        .mm-cloud-3 {
-          bottom: -18%; left: -10%;
-          width: 64%; aspect-ratio: 1.4;
-          border-radius: 54% 46% 62% 38% / 42% 58% 46% 54%;
-          background: radial-gradient(circle at 56% 44%,
-            ${isDark ? 'rgba(110,92,230,0.42)' : 'rgba(120,108,230,0.22)'} 0%,
-            ${isDark ? 'rgba(70,52,180,0.26)' : 'rgba(94,84,200,0.12)'} 44%,
-            transparent 76%);
-          animation: mm-cloud-c 44s ease-in-out infinite alternate;
-        }
-        .mm-cloud-4 {
-          top: -10%; left: -8%;
-          width: 46%; aspect-ratio: 1.1;
-          border-radius: 58% 42% 48% 52% / 50% 60% 40% 50%;
-          background: radial-gradient(circle at 50% 50%,
-            ${isDark ? 'rgba(240,180,90,0.18)' : 'rgba(255,190,110,0.16)'} 0%,
-            transparent 70%);
-          opacity: 0.85;
-          animation: mm-cloud-d 50s ease-in-out infinite alternate;
-        }
-        @keyframes mm-cloud-a {
-          0%   { transform: translate(0,0) scale(1) rotate(0deg);
-                 border-radius: 62% 38% 54% 46% / 48% 56% 44% 52%; }
-          100% { transform: translate(-3%, 4%) scale(1.08) rotate(10deg);
-                 border-radius: 52% 48% 60% 40% / 56% 44% 52% 48%; }
-        }
-        @keyframes mm-cloud-b {
-          0%   { transform: translate(0,0) scale(1) rotate(0deg);
-                 border-radius: 48% 52% 38% 62% / 56% 42% 58% 44%; }
-          100% { transform: translate(4%, -3%) scale(1.06) rotate(-12deg);
-                 border-radius: 58% 42% 50% 50% / 44% 58% 42% 56%; }
-        }
-        @keyframes mm-cloud-c {
-          0%   { transform: translate(0,0) scale(1) rotate(0deg);
-                 border-radius: 54% 46% 62% 38% / 42% 58% 46% 54%; }
-          100% { transform: translate(3%, -4%) scale(1.05) rotate(8deg);
-                 border-radius: 46% 54% 52% 48% / 56% 44% 58% 42%; }
-        }
-        @keyframes mm-cloud-d {
-          0%   { transform: translate(0,0) scale(1); opacity: 0.7; }
-          100% { transform: translate(2%, 3%) scale(1.08); opacity: 0.95; }
-        }
-        /* Subtle film grain — pulls everything into "photograph" territory
-           rather than "CSS gradient" territory. */
-        .mm-atmos-grain {
-          position: absolute; inset: 0;
-          opacity: ${isDark ? '0.06' : '0.04'};
-          mix-blend-mode: overlay;
-          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-          pointer-events: none;
-        }
-        /* A whisper-soft vignette at the bottom so the hero bleeds into
-           whatever sits below it — no hard edge. */
-        .mm-atmos::after {
-          content: ''; position: absolute; left: 0; right: 0; bottom: 0;
-          height: 30%;
-          background: linear-gradient(to bottom, transparent 0%, var(--bg-primary) 100%);
-          pointer-events: none;
+        .mm-hero-bg::before {
+          content: ''; position: absolute; inset: 0;
+          background-image: radial-gradient(${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} 1px, transparent 1px);
+          background-size: 32px 32px;
+          -webkit-mask-image: radial-gradient(ellipse 65% 75% at 78% 50%, #000 0%, transparent 78%);
+          mask-image: radial-gradient(ellipse 65% 75% at 78% 50%, #000 0%, transparent 78%);
         }
         .mm-hero-inner {
           position: relative; z-index: 1;
           max-width: 1280px; margin: 0 auto; padding: 0 24px;
+          display: grid; grid-template-columns: 0.9fr 1.1fr;
+          gap: 56px; align-items: center;
         }
-        .mm-hero-copy {
-          max-width: 640px;
-        }
+        .mm-hero-copy { max-width: 560px; }
         .mm-badge {
           display: inline-flex; align-items: center; gap: 7px;
           font-size: 13px; font-weight: 600;
           color: var(--accent);
-          background: ${isDark ? 'rgba(20,28,22,0.55)' : 'rgba(255,255,255,0.55)'};
-          backdrop-filter: blur(14px) saturate(180%);
-          -webkit-backdrop-filter: blur(14px) saturate(180%);
-          border: 1px solid ${isDark ? 'rgba(64,187,56,0.30)' : 'rgba(51,151,46,0.22)'};
+          background: var(--accent-light);
+          border: 1px solid ${isDark ? 'rgba(64,187,56,0.25)' : 'rgba(51,151,46,0.18)'};
           padding: 6px 13px; border-radius: 980px;
-          margin-bottom: 26px;
+          margin-bottom: 22px;
         }
         .mm-badge-dot {
           width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
@@ -311,21 +321,19 @@ const HomePage: React.FC = () => {
         .mm-btn-primary:hover { background: var(--accent-hover); }
         .mm-btn-primary:active { transform: scale(0.98); }
         .mm-btn-secondary {
-          background: ${isDark ? 'rgba(20,20,22,0.55)' : 'rgba(255,255,255,0.65)'};
-          backdrop-filter: blur(14px) saturate(180%);
-          -webkit-backdrop-filter: blur(14px) saturate(180%);
+          background: var(--bg-primary);
           color: var(--text-primary);
-          padding: 14px 26px; border-radius: 12px;
+          padding: 13px 24px; border-radius: 12px;
           font-size: 15px; font-weight: 600;
           text-decoration: none;
-          border: 1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'};
+          border: 1.5px solid var(--border-secondary);
           display: inline-flex; align-items: center; gap: 7px;
           cursor: pointer;
           transition: background 0.15s, border-color 0.15s;
         }
         .mm-btn-secondary:hover {
-          background: ${isDark ? 'rgba(30,30,32,0.75)' : 'rgba(255,255,255,0.85)'};
-          border-color: ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'};
+          background: var(--bg-hover);
+          border-color: var(--text-muted);
         }
         .mm-btn-secondary::after {
           content: '→'; font-size: 15px;
@@ -333,11 +341,188 @@ const HomePage: React.FC = () => {
         }
         .mm-btn-secondary:hover::after { transform: translateX(3px); }
         .mm-hero-trust {
-          display: flex; gap: 22px; flex-wrap: wrap;
+          display: flex; gap: 18px; flex-wrap: wrap;
           font-size: 13px; color: var(--text-muted);
         }
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
+
+        /* ── UNCAGED BONDING CURVE ── lives directly on the page */
+        .mm-curve {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 5 / 4;
+          cursor: crosshair;
+          user-select: none;
+        }
+        /* Ambient bloom behind the line — bleeds into the page background */
+        .mm-curve-aura {
+          position: absolute; inset: -18% -10% -22% -8%;
+          pointer-events: none;
+          background:
+            radial-gradient(ellipse 60% 50% at 78% 32%, ${isDark ? 'rgba(64,187,56,0.35)' : 'rgba(51,151,46,0.18)'} 0%, transparent 70%),
+            radial-gradient(ellipse 50% 40% at 30% 78%, ${isDark ? 'rgba(94,92,230,0.22)' : 'rgba(94,92,230,0.12)'} 0%, transparent 72%);
+          filter: blur(40px);
+          animation: mm-curve-aura-drift 14s ease-in-out infinite alternate;
+        }
+        @keyframes mm-curve-aura-drift {
+          0%   { transform: translate(0,0) scale(1); }
+          100% { transform: translate(-2%, 3%) scale(1.06); }
+        }
+
+        /* Floating labels — no chrome, just type */
+        .mm-curve-tag {
+          position: absolute; z-index: 3;
+          display: inline-flex; align-items: center; gap: 7px;
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          color: var(--accent);
+          top: 4px; left: 12px;
+        }
+        .mm-curve-tag-dot {
+          width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+          box-shadow: 0 0 12px var(--accent);
+          animation: mm-pulse 2s infinite;
+        }
+        .mm-curve-tag-net {
+          color: var(--text-muted);
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          margin-left: 8px;
+          padding-left: 10px;
+          border-left: 1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)'};
+        }
+
+        /* Big price headline — floats in space above the curve */
+        .mm-curve-price-wrap {
+          position: absolute; z-index: 3;
+          top: 32px; left: 12px;
+          display: flex; flex-direction: column; gap: 4px;
+        }
+        .mm-curve-price-label {
+          font-size: 10.5px; font-weight: 700;
+          letter-spacing: 0.16em; text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .mm-curve-price {
+          font-size: clamp(40px, 4.6vw, 60px);
+          font-weight: 800;
+          letter-spacing: -0.04em; line-height: 1;
+          font-variant-numeric: tabular-nums;
+          background: linear-gradient(135deg, var(--accent) 0%, ${isDark ? '#5eead4' : '#0ea5e9'} 100%);
+          -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent;
+          text-shadow: 0 0 60px ${isDark ? 'rgba(64,187,56,0.40)' : 'rgba(51,151,46,0.20)'};
+          transition: opacity 0.2s;
+        }
+
+        /* Two small metrics, also floating */
+        .mm-curve-metrics {
+          position: absolute; z-index: 3;
+          right: 12px; top: 14px;
+          display: flex; gap: 28px;
+          text-align: right;
+        }
+        .mm-curve-metric-label {
+          font-size: 10.5px; font-weight: 700;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          color: var(--text-muted); margin-bottom: 4px;
+        }
+        .mm-curve-metric-value {
+          font-size: 17px; font-weight: 700;
+          letter-spacing: -0.015em; color: var(--text-primary);
+          font-variant-numeric: tabular-nums;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        }
+
+        /* Floating axis labels — anchored to the curve geometry */
+        .mm-curve-axis {
+          position: absolute; z-index: 2;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+          font-size: 10.5px; font-weight: 700;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .mm-curve-axis-start { left: 1.5%; bottom: 6%; }
+        .mm-curve-axis-end   { right: 3%;  bottom: 6%; }
+
+        /* Curve SVG fills the visible area */
+        .mm-curve-svg {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          display: block; overflow: visible;
+        }
+
+        @keyframes mm-curve-draw {
+          from { stroke-dashoffset: var(--curve-len); }
+          to   { stroke-dashoffset: 0; }
+        }
+        .mm-curve-line {
+          stroke-dasharray: var(--curve-len);
+          stroke-dashoffset: var(--curve-len);
+          animation: mm-curve-draw 2.1s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
+        }
+        @keyframes mm-curve-fade {
+          from { opacity: 0; } to { opacity: 1; }
+        }
+        .mm-curve-fill {
+          opacity: 0; animation: mm-curve-fade 1.4s ease 1.6s forwards;
+        }
+
+        /* Tracker dot + ripple */
+        .mm-curve-tracker {
+          position: absolute; pointer-events: none; z-index: 4;
+          width: 18px; height: 18px; border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: var(--accent);
+          box-shadow:
+            0 0 0 6px ${isDark ? 'rgba(64,187,56,0.16)' : 'rgba(51,151,46,0.14)'},
+            0 0 26px ${isDark ? 'rgba(64,187,56,0.85)' : 'rgba(51,151,46,0.55)'},
+            0 0 60px ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.32)'};
+          transition: left 0.1s linear, top 0.1s linear;
+        }
+        .mm-curve-tracker::after {
+          content: ''; position: absolute; inset: 5px;
+          background: ${isDark ? '#0a0a0a' : '#fff'}; border-radius: 50%;
+        }
+        .mm-curve-tracker::before {
+          content: ''; position: absolute; inset: -10px;
+          border-radius: 50%; border: 1px solid var(--accent); opacity: 0;
+          animation: mm-curve-ring 2.4s ease-out infinite;
+        }
+        @keyframes mm-curve-ring {
+          0%   { transform: scale(0.7); opacity: 0.75; }
+          100% { transform: scale(2.4); opacity: 0; }
+        }
+        .mm-curve-vertline {
+          position: absolute; z-index: 1; pointer-events: none;
+          width: 1px; top: 0; bottom: 8%;
+          background: linear-gradient(to bottom,
+            transparent,
+            ${isDark ? 'rgba(64,187,56,0.18)' : 'rgba(51,151,46,0.18)'} 35%,
+            ${isDark ? 'rgba(64,187,56,0.32)' : 'rgba(51,151,46,0.28)'} 100%);
+        }
+
+        /* Tooltip near tracker */
+        .mm-curve-tip {
+          position: absolute; z-index: 5; pointer-events: none;
+          transform: translate(-50%, calc(-100% - 18px));
+          background: ${isDark ? 'rgba(14,14,16,0.88)' : 'rgba(255,255,255,0.92)'};
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'};
+          border-radius: 10px;
+          padding: 7px 11px;
+          font-family: ui-monospace, "SF Mono", Menlo, monospace;
+          font-size: 11px; color: var(--text-primary);
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+          box-shadow: 0 8px 24px rgba(0,0,0,${isDark ? '0.45' : '0.12'});
+          opacity: 0; transition: opacity 0.2s;
+        }
+        .mm-curve.is-hovering .mm-curve-tip { opacity: 1; }
+        .mm-curve-tip-key { color: var(--text-muted); margin-right: 6px; }
+        .mm-curve-tip-val { color: var(--accent); font-weight: 700; }
 
         /* ── STATS PANEL ── */
         .mm-stats {
@@ -526,15 +711,16 @@ const HomePage: React.FC = () => {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 900px) {
+          .mm-hero-inner { grid-template-columns: 1fr; }
+          .mm-curve { display: none; }
           .mm-stats-panel { grid-template-columns: repeat(2, 1fr); }
           .mm-stat:nth-child(2) { border-right: none; }
           .mm-stat:nth-child(1), .mm-stat:nth-child(2) { border-bottom: 1px solid var(--border); }
           .mm-nav-links { display: none; }
         }
         @media (max-width: 600px) {
-          .mm-hero { padding: 68px 0 88px; }
+          .mm-hero { padding: 56px 0 80px; }
           .mm-hero-inner { padding: 0 18px; }
-          .mm-cloud { filter: blur(70px); }
           .mm-tokens { padding: 52px 0 72px; }
           .mm-tokens-inner { padding: 0 18px; }
           .mm-stats { margin-top: -1px; }
@@ -575,15 +761,9 @@ const HomePage: React.FC = () => {
       <div className="mm-page">
         <AppHeader launchCta hideBoostBar />
 
-        {/* ── HERO ── atmosphere is the art, content sits on top */}
+        {/* ── HERO ── bonding curve lives directly on the page, uncaged */}
         <section className="mm-hero">
-          <div className="mm-atmos" aria-hidden="true">
-            <div className="mm-cloud mm-cloud-1" />
-            <div className="mm-cloud mm-cloud-2" />
-            <div className="mm-cloud mm-cloud-3" />
-            <div className="mm-cloud mm-cloud-4" />
-            <div className="mm-atmos-grain" />
-          </div>
+          <div className="mm-hero-bg" />
           <div className="mm-hero-inner">
             <div className="mm-hero-copy">
               <div className="mm-badge">
@@ -591,7 +771,8 @@ const HomePage: React.FC = () => {
                 Live on Aptos testnet
               </div>
               <h1 className="mm-hero-title">
-                The token engine built for <span className="accent">serious markets.</span>
+                The token engine<br />
+                built for <span className="accent">serious markets.</span>
               </h1>
               <p className="mm-hero-sub">
                 Launch, price, and trade tokens on Aptos with a bonding curve that
@@ -605,6 +786,127 @@ const HomePage: React.FC = () => {
                 <span><span className="check">✓</span> Instant liquidity</span>
                 <span><span className="check">✓</span> 0% launch fee</span>
                 <span><span className="check">✓</span> Non-custodial</span>
+              </div>
+            </div>
+
+            {/* The curve — no card, no panel, no border. It just lives here. */}
+            <div
+              className={`mm-curve${curveHoverS != null ? ' is-hovering' : ''}`}
+              onMouseMove={handleCurveMove}
+              onMouseLeave={() => setCurveHoverS(null)}
+              style={{ ['--curve-len' as string]: curvePathLen.toFixed(0) }}
+            >
+              <div className="mm-curve-aura" />
+
+              <div className="mm-curve-tag">
+                <span className="mm-curve-tag-dot" />
+                {curveHoverS != null ? 'Price · projected' : 'Live price discovery'}
+                <span className="mm-curve-tag-net">Aptos · p = s³</span>
+              </div>
+
+              <div className="mm-curve-price-wrap">
+                <div className="mm-curve-price-label">Token price</div>
+                <div className="mm-curve-price">{formatCurvePrice(displayPrice)}</div>
+              </div>
+
+              <div className="mm-curve-metrics">
+                <div>
+                  <div className="mm-curve-metric-label">Supply</div>
+                  <div className="mm-curve-metric-value">{formatCurveCount(displaySupply)}</div>
+                </div>
+                <div>
+                  <div className="mm-curve-metric-label">Market cap</div>
+                  <div className="mm-curve-metric-value">{formatCurvePrice(displayMarketCap)}</div>
+                </div>
+              </div>
+
+              <svg className="mm-curve-svg" viewBox={`0 0 ${VB.w} ${VB.h}`} fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="mm-curve-stroke" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.20" />
+                    <stop offset="55%" stopColor="var(--accent)" stopOpacity="0.90" />
+                    <stop offset="100%" stopColor={isDark ? '#5eead4' : '#0ea5e9'} stopOpacity="1" />
+                  </linearGradient>
+                  <linearGradient id="mm-curve-area" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={isDark ? '0.36' : '0.26'} />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                  </linearGradient>
+                  <linearGradient id="mm-curve-comet" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor={isDark ? '#5eead4' : '#0ea5e9'} stopOpacity="0" />
+                    <stop offset="100%" stopColor={isDark ? '#bbf7d0' : '#ffffff'} stopOpacity="1" />
+                  </linearGradient>
+                </defs>
+
+                {/* Area fill under the curve */}
+                <path
+                  className="mm-curve-fill"
+                  d={`${curvePath} L ${PLOT.x1.toFixed(2)},${PLOT.y0.toFixed(2)} L ${PLOT.x0.toFixed(2)},${PLOT.y0.toFixed(2)} Z`}
+                  fill="url(#mm-curve-area)"
+                />
+
+                {/* Baseline */}
+                <line
+                  x1={PLOT.x0} y1={PLOT.y0} x2={PLOT.x1} y2={PLOT.y0}
+                  stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)'}
+                  strokeWidth="1" strokeDasharray="3 5"
+                />
+
+                {/* Glow stack */}
+                <path d={curvePath} stroke="var(--accent)" strokeWidth="28" strokeOpacity="0.06" fill="none" strokeLinecap="round" />
+                <path d={curvePath} stroke="var(--accent)" strokeWidth="16" strokeOpacity="0.12" fill="none" strokeLinecap="round" />
+                <path d={curvePath} stroke="var(--accent)" strokeWidth="8"  strokeOpacity="0.20" fill="none" strokeLinecap="round" />
+
+                {/* Core curve — draws on mount */}
+                <path
+                  className="mm-curve-line"
+                  d={curvePath}
+                  stroke="url(#mm-curve-stroke)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+
+                {/* Flashy comet — a bright pulse travels along the curve forever */}
+                <path
+                  d={curvePath}
+                  stroke="url(#mm-curve-comet)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  fill="none"
+                  strokeDasharray={`80 ${curvePathLen.toFixed(0)}`}
+                  style={{ filter: `drop-shadow(0 0 8px ${isDark ? '#5eead4' : '#0ea5e9'})` }}
+                >
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    from={curvePathLen.toFixed(0)}
+                    to={(-80).toString()}
+                    dur="3.4s"
+                    repeatCount="indefinite"
+                  />
+                </path>
+              </svg>
+
+              {/* Axis labels — floating, no box */}
+              <div className="mm-curve-axis mm-curve-axis-start">0 → supply</div>
+              <div className="mm-curve-axis mm-curve-axis-end">1B max</div>
+
+              {/* Vertical guide line */}
+              <div className="mm-curve-vertline" style={{ left: `${hoverLeftPct}%` }} />
+
+              {/* Tracker dot */}
+              <div
+                className="mm-curve-tracker"
+                style={{ left: `${hoverLeftPct}%`, top: `${hoverTopPct}%` }}
+              />
+
+              {/* Tooltip near tracker */}
+              <div
+                className="mm-curve-tip"
+                style={{ left: `${hoverLeftPct}%`, top: `${hoverTopPct}%` }}
+              >
+                <span className="mm-curve-tip-key">s</span>
+                <span className="mm-curve-tip-val">{formatCurveCount(displaySupply)}</span>
               </div>
             </div>
           </div>
