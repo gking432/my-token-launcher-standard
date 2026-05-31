@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTokenData } from '../hooks/useTokenData';
 import { useTokenList } from '../data/useTokenList';
@@ -37,87 +37,6 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Bonding curve hover state (0..1 supply fraction)
-  const [curveHoverS, setCurveHoverS] = useState<number | null>(null);
-
-  // Sampled curve points from price = supply^3 in SVG plot space
-  // plot area: x 28..420 (width 392), y 270..22 (height 248)
-  const curvePoints = useMemo(() => {
-    const pts: Array<{ s: number; x: number; y: number }> = [];
-    const N = 80;
-    for (let i = 0; i <= N; i++) {
-      const s = i / N;
-      pts.push({
-        s,
-        x: 28 + s * 392,
-        y: 270 - Math.pow(s, 3) * 248,
-      });
-    }
-    return pts;
-  }, []);
-  const curvePath = useMemo(
-    () => curvePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
-    [curvePoints]
-  );
-
-  // Abstract reference values — these are generic, not tied to any real token
-  const REF_TOTAL_SUPPLY = 1_000_000_000;
-  const REF_MAX_PRICE = 0.00009;
-
-  // Auto-cycling animation that demonstrates the curve in motion when idle
-  const [animatedS, setAnimatedS] = useState(0);
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (curveHoverS != null) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      return;
-    }
-    let start: number | null = null;
-    const cycle = 5200;
-    const tick = (t: number) => {
-      if (start == null) start = t;
-      const p = ((t - start) % cycle) / cycle;
-      const sweep = p < 0.78 ? Math.pow(p / 0.78, 0.85) : 1 - (p - 0.78) / 0.22;
-      setAnimatedS(Math.max(0, Math.min(0.92, sweep * 0.92)));
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [curveHoverS]);
-
-  const displayS = curveHoverS ?? animatedS;
-  const displayPrice = REF_MAX_PRICE * Math.pow(displayS, 3);
-  const displaySupply = REF_TOTAL_SUPPLY * displayS;
-  const displayMarketCap = displayPrice * REF_TOTAL_SUPPLY;
-  const hoverX = 28 + displayS * 392;
-  const hoverY = 270 - Math.pow(displayS, 3) * 248;
-  const hoverLeftPct = (hoverX / 440) * 100;
-  const hoverTopPct = (hoverY / 300) * 100;
-
-  const handleCurveMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    const xVB = ratio * 440;
-    const s = Math.max(0, Math.min(1, (xVB - 28) / 392));
-    setCurveHoverS(s);
-  };
-
-  const formatCurvePrice = (p: number): string => {
-    if (p === 0) return '$0';
-    if (p < 0.000001) return `$${p.toExponential(2)}`;
-    if (p < 0.0001) return `$${p.toFixed(8)}`;
-    if (p < 0.01) return `$${p.toFixed(6)}`;
-    return `$${p.toFixed(4)}`;
-  };
-
-  const formatCurveSupply = (n: number): string => {
-    if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
-    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
-    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
-    return n.toFixed(0);
-  };
 
   const { tokens: catalogTokens, loading } = useTokenData();
   const { aptPrice } = useAptPrice();
@@ -335,171 +254,82 @@ const HomePage: React.FC = () => {
         .mm-hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
         .mm-hero-trust .check { color: var(--accent); font-weight: 700; }
 
-        /* ── HERO BONDING CURVE ── */
-        .mm-hero-visual { position: relative; }
-        .mm-preview-glow {
-          position: absolute; inset: -22% -18%;
-          background:
-            radial-gradient(circle at 30% 30%, ${isDark ? 'rgba(94,92,230,0.55)' : 'rgba(94,92,230,0.30)'} 0%, transparent 55%),
-            radial-gradient(circle at 75% 65%, var(--accent) 0%, transparent 55%);
-          opacity: ${isDark ? '0.55' : '0.30'};
-          filter: blur(70px);
-          pointer-events: none;
-          animation: mm-glow-shift 14s ease-in-out infinite alternate;
-        }
-        @keyframes mm-glow-shift {
-          0%   { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(-4%, 3%) scale(1.08); }
-        }
-        .mm-bc-card {
+        /* ── HERO ORB ── */
+        .mm-hero-visual {
           position: relative;
-          aspect-ratio: 5 / 4.6;
-          padding: 24px 24px 20px;
-          background: ${isDark ? 'rgba(18,18,20,0.62)' : 'rgba(255,255,255,0.72)'};
-          border: 1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'};
-          border-radius: 24px;
-          backdrop-filter: blur(28px) saturate(180%);
-          -webkit-backdrop-filter: blur(28px) saturate(180%);
+          display: flex; align-items: center; justify-content: center;
+        }
+        /* Ambient light behind the orb */
+        .mm-orb-aura {
+          position: absolute; inset: -30%;
+          background:
+            radial-gradient(circle at 38% 42%, ${isDark ? 'rgba(64,187,56,0.55)' : 'rgba(51,151,46,0.35)'} 0%, transparent 52%),
+            radial-gradient(circle at 68% 60%, ${isDark ? 'rgba(94,92,230,0.40)' : 'rgba(94,92,230,0.22)'} 0%, transparent 50%);
+          filter: blur(72px);
+          pointer-events: none;
+          animation: mm-orb-breathe 9s ease-in-out infinite alternate;
+        }
+        @keyframes mm-orb-breathe {
+          0%   { opacity: 0.75; transform: scale(1); }
+          100% { opacity: 1;    transform: scale(1.08) translate(2%, -2%); }
+        }
+        /* The orb */
+        .mm-orb {
+          position: relative; z-index: 1;
+          width: min(340px, 88%);
+          aspect-ratio: 1;
+          border-radius: 50%;
+          background: radial-gradient(circle at 36% 30%,
+            rgba(255,255,255,${isDark ? '0.22' : '0.55'}) 0%,
+            ${isDark ? 'rgba(64,187,56,0.80)' : 'rgba(51,151,46,0.70)'} 22%,
+            ${isDark ? 'rgba(18,100,55,0.75)' : 'rgba(14,90,48,0.60)'} 50%,
+            ${isDark ? 'rgba(6,20,14,0.92)' : 'rgba(240,250,244,0.50)'} 100%
+          );
           box-shadow:
-            0 30px 80px rgba(0,0,0,${isDark ? '0.55' : '0.12'}),
-            0 1px 0 ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.9)'} inset;
-          display: flex; flex-direction: column;
-          overflow: hidden;
+            0 0 0 1px ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'},
+            0 50px 120px rgba(0,0,0,${isDark ? '0.65' : '0.18'}),
+            0 20px 60px ${isDark ? 'rgba(64,187,56,0.30)' : 'rgba(51,151,46,0.22)'};
+          animation: mm-orb-float 7s ease-in-out infinite;
         }
-        .mm-bc-card::before {
-          content: ''; position: absolute; inset: 0;
-          background: linear-gradient(135deg, ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.5)'} 0%, transparent 40%);
-          pointer-events: none; border-radius: inherit;
+        @keyframes mm-orb-float {
+          0%, 100% { transform: translateY(0); }
+          50%       { transform: translateY(-16px); }
         }
-
-        /* Top status bar */
-        .mm-bc-status {
-          display: flex; align-items: center; gap: 8px;
-          margin-bottom: 14px;
+        /* Top-left specular highlight */
+        .mm-orb::before {
+          content: ''; position: absolute;
+          top: 8%; left: 13%; width: 42%; height: 34%;
+          background: radial-gradient(ellipse, rgba(255,255,255,${isDark ? '0.42' : '0.70'}) 0%, transparent 72%);
+          border-radius: 50%; transform: rotate(-18deg);
         }
-        .mm-bc-pulse {
-          width: 7px; height: 7px; border-radius: 50%;
+        /* Bottom-right secondary glow */
+        .mm-orb::after {
+          content: ''; position: absolute;
+          bottom: 14%; right: 11%; width: 32%; height: 26%;
+          background: radial-gradient(ellipse, ${isDark ? 'rgba(94,234,212,0.28)' : 'rgba(94,234,212,0.35)'} 0%, transparent 70%);
+          border-radius: 50%;
+        }
+        /* Orbital ring — SVG ellipse gives the perspective tilt naturally */
+        .mm-orb-ring {
+          position: absolute; z-index: 2;
+          width: min(390px, 100%); aspect-ratio: 1;
+          pointer-events: none;
+          animation: mm-orb-float 7s ease-in-out infinite;
+        }
+        /* Tiny satellite dots orbiting */
+        .mm-orb-sat {
+          position: absolute; z-index: 3;
+          width: 8px; height: 8px; border-radius: 50%;
           background: var(--accent);
-          box-shadow: 0 0 0 0 var(--accent);
-          animation: mm-bc-pulse-anim 1.6s infinite;
+          box-shadow: 0 0 12px 3px ${isDark ? 'rgba(64,187,56,0.7)' : 'rgba(51,151,46,0.5)'};
+          pointer-events: none;
         }
-        @keyframes mm-bc-pulse-anim {
-          0%   { box-shadow: 0 0 0 0 ${isDark ? 'rgba(64,187,56,0.6)' : 'rgba(51,151,46,0.5)'}; }
-          70%  { box-shadow: 0 0 0 9px rgba(51,151,46,0); }
-          100% { box-shadow: 0 0 0 0 rgba(51,151,46,0); }
-        }
-        .mm-bc-status-text {
-          font-size: 10.5px; font-weight: 700;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          color: var(--accent);
-        }
-        .mm-bc-status-net {
-          margin-left: auto;
-          font-size: 10.5px; font-weight: 700;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          color: var(--text-muted);
-          padding: 3px 8px; border-radius: 6px;
-          border: 1px solid var(--border);
-        }
-
-        /* Big price headline */
-        .mm-bc-pricewrap { margin-bottom: 14px; }
-        .mm-bc-price-label {
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--text-muted);
-          margin-bottom: 4px;
-        }
-        .mm-bc-price {
-          font-size: clamp(34px, 4.2vw, 52px);
-          font-weight: 800; letter-spacing: -0.035em;
-          line-height: 1; color: var(--text-primary);
-          font-variant-numeric: tabular-nums;
-          font-family: 'Inter', -apple-system, sans-serif;
-          background: linear-gradient(135deg, var(--accent), ${isDark ? '#5eead4' : '#0ea5e9'});
-          -webkit-background-clip: text; background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-
-        /* Secondary metrics */
-        .mm-bc-metrics {
-          display: grid; grid-template-columns: 1fr 1fr;
-          gap: 14px; margin-bottom: 16px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'};
-        }
-        .mm-bc-metric-label {
-          font-size: 10px; font-weight: 700;
-          letter-spacing: 0.1em; text-transform: uppercase;
-          color: var(--text-muted);
-          margin-bottom: 3px;
-        }
-        .mm-bc-metric-value {
-          font-size: 16px; font-weight: 700;
-          letter-spacing: -0.015em; color: var(--text-primary);
-          font-variant-numeric: tabular-nums;
-          font-family: ui-monospace, "SF Mono", Menlo, monospace;
-        }
-
-        /* Canvas */
-        .mm-bc-canvas {
-          position: relative; flex: 1; min-height: 100px;
-          cursor: crosshair; user-select: none;
-        }
-        .mm-bc-svg {
-          position: absolute; inset: 0;
-          width: 100%; height: 100%;
-          display: block; overflow: visible;
-        }
-        @keyframes mm-bc-draw {
-          from { stroke-dashoffset: 520; }
-          to   { stroke-dashoffset: 0; }
-        }
-        @keyframes mm-bc-fadein { from { opacity: 0; } to { opacity: 1; } }
-        .mm-bc-curve {
-          stroke-dasharray: 520; stroke-dashoffset: 520;
-          animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
-        }
-        .mm-bc-fill { opacity: 0; animation: mm-bc-fadein 1s ease 1.4s forwards; }
-
-        /* Tracker dot (auto + hover) */
-        .mm-bc-tracker {
-          position: absolute; pointer-events: none;
-          width: 16px; height: 16px; border-radius: 50%;
-          transform: translate(-50%, -50%);
-          background: var(--accent);
-          box-shadow:
-            0 0 0 6px ${isDark ? 'rgba(64,187,56,0.18)' : 'rgba(51,151,46,0.16)'},
-            0 0 22px ${isDark ? 'rgba(64,187,56,0.85)' : 'rgba(51,151,46,0.55)'},
-            0 0 40px ${isDark ? 'rgba(64,187,56,0.5)' : 'rgba(51,151,46,0.3)'};
-          transition: left 0.12s linear, top 0.12s linear;
-        }
-        .mm-bc-tracker::after {
-          content: ''; position: absolute; inset: 5px;
-          background: ${isDark ? '#0a0a0a' : '#fff'}; border-radius: 50%;
-        }
-        .mm-bc-tracker::before {
-          content: ''; position: absolute; inset: -8px;
-          border-radius: 50%; border: 1px solid var(--accent); opacity: 0;
-          animation: mm-bc-ring 2.2s ease-out infinite;
-        }
-        @keyframes mm-bc-ring {
-          0%   { transform: scale(0.8); opacity: 0.7; }
-          100% { transform: scale(2.2); opacity: 0; }
-        }
-        .mm-bc-cursor-line {
-          position: absolute; pointer-events: none;
-          width: 1px; top: 0; bottom: 0;
-          background: linear-gradient(to bottom, transparent, ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)'} 30%, ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)'} 80%, transparent);
-        }
-
-        /* Footer axes */
-        .mm-bc-axes {
-          display: flex; justify-content: space-between;
-          margin-top: 10px;
-          font-family: ui-monospace, "SF Mono", Menlo, monospace;
-          font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em;
-          text-transform: uppercase; font-weight: 700;
+        .mm-orb-sat-1 { animation: mm-orbit 11s linear infinite; }
+        .mm-orb-sat-2 { animation: mm-orbit 11s linear infinite; animation-delay: -3.67s; opacity: 0.55; width: 5px; height: 5px; }
+        .mm-orb-sat-3 { animation: mm-orbit 11s linear infinite; animation-delay: -7.33s; opacity: 0.3; width: 3px; height: 3px; }
+        @keyframes mm-orbit {
+          0%   { transform: rotate(0deg)   translateX(min(165px, 48vw)) rotate(0deg); }
+          100% { transform: rotate(360deg) translateX(min(165px, 48vw)) rotate(-360deg); }
         }
 
         /* ── STATS PANEL ── */
@@ -768,73 +598,36 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Interactive bonding curve — hidden on mobile */}
+            {/* Abstract orb — hidden on mobile */}
             <div className="mm-hero-visual">
-              <div className="mm-preview-glow" />
-              <div className="mm-bc-card">
-                <div className="mm-bc-status">
-                  <span className="mm-bc-pulse" />
-                  <span className="mm-bc-status-text">
-                    {curveHoverS != null ? 'Price · projected' : 'Live price discovery'}
-                  </span>
-                  <span className="mm-bc-status-net">Aptos · p = s³</span>
-                </div>
-
-                <div className="mm-bc-pricewrap">
-                  <div className="mm-bc-price-label">Token price</div>
-                  <div className="mm-bc-price">{formatCurvePrice(displayPrice)}</div>
-                </div>
-
-                <div className="mm-bc-metrics">
-                  <div>
-                    <div className="mm-bc-metric-label">Supply sold</div>
-                    <div className="mm-bc-metric-value">{formatCurveSupply(displaySupply)}</div>
-                  </div>
-                  <div>
-                    <div className="mm-bc-metric-label">Market cap</div>
-                    <div className="mm-bc-metric-value">{formatCurvePrice(displayMarketCap)}</div>
-                  </div>
-                </div>
-
-                <div className="mm-bc-canvas" onMouseMove={handleCurveMove} onMouseLeave={() => setCurveHoverS(null)}>
-                  <svg className="mm-bc-svg" viewBox="0 0 440 300" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="mm-bc-stroke" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.25" />
-                        <stop offset="55%" stopColor="var(--accent)" stopOpacity="0.85" />
-                        <stop offset="100%" stopColor={isDark ? '#5eead4' : '#0ea5e9'} stopOpacity="1" />
-                      </linearGradient>
-                      <linearGradient id="mm-bc-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.28" />
-                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    {/* Area fill */}
-                    <path className="mm-bc-fill" d={`${curvePath} L 420,270 L 28,270 Z`} fill="url(#mm-bc-area)" />
-                    {/* Multi-layer glow stack */}
-                    <path d={curvePath} stroke="var(--accent)" strokeWidth="22" strokeOpacity="0.06" fill="none" strokeLinecap="round" />
-                    <path d={curvePath} stroke="var(--accent)" strokeWidth="12" strokeOpacity="0.12" fill="none" strokeLinecap="round" />
-                    <path d={curvePath} stroke="var(--accent)" strokeWidth="6" strokeOpacity="0.22" fill="none" strokeLinecap="round" />
-                    {/* Core curve */}
-                    <path
-                      className="mm-bc-curve"
-                      d={curvePath}
-                      stroke="url(#mm-bc-stroke)"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                  <div className="mm-bc-cursor-line" style={{ left: `${hoverLeftPct}%` }} />
-                  <div className="mm-bc-tracker" style={{ left: `${hoverLeftPct}%`, top: `${hoverTopPct}%` }} />
-                </div>
-
-                <div className="mm-bc-axes">
-                  <span>0 supply</span>
-                  <span>1B max</span>
-                </div>
-              </div>
+              <div className="mm-orb-aura" />
+              <div className="mm-orb-sat mm-orb-sat-1" />
+              <div className="mm-orb-sat mm-orb-sat-2" />
+              <div className="mm-orb-sat mm-orb-sat-3" />
+              {/* Orbital ring as SVG ellipse for natural perspective */}
+              <svg className="mm-orb-ring" viewBox="0 0 390 390" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="195" cy="195" rx="186" ry="54"
+                  stroke={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}
+                  strokeWidth="1.2"
+                />
+                <ellipse cx="195" cy="195" rx="186" ry="54"
+                  stroke="url(#orb-ring-grad)"
+                  strokeWidth="1.5"
+                  strokeDasharray="80 500"
+                  strokeDashoffset="0"
+                  strokeLinecap="round"
+                >
+                  <animateTransform attributeName="transform" type="rotate" from="0 195 195" to="360 195 195" dur="11s" repeatCount="indefinite" />
+                </ellipse>
+                <defs>
+                  <linearGradient id="orb-ring-grad" gradientUnits="userSpaceOnUse" x1="9" y1="195" x2="381" y2="195">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0" />
+                    <stop offset="50%" stopColor="var(--accent)" stopOpacity="1" />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="mm-orb" />
             </div>
           </div>
         </section>
