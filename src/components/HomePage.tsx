@@ -272,11 +272,11 @@ const HomePage: React.FC = () => {
           to   { opacity: 1; }
         }
         .mm-bc-curve {
-          stroke-dasharray: 520; stroke-dashoffset: 520;
+          stroke-dasharray: 480; stroke-dashoffset: 480;
           animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
         }
         .mm-bc-glow {
-          stroke-dasharray: 520; stroke-dashoffset: 520;
+          stroke-dasharray: 480; stroke-dashoffset: 480;
           animation: mm-bc-draw 2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
         }
         .mm-bc-fill  { opacity: 0; animation: mm-bc-fade 0.8s ease 1.8s forwards; }
@@ -567,13 +567,18 @@ const HomePage: React.FC = () => {
                 <line x1="28" y1="22" x2="28" y2="272" stroke="var(--border)" strokeWidth="1.2" />
                 <line x1="26" y1="270" x2="424" y2="270" stroke="var(--border)" strokeWidth="1.2" />
 
-                {/* Graduation threshold */}
-                <line x1="368" y1="24" x2="368" y2="270" stroke="var(--accent)" strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.4" />
+                {/* Graduation threshold at s=0.87 → x=369 */}
+                <line x1="369" y1="24" x2="369" y2="270" stroke="var(--accent)" strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.4" />
+
+                {/*
+                  Curve points from price = supply^3, sampled every 5%
+                  x = 28 + s*392,  y = 270 - s^3*248
+                */}
 
                 {/* Area fill under curve */}
                 <path
                   className="mm-bc-fill"
-                  d="M 28,270 C 95,268 318,78 420,20 L 420,270 Z"
+                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22 L 420,270 Z"
                   fill="var(--accent)"
                   fillOpacity="0.07"
                 />
@@ -581,7 +586,7 @@ const HomePage: React.FC = () => {
                 {/* Glow layer */}
                 <path
                   className="mm-bc-glow"
-                  d="M 28,270 C 95,268 318,78 420,20"
+                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22"
                   stroke="var(--accent)"
                   strokeWidth="9"
                   strokeLinecap="round"
@@ -591,40 +596,40 @@ const HomePage: React.FC = () => {
                 {/* Main curve */}
                 <path
                   className="mm-bc-curve"
-                  d="M 28,270 C 95,268 318,78 420,20"
+                  d="M 28,270 L 47.6,270 67.2,269.8 86.8,269.2 106.4,268 126,266.1 145.6,263.3 165.2,259.4 184.8,254.1 204.4,247.4 224,239 243.6,228.7 263.2,216.4 282.8,201.8 302.4,184.9 322,165.4 341.6,143 361.2,117.7 380.8,89.2 400.4,57.4 420,22"
                   stroke="var(--accent)"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                 />
 
-                {/* Dot at ~t=0.5 (≈209, 166) */}
+                {/* Dot at s=0.70 → (302, 185) — curve is steepening */}
                 <g className="mm-bc-dot">
-                  <circle cx="209" cy="166" r="4" fill="none" stroke="var(--accent)" strokeWidth="1.5">
+                  <circle cx="302" cy="185" r="4" fill="none" stroke="var(--accent)" strokeWidth="1.5">
                     <animate attributeName="r" values="4;20;4" dur="2.5s" repeatCount="indefinite" />
                     <animate attributeName="stroke-opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite" />
                   </circle>
-                  <circle cx="209" cy="166" r="5.5" fill="var(--accent)">
+                  <circle cx="302" cy="185" r="5.5" fill="var(--accent)">
                     <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite" />
                   </circle>
-                  <circle cx="209" cy="166" r="2.5" fill={isDark ? '#000' : '#fff'} />
+                  <circle cx="302" cy="185" r="2.5" fill={isDark ? '#000' : '#fff'} />
                 </g>
 
-                {/* Label 1: Early entry */}
+                {/* Label 1: Early entry — s=0.30 → (145.6, 263.3) */}
                 <g className="mm-bc-lbl-1">
-                  <circle cx="80" cy="253" r="3" fill="var(--text-muted)" fillOpacity="0.6" />
-                  <text x="90" y="257" fontSize="11" fill="var(--text-muted)" fontWeight="600" fontFamily="inherit">Early entry</text>
+                  <circle cx="145" cy="263" r="3" fill="var(--text-muted)" fillOpacity="0.6" />
+                  <text x="153" y="257" fontSize="11" fill="var(--text-muted)" fontWeight="600" fontFamily="inherit">Early entry</text>
                 </g>
 
-                {/* Label 2: Price discovery (above dot) */}
+                {/* Label 2: Price discovery — above dot at (302, 185) */}
                 <g className="mm-bc-lbl-2">
-                  <line x1="209" y1="148" x2="209" y2="159" stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="2 2" strokeOpacity="0.5" />
-                  <text x="216" y="143" fontSize="11" fill="var(--text-secondary)" fontWeight="700" fontFamily="inherit">Price discovery</text>
+                  <line x1="302" y1="167" x2="302" y2="178" stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="2 2" strokeOpacity="0.5" />
+                  <text x="309" y="162" fontSize="11" fill="var(--text-secondary)" fontWeight="700" fontFamily="inherit">Price discovery</text>
                 </g>
 
                 {/* Label 3: Graduation */}
                 <g className="mm-bc-lbl-3">
-                  <text x="374" y="42" fontSize="11" fill="var(--accent)" fontWeight="700" fontFamily="inherit">Graduation</text>
-                  <text x="374" y="57" fontSize="10" fill="var(--text-muted)" fontFamily="inherit">→ DEX listing</text>
+                  <text x="375" y="42" fontSize="11" fill="var(--accent)" fontWeight="700" fontFamily="inherit">Graduation</text>
+                  <text x="375" y="57" fontSize="10" fill="var(--text-muted)" fontFamily="inherit">→ DEX listing</text>
                 </g>
 
                 {/* Axis labels */}
