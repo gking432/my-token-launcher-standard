@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { WatchlistItem, getWatchlist, addToWatchlist, removeFromWatchlist, isInWatchlist, toggleWatchlist as toggleWatchlistUtil } from '../utils/watchlistStorage';
 
 interface WatchlistContextType {
@@ -25,42 +26,43 @@ interface WatchlistProviderProps {
 }
 
 export const WatchlistProvider: React.FC<WatchlistProviderProps> = ({ children }) => {
+  const { account } = useWallet();
+  const walletAddress = account?.address?.toString();
+
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
 
   const refreshWatchlist = () => {
-    setWatchlist(getWatchlist());
+    setWatchlist(getWatchlist(walletAddress));
   };
 
+  // Reload whenever the connected wallet changes
   useEffect(() => {
     refreshWatchlist();
-    
-    // Listen for storage changes (in case watchlist is updated in another tab)
+    const key = walletAddress ? `token_watchlist_${walletAddress.toLowerCase()}` : 'token_watchlist';
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'token_watchlist') {
-        refreshWatchlist();
-      }
+      if (e.key === key) refreshWatchlist();
     };
-    
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletAddress]);
 
   const handleAddToWatchlist = (item: WatchlistItem) => {
-    addToWatchlist(item);
+    addToWatchlist(item, walletAddress);
     refreshWatchlist();
   };
 
   const handleRemoveFromWatchlist = (metadataAddress: string) => {
-    removeFromWatchlist(metadataAddress);
+    removeFromWatchlist(metadataAddress, walletAddress);
     refreshWatchlist();
   };
 
   const handleIsInWatchlist = (metadataAddress: string): boolean => {
-    return isInWatchlist(metadataAddress);
+    return isInWatchlist(metadataAddress, walletAddress);
   };
 
   const handleToggleWatchlist = (item: WatchlistItem): boolean => {
-    const result = toggleWatchlistUtil(item);
+    const result = toggleWatchlistUtil(item, walletAddress);
     refreshWatchlist();
     return result;
   };
